@@ -21,7 +21,7 @@ Uma Mensagem falada que vira texto antes de ser interpretada.
 _Avoid_: voice note, podcast
 
 **Calendário**:
-O Google Calendar do Dono, a fonte da verdade dos Compromissos. O Dono usa iPhone; o Google Calendar no iOS é aceitável. Datil e horas da Conversa são as de Brasília, em português do Brasil.
+O Google Calendar do Dono, a fonte da verdade dos Compromissos. A Consulta lê todas as agendas visíveis da conta; a Marcação grava só na agenda principal. Datas e horas da Conversa são as de Brasília, em português do Brasil.
 _Avoid_: Agenda (nome do produto), Apple Calendar (não é o destino da v1), Outlook
 
 **Compromisso**:
@@ -33,7 +33,7 @@ Compromisso com hora de início e fim. Se a Mensagem não disser quanto tempo, o
 _Avoid_: slot, meeting
 
 **Período**:
-Compromisso que ocupa um ou mais dias corridos (pescaria do dia 4 ao 7, cirurgia, viagem). Não usa a duração padrão de uma hora.
+Compromisso de dias inteiros, do primeiro ao último dia inclusive (pescaria do dia 4 ao 7 = 4, 5, 6 e 7). Na Conversa é um só Compromisso, não um por dia. Não usa a duração padrão de uma hora.
 _Avoid_: all-day (como nome nosso), viagem (é um exemplo, não o tipo), bloco
 
 **Consulta**:
@@ -49,17 +49,17 @@ Mudar a data/hora de um Pontual, ou os dias de um Período, só depois da Confir
 _Avoid_: update genérico, edit, reschedule (como nome de produto)
 
 **Cancelamento**:
-Remover um Compromisso do Calendário, só depois da Confirmação. Sem convidados. Se a fala for ambígua, a Conversa lista e o Dono escolhe.
+Remover o Compromisso inteiro do Calendário, só depois da Confirmação. Um Período não se recorta num dia: para soltar um dia, é Alteração dos extremos. Se a fala for ambígua, a Conversa lista e o Dono escolhe.
 _Avoid_: delete, unbook
 
 **Confirmação**:
-O sistema mostra o que entendeu; o Dono diz sim (ou equivalente) e só então a mutação vai para o Calendário.
+O sistema mostra o que entendeu (título, Pontual ou Período, datas/horas, Alerta de conflito se houver), não a transcrição crua do Áudio. O Dono diz sim e a mutação vai ao Calendário; diz não e a Conversa pergunta o que mudar, na mesma mutação.
 _Avoid_: dry-run, preview (como nome de domínio)
 
 **Alerta de conflito**:
-Na Marcação ou Alteração, aviso de sobreposição com um Compromisso já existente. Não grava por cima em silêncio. Consulta não usa este termo: ela resume o recorte.
+Na Marcação ou Alteração, aviso de sobreposição: Pontual×Pontual no horário, Pontual dentro de um Período, ou dois Períodos que compartilham um dia. Não grava por cima em silêncio; o Dono ainda pode mandar gravar depois de ver o aviso. Consulta não usa este termo: ela resume o recorte.
 _Avoid_: overlap, collision (como nome de produto)
 
 **Disponibilidade**:
-O estado livre/ocupado de um recorte do Calendário (um dia ou um Período), do ponto de vista do Dono.
+O estado livre/ocupado de um recorte do Calendário. Dia livre = nenhum Pontual e nenhum Período cobrindo aquele dia, nas agendas visíveis.
 _Avoid_: free/busy (como nome nosso)
