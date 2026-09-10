@@ -9,8 +9,8 @@ A única pessoa que fala com o sistema e cujo Calendário é lido e escrito.
 _Avoid_: usuário, cliente, account
 
 **Conversa**:
-O fio de mensagens em que o Dono pede consultas e mutações. Na v1 é um chat estilo conversa, não WhatsApp.
-_Avoid_: WhatsApp (canal da v1), inbox, thread
+O fio de mensagens no iPhone do Dono (texto e microfone) em que ele pede Consulta ou mutação. Não é WhatsApp.
+_Avoid_: WhatsApp (canal da v1), Telegram, inbox, thread
 
 **Mensagem**:
 Um turno do Dono na Conversa, em texto ou Áudio já transcrito para texto.
@@ -29,7 +29,7 @@ Um bloco de tempo no Calendário, com título, início e fim. Não leva convidad
 _Avoid_: evento (palavra do Google, não a nossa), meeting, appointment, convite
 
 **Consulta**:
-Pedido para saber se um dia (ou intervalo) está livre ou ocupado, sem gravar nada.
+Pedido para saber se um dia ou um intervalo está livre ou ocupado, sem gravar nada. Responde com o resumo dos Compromissos daquele recorte; não é um Alerta de conflito.
 _Avoid_: search, listagem, report
 
 **Marcação**:
@@ -49,9 +49,9 @@ O sistema mostra o que entendeu; o Dono diz sim (ou equivalente) e só então a 
 _Avoid_: dry-run, preview (como nome de domínio)
 
 **Alerta de conflito**:
-Aviso de que a data/hora pedida já tem Compromisso. Não grava por cima em silêncio.
+Na Marcação ou Alteração, aviso de que o horário pedido se sobrepõe a um Compromisso já existente. Não grava por cima em silêncio. Consulta de um dia não usa este termo: ela resume o dia.
 _Avoid_: overlap, collision (como nome de produto)
 
 **Disponibilidade**:
-O estado livre/ocupado de um dia no Calendário, do ponto de vista do Dono.
+O estado livre/ocupado de um recorte do Calendário (um dia ou um intervalo), do ponto de vista do Dono.
 _Avoid_: free/busy (como nome nosso)
