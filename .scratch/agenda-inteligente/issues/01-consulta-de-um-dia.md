@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] A aplicação sobe em desenvolvimento sem nenhuma credencial do Google e a Conversa responde
 - [ ] Uma data solta sem Compromisso responde que o dia está livre
