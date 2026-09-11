@@ -1,5 +1,7 @@
 import { criarCalendarioDeDemonstracao } from "@/adapters/calendario-em-memoria";
 import type { Calendario } from "@/domain/calendario";
+import { FUSO_DONO } from "@/domain/fuso";
+import { DateTime } from "luxon";
 
 /**
  * Sem credencial do Google: usa o adaptador em memória semeado.
@@ -7,9 +9,11 @@ import type { Calendario } from "@/domain/calendario";
  */
 let calendarioSingleton: Calendario | null = null;
 
-export function obterCalendario(): Calendario {
+export function obterCalendario(
+  agora: DateTime = DateTime.now().setZone(FUSO_DONO),
+): Calendario {
   if (!calendarioSingleton) {
-    calendarioSingleton = criarCalendarioDeDemonstracao();
+    calendarioSingleton = criarCalendarioDeDemonstracao(agora);
   }
   return calendarioSingleton;
 }

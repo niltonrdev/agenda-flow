@@ -1,6 +1,6 @@
 import type { Calendario, IntervaloCalendario } from "@/domain/calendario";
 import type { Compromisso, NovoCompromisso } from "@/domain/compromisso";
-import { FUSO_DONO } from "@/domain/fuso";
+import { FUSO_DONO, resolverAnoDaData } from "@/domain/fuso";
 import { DateTime } from "luxon";
 
 function sobrepoeIntervalo(
@@ -72,39 +72,49 @@ export function criarCalendarioEmMemoria(
   };
 }
 
-/** Compromissos de demonstração, incluindo a cirurgia no feriado de 7 de setembro. */
-export function compromissosDeDemonstracao(): Compromisso[] {
+/**
+ * Compromissos de demonstração alinhados ao mesmo "agora" da Conversa,
+ * para "7 de setembro" e "15 de novembro" encontrarem a Cirurgia e a Ana.
+ */
+export function compromissosDeDemonstracao(agora: DateTime): Compromisso[] {
+  const diaCirurgia = resolverAnoDaData(7, 9, agora);
+  const anoCirurgia = DateTime.fromISO(diaCirurgia, { zone: FUSO_DONO }).year;
+  const diaAna = resolverAnoDaData(15, 11, agora);
+
+  const inicioAna = DateTime.fromISO(diaAna, { zone: FUSO_DONO }).set({
+    hour: 15,
+    minute: 0,
+    second: 0,
+    millisecond: 0,
+  });
+
   return [
     {
       id: "demo-cirurgia",
       titulo: "Cirurgia",
       tipo: "periodo",
-      primeiroDia: "2025-09-07",
-      ultimoDia: "2025-09-07",
+      primeiroDia: diaCirurgia,
+      ultimoDia: diaCirurgia,
     },
     {
       id: "demo-reuniao-ana",
       titulo: "Reunião com a Ana",
       tipo: "pontual",
-      inicio: DateTime.fromObject(
-        { year: 2025, month: 11, day: 15, hour: 15, minute: 0 },
-        { zone: FUSO_DONO },
-      ).toISO()!,
-      fim: DateTime.fromObject(
-        { year: 2025, month: 11, day: 15, hour: 16, minute: 0 },
-        { zone: FUSO_DONO },
-      ).toISO()!,
+      inicio: inicioAna.toISO()!,
+      fim: inicioAna.plus({ hours: 1 }).toISO()!,
     },
     {
       id: "demo-pescaria",
       titulo: "Pescaria",
       tipo: "periodo",
-      primeiroDia: "2025-09-04",
-      ultimoDia: "2025-09-06",
+      primeiroDia: `${anoCirurgia}-09-04`,
+      ultimoDia: `${anoCirurgia}-09-06`,
     },
   ];
 }
 
-export function criarCalendarioDeDemonstracao(): CalendarioEmMemoria {
-  return criarCalendarioEmMemoria(compromissosDeDemonstracao());
+export function criarCalendarioDeDemonstracao(
+  agora: DateTime = DateTime.now().setZone(FUSO_DONO),
+): CalendarioEmMemoria {
+  return criarCalendarioEmMemoria(compromissosDeDemonstracao(agora));
 }

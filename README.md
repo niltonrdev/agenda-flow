@@ -15,7 +15,7 @@ npm run dev
 
 Abra [http://localhost:3000](http://localhost:3000). No iPhone, use o Safari na mesma rede ou o Tunel que preferir; a tela é pensada para viewport estreita.
 
-Não é preciso configurar Google OAuth para desenvolver: o adaptador em memória já vem com Compromissos de demonstração (incluindo a cirurgia no feriado de 7 de setembro e a reunião com a Ana em 15 de novembro de 2025).
+Não é preciso configurar Google OAuth para desenvolver: o adaptador em memória já vem com Compromissos de demonstração alinhados à data atual (Cirurgia no próximo 7 de setembro, reunião com a Ana no próximo 15 de novembro).
 
 ## Testar
 

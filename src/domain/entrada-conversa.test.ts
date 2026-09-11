@@ -15,7 +15,7 @@ const AGORA = DateTime.fromObject(
 
 describe("entrada de conversa — Consulta de um dia", () => {
   it("uma data solta sem Compromisso responde que o dia está livre", async () => {
-    const calendario = criarCalendarioEmMemoria(compromissosDeDemonstracao());
+    const calendario = criarCalendarioEmMemoria(compromissosDeDemonstracao(AGORA));
 
     const saida = await processarTurno(
       { mensagem: "15 de outubro", agora: AGORA },
@@ -27,7 +27,7 @@ describe("entrada de conversa — Consulta de um dia", () => {
   });
 
   it("um dia ocupado lista cada Compromisso com título e horário", async () => {
-    const calendario = criarCalendarioEmMemoria(compromissosDeDemonstracao());
+    const calendario = criarCalendarioEmMemoria(compromissosDeDemonstracao(AGORA));
 
     const saida = await processarTurno(
       { mensagem: "15 de novembro", agora: AGORA },
@@ -41,7 +41,7 @@ describe("entrada de conversa — Consulta de um dia", () => {
   });
 
   it("um Período que cobre o dia consultado aparece na resposta desse dia", async () => {
-    const calendario = criarCalendarioEmMemoria(compromissosDeDemonstracao());
+    const calendario = criarCalendarioEmMemoria(compromissosDeDemonstracao(AGORA));
 
     const saida = await processarTurno(
       { mensagem: "7 de setembro", agora: AGORA },
@@ -53,7 +53,7 @@ describe("entrada de conversa — Consulta de um dia", () => {
   });
 
   it("mensagem que o interpretador não entende recebe resposta dizendo isso, e nada é gravado", async () => {
-    const calendario = criarCalendarioEmMemoria(compromissosDeDemonstracao());
+    const calendario = criarCalendarioEmMemoria(compromissosDeDemonstracao(AGORA));
     const antes = calendario.listarTodos();
 
     const saida = await processarTurno(
@@ -79,5 +79,22 @@ describe("entrada de conversa — Consulta de um dia", () => {
 
     // 15/11/2025 já passou → cai em 2026; sem Compromisso → livre
     expect(saida.texto).toBe("15 de novembro está livre.");
+  });
+
+  it("depois que o feriado passou, a demonstração ainda mostra a Cirurgia no próximo 7 de setembro", async () => {
+    const depoisDoFeriado = DateTime.fromObject(
+      { year: 2026, month: 9, day: 11, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+    const calendario = criarCalendarioEmMemoria(
+      compromissosDeDemonstracao(depoisDoFeriado),
+    );
+
+    const saida = await processarTurno(
+      { mensagem: "7 de setembro", agora: depoisDoFeriado },
+      calendario,
+    );
+
+    expect(saida.texto).toContain("Cirurgia");
   });
 });

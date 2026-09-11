@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     const agora = DateTime.now().setZone(FUSO_DONO);
     const saida = await processarTurno(
       { mensagem: corpo.mensagem, agora },
-      obterCalendario(),
+      obterCalendario(agora),
     );
 
     return NextResponse.json({ texto: saida.texto });
