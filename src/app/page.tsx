@@ -19,7 +19,7 @@ export default function ConversaPage() {
       id: "boas-vindas",
       papel: "agenda",
       texto:
-        "Olá. Pergunte por um dia, por exemplo “15 de novembro” ou “7 de setembro”.",
+        "Olá. Pergunte por um dia ou um recorte, por exemplo “15 de novembro”, “pescaria do dia 4 ao 7” ou “esse fim de semana”.",
     },
   ]);
   const [rascunho, setRascunho] = useState("");
@@ -136,7 +136,7 @@ export default function ConversaPage() {
           ref={campoRef}
           className="conversa-campo"
           rows={1}
-          placeholder="Ex.: 15 de novembro"
+          placeholder="Ex.: pescaria do dia 4 ao 7"
           value={rascunho}
           onChange={(e) => setRascunho(e.target.value)}
           onKeyDown={aoTeclar}

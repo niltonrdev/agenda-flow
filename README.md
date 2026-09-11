@@ -2,7 +2,7 @@
 
 Ferramenta pessoal do **Dono**: uma Conversa em português do Brasil que consulta Disponibilidade no Calendário e, depois de Confirmação, cria, altera ou cancela um Compromisso.
 
-Na v1 (ticket atual) a Conversa já responde a **Consulta de um dia** — por exemplo “15 de novembro” — usando um Calendário em memória semeado, sem nenhuma credencial do Google.
+Na v1 a Conversa responde a **Consulta de um dia** e a **Consulta de intervalo** — “15 de novembro”, “pescaria do dia 4 ao 7”, “feriado de 7 de setembro”, “esse fim de semana” — usando um Calendário em memória semeado, sem nenhuma credencial do Google.
 
 ## Rodar localmente
 
