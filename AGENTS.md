@@ -2,6 +2,8 @@
 
 This repo uses Matt Pocock's Skills for Real Engineers. Align → spec → tickets → implement with TDD. Do not start coding from a vague idea.
 
+**Ordem dos tickets e comandos `/implement` prontos para colar:** [`docs/guia-de-implementacao.md`](docs/guia-de-implementacao.md).
+
 ## Agent skills
 
 ### Issue tracker
