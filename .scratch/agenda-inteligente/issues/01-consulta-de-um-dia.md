@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** in-review
+**Status:** done
 
 - [x] A aplicação sobe em desenvolvimento sem nenhuma credencial do Google e a Conversa responde
 - [x] Uma data solta sem Compromisso responde que o dia está livre
