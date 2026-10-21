@@ -17,12 +17,14 @@ export type ConfirmacaoPeriodo = {
 
 export type ConfirmacaoPendente = ConfirmacaoPontual | ConfirmacaoPeriodo;
 
+function tituloValido(valor: unknown): valor is string {
+  return typeof valor === "string" && valor.trim() !== "";
+}
+
 export function ehConfirmacaoPendente(valor: unknown): valor is ConfirmacaoPendente {
   if (!valor || typeof valor !== "object") return false;
   const proposta = valor as Partial<ConfirmacaoPendente>;
-  if (typeof proposta.titulo !== "string" || proposta.titulo.trim() === "") {
-    return false;
-  }
+  if (!tituloValido(proposta.titulo)) return false;
   if (proposta.acao === "marcar_pontual") {
     return typeof proposta.inicio === "string" && typeof proposta.fim === "string";
   }

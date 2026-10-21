@@ -71,8 +71,6 @@ const RE_DATA = new RegExp(
 
 const RE_CONFIRMAR = /^(?:sim|confirmo|pode gravar)\s*[.!]?\s*$/u;
 
-const RE_PEDIDO_MARCAR = /^(?:marcar|marca|marque)\b/u;
-
 const RE_TEM_HORA = /\b\d{1,2}\s*h(?:\d{2})?\b|\b\d{1,2}:\d{2}\b/u;
 
 const PALAVRA = String.raw`(?<![\p{L}\p{N}])`;
@@ -325,24 +323,42 @@ export function interpretarMensagem(
     return montarPontual(mensagem.trim(), texto, agora);
   }
 
+  const pedidoDeMarcacao = /^(?:marcar|marca|marque)\b/u.test(texto);
   const matchIntervalo = RE_INTERVALO.exec(texto);
-  if (matchIntervalo) {
-    const intervalo = montarIntervalo(
+  if (pedidoDeMarcacao && matchIntervalo) {
+    const recorte = montarIntervalo(
       Number(matchIntervalo[1]),
       mesDe(matchIntervalo[2]),
       Number(matchIntervalo[3]),
       mesDe(matchIntervalo[4]),
       agora,
     );
-    if (intervalo.tipo === "consulta_intervalo" && RE_PEDIDO_MARCAR.test(texto)) {
-      return {
-        tipo: "marcar_periodo",
-        titulo: tituloDaMensagem(mensagem.trim()),
-        primeiroDia: intervalo.primeiroDia,
-        ultimoDia: intervalo.ultimoDia,
-      };
-    }
-    return intervalo;
+    if (recorte.tipo !== "consulta_intervalo") return recorte;
+    const tituloBruto = mensagem
+      .trim()
+      .replace(/^(?:marcar|marca|marque)\s+/iu, "")
+      .replace(new RegExp(RE_INTERVALO.source, "iu"), " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const titulo = tituloBruto
+      ? tituloBruto.charAt(0).toLocaleUpperCase("pt-BR") + tituloBruto.slice(1)
+      : "Compromisso";
+    return {
+      tipo: "marcar_periodo",
+      titulo,
+      primeiroDia: recorte.primeiroDia,
+      ultimoDia: recorte.ultimoDia,
+    };
+  }
+
+  if (matchIntervalo) {
+    return montarIntervalo(
+      Number(matchIntervalo[1]),
+      mesDe(matchIntervalo[2]),
+      Number(matchIntervalo[3]),
+      mesDe(matchIntervalo[4]),
+      agora,
+    );
   }
 
   const matchFeriado = RE_FERIADO.exec(texto);

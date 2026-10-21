@@ -8,7 +8,8 @@ import {
   formatarConfirmacao,
   formatarConsultaDia,
   formatarConsultaIntervalo,
-  formatarMarcado,
+  formatarPeriodoMarcado,
+  formatarPontualMarcado,
   RESPOSTA_NAO_ENTENDI,
 } from "./formatar-resposta";
 import { fimDoDia, inicioDoDia } from "./fuso";
@@ -47,23 +48,26 @@ export async function processarTurno(
     if (!pendente) {
       return { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: null };
     }
-    if (pendente.acao === "marcar_pontual") {
-      await calendario.criar({
-        tipo: "pontual",
-        titulo: pendente.titulo,
-        inicio: pendente.inicio,
-        fim: pendente.fim,
-      });
-    } else {
+    if (pendente.acao === "marcar_periodo") {
       await calendario.criar({
         tipo: "periodo",
         titulo: pendente.titulo,
         primeiroDia: pendente.primeiroDia,
         ultimoDia: pendente.ultimoDia,
       });
+      return {
+        texto: formatarPeriodoMarcado(pendente),
+        confirmacaoPendente: null,
+      };
     }
+    await calendario.criar({
+      tipo: "pontual",
+      titulo: pendente.titulo,
+      inicio: pendente.inicio,
+      fim: pendente.fim,
+    });
     return {
-      texto: formatarMarcado(pendente),
+      texto: formatarPontualMarcado(pendente),
       confirmacaoPendente: null,
     };
   }
