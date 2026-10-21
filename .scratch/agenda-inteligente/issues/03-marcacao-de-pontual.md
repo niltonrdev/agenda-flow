@@ -4,13 +4,13 @@
 
 **Blocked by:** 01 (Consulta de um dia)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A Mensagem de marcar produz uma Confirmação com título, data e horário de início e fim
-- [ ] Pontual sem duração na Mensagem termina uma hora depois do início
-- [ ] Duração dita na Mensagem ("das 15h às 16h30", "por 30 minutos") é respeitada
-- [ ] O sim grava o Compromisso e a Conversa avisa que ficou marcado
-- [ ] Enquanto o Dono não confirma, nada é gravado
-- [ ] A Confirmação pendente atravessa os turnos explicitamente, sem estado global no servidor
-- [ ] Se o Dono manda outro pedido em vez de responder, a proposta é descartada e o novo pedido é atendido
-- [ ] Depois de gravado, consultar aquele dia mostra o Compromisso novo
+- [x] A Mensagem de marcar produz uma Confirmação com título, data e horário de início e fim
+- [x] Pontual sem duração na Mensagem termina uma hora depois do início
+- [x] Duração dita na Mensagem ("das 15h às 16h30", "por 30 minutos") é respeitada
+- [x] O sim grava o Compromisso e a Conversa avisa que ficou marcado
+- [x] Enquanto o Dono não confirma, nada é gravado
+- [x] A Confirmação pendente atravessa os turnos explicitamente, sem estado global no servidor
+- [x] Se o Dono manda outro pedido em vez de responder, a proposta é descartada e o novo pedido é atendido
+- [x] Depois de gravado, consultar aquele dia mostra o Compromisso novo

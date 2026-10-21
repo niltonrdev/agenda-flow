@@ -1,26 +1,12 @@
 "use client";
 
+import type { ConfirmacaoPendente } from "@/domain/confirmacao";
 import {
   useEffect,
   useRef,
   useState,
   type KeyboardEvent,
 } from "react";
-
-type ConfirmacaoNaTela =
-  | {
-      tipo: "periodo";
-      titulo: string;
-      primeiroDia: string;
-      ultimoDia: string;
-    }
-  | {
-      tipo: "pontual";
-      titulo: string;
-      inicio: string;
-      fim: string;
-    }
-  | null;
 
 type MensagemNaTela = {
   id: string;
@@ -34,14 +20,14 @@ export default function ConversaPage() {
       id: "boas-vindas",
       papel: "agenda",
       texto:
-        "Olá. Pergunte por um dia, por exemplo “15 de novembro”, ou marque com “pescaria do dia 4 ao 7”.",
+        "Olá. Pergunte por um dia ou um recorte, por exemplo “15 de novembro”, “pescaria do dia 4 ao 7” ou “esse fim de semana”.",
     },
   ]);
-  const [confirmacaoPendente, setConfirmacaoPendente] =
-    useState<ConfirmacaoNaTela>(null);
   const [rascunho, setRascunho] = useState("");
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [confirmacaoPendente, setConfirmacaoPendente] =
+    useState<ConfirmacaoPendente | null>(null);
   const fimRef = useRef<HTMLDivElement>(null);
   const campoRef = useRef<HTMLTextAreaElement>(null);
 
@@ -66,12 +52,15 @@ export default function ConversaPage() {
       const resposta = await fetch("/api/conversa", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mensagem: texto, confirmacaoPendente }),
+        body: JSON.stringify({
+          mensagem: texto,
+          confirmacaoPendente,
+        }),
       });
       const dados = (await resposta.json()) as {
         texto?: string;
         erro?: string;
-        confirmacaoPendente?: ConfirmacaoNaTela;
+        confirmacaoPendente?: ConfirmacaoPendente | null;
       };
 
       if (!resposta.ok) {
@@ -158,7 +147,7 @@ export default function ConversaPage() {
           ref={campoRef}
           className="conversa-campo"
           rows={1}
-          placeholder="Ex.: pescaria do dia 4 ao 7"
+          placeholder="Ex.: reunião com a Ana amanhã às 15h"
           value={rascunho}
           onChange={(e) => setRascunho(e.target.value)}
           onKeyDown={aoTeclar}

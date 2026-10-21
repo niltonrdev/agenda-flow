@@ -1,14 +1,19 @@
 import type { Calendario } from "./calendario";
-import type { ConfirmacaoPendente } from "./confirmacao";
 import {
-  formatarConfirmacao,
+  ehConfirmacaoPendente,
+  type ConfirmacaoPendente,
+} from "./confirmacao";
+import {
+  formatarConfirmacaoPeriodo,
+  formatarConfirmacaoPontual,
   formatarConsultaDia,
   formatarConsultaIntervalo,
-  formatarGravado,
+  formatarPeriodoMarcado,
+  formatarPontualMarcado,
   RESPOSTA_NAO_ENTENDI,
 } from "./formatar-resposta";
 import { fimDoDia, inicioDoDia } from "./fuso";
-import { interpretarMensagem, mensagemEhSim } from "./interpretador";
+import { interpretarMensagem } from "./interpretador";
 import { DateTime } from "luxon";
 
 export type EntradaConversa = {
@@ -16,8 +21,7 @@ export type EntradaConversa = {
   /** Relógio congelado nos testes; nunca ler Date.now() no núcleo. */
   agora: DateTime;
   /**
-   * Confirmação ainda não gravada, devolvida no turno anterior.
-   * Ausente ou nula: não há proposta.
+   * Proposta do turno anterior. O chamador devolve; o servidor não guarda.
    */
   confirmacaoPendente?: ConfirmacaoPendente | null;
 };
@@ -27,44 +31,46 @@ export type SaidaConversa = {
   confirmacaoPendente: ConfirmacaoPendente | null;
 };
 
-function propostaValida(
-  proposta: ConfirmacaoPendente | null | undefined,
-): proposta is ConfirmacaoPendente {
-  if (!proposta || (proposta.tipo !== "periodo" && proposta.tipo !== "pontual")) {
-    return false;
-  }
-  return typeof proposta.titulo === "string" && proposta.titulo.trim() !== "";
-}
-
 /**
  * Única entrada de conversa: Mensagem + agora → resposta em PT-BR.
- * A UI não decide domínio; só mostra o texto e devolve a Confirmação pendente.
+ * A UI não decide domínio; só mostra o texto.
  */
 export async function processarTurno(
   entrada: EntradaConversa,
   calendario: Calendario,
 ): Promise<SaidaConversa> {
-  if (mensagemEhSim(entrada.mensagem) && propostaValida(entrada.confirmacaoPendente)) {
-    const proposta = entrada.confirmacaoPendente;
-    if (proposta.tipo === "periodo") {
+  const intencao = interpretarMensagem(entrada.mensagem, entrada.agora);
+  const pendente = ehConfirmacaoPendente(entrada.confirmacaoPendente)
+    ? entrada.confirmacaoPendente
+    : null;
+
+  if (intencao.tipo === "confirmar") {
+    if (!pendente) {
+      return { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: null };
+    }
+    if (pendente.acao === "marcar_periodo") {
       await calendario.criar({
         tipo: "periodo",
-        titulo: proposta.titulo,
-        primeiroDia: proposta.primeiroDia,
-        ultimoDia: proposta.ultimoDia,
+        titulo: pendente.titulo,
+        primeiroDia: pendente.primeiroDia,
+        ultimoDia: pendente.ultimoDia,
       });
-    } else {
-      await calendario.criar({
-        tipo: "pontual",
-        titulo: proposta.titulo,
-        inicio: proposta.inicio,
-        fim: proposta.fim,
-      });
+      return {
+        texto: formatarPeriodoMarcado(pendente),
+        confirmacaoPendente: null,
+      };
     }
-    return { texto: formatarGravado(proposta), confirmacaoPendente: null };
+    await calendario.criar({
+      tipo: "pontual",
+      titulo: pendente.titulo,
+      inicio: pendente.inicio,
+      fim: pendente.fim,
+    });
+    return {
+      texto: formatarPontualMarcado(pendente),
+      confirmacaoPendente: null,
+    };
   }
-
-  const intencao = interpretarMensagem(entrada.mensagem, entrada.agora);
 
   if (intencao.tipo === "desconhecida") {
     return { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: null };
@@ -98,19 +104,29 @@ export async function processarTurno(
 
   if (intencao.tipo === "marcar_periodo") {
     const proposta: ConfirmacaoPendente = {
-      tipo: "periodo",
+      acao: "marcar_periodo",
       titulo: intencao.titulo,
       primeiroDia: intencao.primeiroDia,
       ultimoDia: intencao.ultimoDia,
     };
-    return { texto: formatarConfirmacao(proposta), confirmacaoPendente: proposta };
+    return {
+      texto: formatarConfirmacaoPeriodo(proposta),
+      confirmacaoPendente: proposta,
+    };
   }
 
-  const proposta: ConfirmacaoPendente = {
-    tipo: "pontual",
-    titulo: intencao.titulo,
-    inicio: intencao.inicio,
-    fim: intencao.fim,
-  };
-  return { texto: formatarConfirmacao(proposta), confirmacaoPendente: proposta };
+  if (intencao.tipo === "marcar_pontual") {
+    const proposta: ConfirmacaoPendente = {
+      acao: "marcar_pontual",
+      titulo: intencao.titulo,
+      inicio: intencao.inicio,
+      fim: intencao.fim,
+    };
+    return {
+      texto: formatarConfirmacaoPontual(proposta),
+      confirmacaoPendente: proposta,
+    };
+  }
+
+  return { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: null };
 }

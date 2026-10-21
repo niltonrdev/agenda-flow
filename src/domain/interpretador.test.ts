@@ -1,0 +1,130 @@
+import { FUSO_DONO } from "@/domain/fuso";
+import { interpretarMensagem } from "@/domain/interpretador";
+import { DateTime } from "luxon";
+import { describe, expect, it } from "vitest";
+
+const AGORA = DateTime.fromObject(
+  { year: 2025, month: 8, day: 1, hour: 10, minute: 0 },
+  { zone: FUSO_DONO },
+);
+
+const AGORA_SETEMBRO = DateTime.fromObject(
+  { year: 2025, month: 9, day: 1, hour: 10, minute: 0 },
+  { zone: FUSO_DONO },
+);
+
+describe("interpretador — Consulta de intervalo", () => {
+  it("do dia 4 ao 7, no mês corrente futuro, cobre os quatro dias inclusive", () => {
+    const intencao = interpretarMensagem("do dia 4 ao 7", AGORA_SETEMBRO);
+
+    expect(intencao).toEqual({
+      tipo: "consulta_intervalo",
+      primeiroDia: "2025-09-04",
+      ultimoDia: "2025-09-07",
+    });
+  });
+
+  it("do dia 4 ao 7 sem mês, em agosto, não salta para setembro", () => {
+    const intencao = interpretarMensagem("do dia 4 ao 7", AGORA);
+
+    expect(intencao).toEqual({
+      tipo: "consulta_intervalo",
+      primeiroDia: "2025-08-04",
+      ultimoDia: "2025-08-07",
+    });
+  });
+
+  it("4 a 7 de setembro usa o mês dito", () => {
+    const intencao = interpretarMensagem(
+      "pescaria do dia 4 ao 7 de setembro",
+      AGORA,
+    );
+
+    expect(intencao).toEqual({
+      tipo: "consulta_intervalo",
+      primeiroDia: "2025-09-04",
+      ultimoDia: "2025-09-07",
+    });
+  });
+
+  it("intervalo atravessando o mês resolve os dois extremos", () => {
+    const intencao = interpretarMensagem(
+      "de 30 de agosto a 2 de setembro",
+      AGORA,
+    );
+
+    expect(intencao).toEqual({
+      tipo: "consulta_intervalo",
+      primeiroDia: "2025-08-30",
+      ultimoDia: "2025-09-02",
+    });
+  });
+
+  it("feriado num domingo recorta o sábado e o domingo", () => {
+    const intencao = interpretarMensagem("feriado de 7 de setembro", AGORA);
+
+    expect(intencao).toEqual({
+      tipo: "consulta_intervalo",
+      primeiroDia: "2025-09-06",
+      ultimoDia: "2025-09-07",
+    });
+  });
+
+  it("feriado numa quinta recorta até o domingo (emenda)", () => {
+    const intencao = interpretarMensagem("feriado de 20 de novembro", AGORA);
+
+    expect(intencao).toEqual({
+      tipo: "consulta_intervalo",
+      primeiroDia: "2025-11-20",
+      ultimoDia: "2025-11-23",
+    });
+  });
+
+  it("feriado numa quarta não alarga", () => {
+    const intencao = interpretarMensagem("feriado de 1 de outubro", AGORA);
+
+    expect(intencao).toEqual({
+      tipo: "consulta_intervalo",
+      primeiroDia: "2025-10-01",
+      ultimoDia: "2025-10-01",
+    });
+  });
+
+  it("esse fim de semana numa sexta é sábado e domingo seguintes", () => {
+    const sexta = DateTime.fromObject(
+      { year: 2025, month: 8, day: 1, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+
+    expect(interpretarMensagem("esse fim de semana", sexta)).toEqual({
+      tipo: "consulta_intervalo",
+      primeiroDia: "2025-08-02",
+      ultimoDia: "2025-08-03",
+    });
+  });
+
+  it("fim de semana num sábado é o recorte corrente", () => {
+    const sabado = DateTime.fromObject(
+      { year: 2025, month: 8, day: 2, hour: 16, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+
+    expect(interpretarMensagem("fim de semana", sabado)).toEqual({
+      tipo: "consulta_intervalo",
+      primeiroDia: "2025-08-02",
+      ultimoDia: "2025-08-03",
+    });
+  });
+
+  it("data solta segue consulta de um dia, mesmo num sábado", () => {
+    const sexta = DateTime.fromObject(
+      { year: 2025, month: 11, day: 14, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+
+    expect(interpretarMensagem("15 de novembro", sexta)).toEqual({
+      tipo: "consulta_dia",
+      dia: "2025-11-15",
+    });
+  });
+});

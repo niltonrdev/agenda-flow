@@ -85,3 +85,60 @@ export function resolverAnoDaData(
   }
   return candidato.toISODate()!;
 }
+
+export type RecorteDias = {
+  primeiroDia: string;
+  ultimoDia: string;
+};
+
+/**
+ * Sábado e domingo deste fim de semana (se hoje já é sábado/domingo)
+ * ou do próximo, em Brasília.
+ */
+export function recorteFimDeSemana(agora: DateTime): RecorteDias {
+  const d = agoraEmBrasilia(agora).startOf("day");
+  const wd = d.weekday;
+  let sabado: DateTime;
+  if (wd === 6) {
+    sabado = d;
+  } else if (wd === 7) {
+    sabado = d.minus({ days: 1 });
+  } else {
+    sabado = d.plus({ days: 6 - wd });
+  }
+  return {
+    primeiroDia: sabado.toISODate()!,
+    ultimoDia: sabado.plus({ days: 1 }).toISODate()!,
+  };
+}
+
+/**
+ * Recorte do feriado: o dia dito, mais o fim de semana colado
+ * e a emenda típica (segunda↔sábado quando a folga é terça; quinta→domingo).
+ */
+export function recorteFeriado(dia: string): RecorteDias {
+  const dt = DateTime.fromISO(dia, { zone: FUSO_DONO }).startOf("day");
+  if (!dt.isValid) {
+    throw new Error(`Data inválida: ${dia}`);
+  }
+  const wd = dt.weekday;
+  let primeiro = dt;
+  let ultimo = dt;
+  if (wd === 1) {
+    primeiro = dt.minus({ days: 2 });
+  } else if (wd === 2) {
+    primeiro = dt.minus({ days: 3 });
+  } else if (wd === 4) {
+    ultimo = dt.plus({ days: 3 });
+  } else if (wd === 5) {
+    ultimo = dt.plus({ days: 2 });
+  } else if (wd === 6) {
+    ultimo = dt.plus({ days: 1 });
+  } else if (wd === 7) {
+    primeiro = dt.minus({ days: 1 });
+  }
+  return {
+    primeiroDia: primeiro.toISODate()!,
+    ultimoDia: ultimo.toISODate()!,
+  };
+}

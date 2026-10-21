@@ -1,5 +1,5 @@
-import type { ConfirmacaoPendente } from "./confirmacao";
 import type { Compromisso } from "./compromisso";
+import type { ConfirmacaoPeriodo, ConfirmacaoPontual } from "./confirmacao";
 import {
   FUSO_DONO,
   diaCivil,
@@ -21,6 +21,31 @@ function formatarCompromisso(compromisso: Compromisso): string {
     return `${compromisso.titulo} (dia inteiro)`;
   }
   return `${compromisso.titulo}, de ${formatarDiaPorExtenso(compromisso.primeiroDia)} a ${formatarDiaPorExtenso(compromisso.ultimoDia)}`;
+}
+
+function detalhePontual(titulo: string, inicio: string, fim: string): string {
+  const dia = diaCivil(DateTime.fromISO(inicio, { setZone: true }));
+  return `${titulo}, ${formatarDiaPorExtenso(dia)}, das ${formatarHora(inicio)} às ${formatarHora(fim)}`;
+}
+
+export function formatarConfirmacaoPontual(proposta: ConfirmacaoPontual): string {
+  return `Confirmação: ${detalhePontual(proposta.titulo, proposta.inicio, proposta.fim)}. Diga sim para marcar.`;
+}
+
+export function formatarPontualMarcado(proposta: ConfirmacaoPontual): string {
+  return `Marquei ${detalhePontual(proposta.titulo, proposta.inicio, proposta.fim)}.`;
+}
+
+function detalhePeriodo(proposta: ConfirmacaoPeriodo): string {
+  return `${proposta.titulo}, de ${formatarDiaPorExtenso(proposta.primeiroDia)} a ${formatarDiaPorExtenso(proposta.ultimoDia)}, dia inteiro`;
+}
+
+export function formatarConfirmacaoPeriodo(proposta: ConfirmacaoPeriodo): string {
+  return `Confirmação: ${detalhePeriodo(proposta)}. Diga sim para marcar.`;
+}
+
+export function formatarPeriodoMarcado(proposta: ConfirmacaoPeriodo): string {
+  return `Marquei ${detalhePeriodo(proposta)}.`;
 }
 
 export function formatarConsultaDia(
@@ -86,20 +111,4 @@ export function formatarConsultaIntervalo(
     .sort((a, b) => instanteDeOrdenacao(a).localeCompare(instanteDeOrdenacao(b)))
     .map((c) => `• ${formatarCompromissoNoIntervalo(c)}`);
   return `${rotulo}:\n${linhas.join("\n")}`;
-}
-
-export function formatarConfirmacao(proposta: ConfirmacaoPendente): string {
-  if (proposta.tipo === "periodo") {
-    return `Vou marcar ${proposta.titulo}, de ${formatarDiaPorExtenso(proposta.primeiroDia)} a ${formatarDiaPorExtenso(proposta.ultimoDia)}, dia inteiro. Posso gravar?`;
-  }
-  const dia = diaCivil(DateTime.fromISO(proposta.inicio, { setZone: true }));
-  return `Vou marcar ${proposta.titulo} em ${formatarDiaPorExtenso(dia)}, ${formatarHora(proposta.inicio)}–${formatarHora(proposta.fim)}. Posso gravar?`;
-}
-
-export function formatarGravado(proposta: ConfirmacaoPendente): string {
-  if (proposta.tipo === "periodo") {
-    return `${proposta.titulo} ficou marcado, de ${formatarDiaPorExtenso(proposta.primeiroDia)} a ${formatarDiaPorExtenso(proposta.ultimoDia)}.`;
-  }
-  const dia = diaCivil(DateTime.fromISO(proposta.inicio, { setZone: true }));
-  return `${proposta.titulo} ficou marcado em ${formatarDiaPorExtenso(dia)}, ${formatarHora(proposta.inicio)}–${formatarHora(proposta.fim)}.`;
 }
