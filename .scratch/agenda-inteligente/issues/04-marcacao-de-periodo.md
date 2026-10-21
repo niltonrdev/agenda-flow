@@ -4,12 +4,12 @@
 
 **Blocked by:** 02 (Consulta de intervalo), 03 (Marcação de Pontual com Confirmação)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A Mensagem com intervalo de dias produz Confirmação de Período, com primeiro e último dia
-- [ ] O sim grava um único Compromisso de dias inteiros, inclusive nos extremos
-- [ ] O Período não é gravado como vários Compromissos, um por dia
-- [ ] A duração padrão de uma hora não é aplicada ao Período
-- [ ] Consultar qualquer dia coberto encontra o Período
-- [ ] Consultar o intervalo mostra o Período uma vez só, não repetido por dia
-- [ ] A Conversa distingue Pontual de Período pela Mensagem, sem o Dono precisar dizer o tipo
+- [x] A Mensagem com intervalo de dias produz Confirmação de Período, com primeiro e último dia
+- [x] O sim grava um único Compromisso de dias inteiros, inclusive nos extremos
+- [x] O Período não é gravado como vários Compromissos, um por dia
+- [x] A duração padrão de uma hora não é aplicada ao Período
+- [x] Consultar qualquer dia coberto encontra o Período
+- [x] Consultar o intervalo mostra o Período uma vez só, não repetido por dia
+- [x] A Conversa distingue Pontual de Período pela Mensagem, sem o Dono precisar dizer o tipo
