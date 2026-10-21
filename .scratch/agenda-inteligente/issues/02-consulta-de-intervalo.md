@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (Consulta de um dia)
 
-**Status:** in-review
+**Status:** done
 
 - [x] Fala de feriado, fim de semana, viagem ou pescaria com datas consulta o intervalo correspondente
 - [x] "Do dia 4 ao 7" consulta os quatro dias, inclusive os extremos

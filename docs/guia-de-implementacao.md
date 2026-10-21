@@ -7,10 +7,8 @@ Como seguir depois do grill / spec / tickets. Cada ticket = **uma conversa nova*
 | Ticket | Status | Onde |
 | --- | --- | --- |
 | 01 Consulta de um dia | **feito** (na `main`) | mergeado |
-| 02 Consulta de intervalo | **próximo** | branch `cursor/consulta-de-intervalo-3cf7` já tem o código; ainda **não** está na `main` |
+| 02 Consulta de intervalo | **feito** (na `main`) | mergeado |
 | 03–10 | prontos, bloqueados conforme a tabela abaixo | ainda não começados |
-
-Se você achou que o 02 já tinha entrado: revise o PR/merge dessa branch, ou rode `/implement` de novo (o agente parte da `main` atual).
 
 ## Como pedir o próximo ticket
 
@@ -21,15 +19,7 @@ Se você achou que o 02 já tinha entrado: revise o PR/merge dessa branch, ou ro
 
 ## Ordem e comandos (cole na conversa nova)
 
-### Próximo agora → 02
-
-```
-/implement .scratch/agenda-inteligente/issues/02-consulta-de-intervalo.md
-```
-
-*(Alternativa: se a branch `cursor/consulta-de-intervalo-3cf7` ainda existir com o trabalho completo, abra o PR e mergeie na `main` em vez de reimplementar.)*
-
-### Depois do 02 → 03 e 09 em paralelo (conversas **separadas**)
+### Próximo agora → 03 (e 09 em paralelo, se quiser)
 
 ```
 /implement .scratch/agenda-inteligente/issues/03-marcacao-de-pontual.md
@@ -38,6 +28,8 @@ Se você achou que o 02 já tinha entrado: revise o PR/merge dessa branch, ou ro
 ```
 /implement .scratch/agenda-inteligente/issues/09-audio-e-tela-inicial.md
 ```
+
+*(03 e 09 só dependem do 01; podem rodar em conversas **separadas** ao mesmo tempo.)*
 
 ### Cadeia linear depois do 03 (+ 02 já na main)
 
