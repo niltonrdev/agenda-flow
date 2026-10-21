@@ -7,6 +7,21 @@ import {
   type KeyboardEvent,
 } from "react";
 
+type ConfirmacaoNaTela =
+  | {
+      tipo: "periodo";
+      titulo: string;
+      primeiroDia: string;
+      ultimoDia: string;
+    }
+  | {
+      tipo: "pontual";
+      titulo: string;
+      inicio: string;
+      fim: string;
+    }
+  | null;
+
 type MensagemNaTela = {
   id: string;
   papel: "dono" | "agenda";
@@ -19,9 +34,11 @@ export default function ConversaPage() {
       id: "boas-vindas",
       papel: "agenda",
       texto:
-        "Olá. Pergunte por um dia, por exemplo “15 de novembro” ou “7 de setembro”.",
+        "Olá. Pergunte por um dia, por exemplo “15 de novembro”, ou marque com “pescaria do dia 4 ao 7”.",
     },
   ]);
+  const [confirmacaoPendente, setConfirmacaoPendente] =
+    useState<ConfirmacaoNaTela>(null);
   const [rascunho, setRascunho] = useState("");
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -49,14 +66,19 @@ export default function ConversaPage() {
       const resposta = await fetch("/api/conversa", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mensagem: texto }),
+        body: JSON.stringify({ mensagem: texto, confirmacaoPendente }),
       });
-      const dados = (await resposta.json()) as { texto?: string; erro?: string };
+      const dados = (await resposta.json()) as {
+        texto?: string;
+        erro?: string;
+        confirmacaoPendente?: ConfirmacaoNaTela;
+      };
 
       if (!resposta.ok) {
         throw new Error(dados.erro ?? "Falha ao falar com a agenda.");
       }
 
+      setConfirmacaoPendente(dados.confirmacaoPendente ?? null);
       setMensagens((atual) => [
         ...atual,
         {
@@ -136,7 +158,7 @@ export default function ConversaPage() {
           ref={campoRef}
           className="conversa-campo"
           rows={1}
-          placeholder="Ex.: 15 de novembro"
+          placeholder="Ex.: pescaria do dia 4 ao 7"
           value={rascunho}
           onChange={(e) => setRascunho(e.target.value)}
           onKeyDown={aoTeclar}
