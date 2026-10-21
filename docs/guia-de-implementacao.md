@@ -4,58 +4,31 @@ Como seguir depois do grill / spec / tickets. Cada ticket = **uma conversa nova*
 
 ## Onde estamos
 
+**v1 completa na `main`.** Os dez tickets foram mergeados (PRs #1–#10). Suíte: 105 testes passando.
+
 | Ticket | Status | Onde |
 | --- | --- | --- |
-| 01 Consulta de um dia | **feito** (na `main`) | mergeado |
-| 02 Consulta de intervalo | **feito** (na `main`) | mergeado |
-| 03 Marcação de Pontual | **feito** (na `main`) | mergeado |
-| 04 Marcação de Período | **feito** (na `main`) | mergeado |
-| 05, 07–08, 10 | prontos, bloqueados conforme a tabela abaixo | ainda não começados |
-| 06 “Não” na Confirmação | pronto (só depende do 03) | ainda não começado |
-| 09 Áudio e tela inicial | pronto (só depende do 01) | ainda não começado |
+| 01 Consulta de um dia | **feito** | `main` |
+| 02 Consulta de intervalo | **feito** | `main` |
+| 03 Marcação de Pontual | **feito** | `main` |
+| 04 Marcação de Período | **feito** | `main` |
+| 05 Alerta de conflito | **feito** | `main` (#5) |
+| 06 “Não” na Confirmação | **feito** | `main` (#6) |
+| 07 Alteração | **feito** | `main` (#7) |
+| 08 Cancelamento | **feito** | `main` (#9) |
+| 09 Áudio e tela inicial | **feito** | `main` (#8) |
+| 10 Conta Google | **feito** | `main` (#10) |
 
-## Como pedir o próximo ticket
+Não há próximo `/implement` da v1. Trabalho novo = novo grill / spec / tickets, ou correção pontual.
+
+## Como pedir um ticket (referência)
 
 1. Abra um **Cloud Agent novo** neste repo (`agenda-flow`), na branch `main`.
-2. Cole **só um** dos blocos abaixo (referência completa do arquivo — não use só `#05`).
+2. Cole a referência completa: `/implement .scratch/agenda-inteligente/issues/NN-slug.md`
 3. Deixe o agente fazer TDD, commit e push na branch dele.
 4. **Você** revisa o diff, faz o merge na `main` e marca o ticket (`Status: done`). O skill `/implement` **não** fecha o ticket.
 
-## Ordem e comandos (cole na conversa nova)
-
-### Próximo agora → 05 (cadeia principal)
-
-```
-/implement .scratch/agenda-inteligente/issues/05-alerta-de-conflito.md
-```
-
-### Em paralelo, se quiser (conversas **separadas**)
-
-```
-/implement .scratch/agenda-inteligente/issues/06-nao-na-confirmacao.md
-```
-
-```
-/implement .scratch/agenda-inteligente/issues/09-audio-e-tela-inicial.md
-```
-
-*(06 só depende do 03; 09 só do 01.)*
-
-### Depois do 05 (+ 06 na main)
-
-```
-/implement .scratch/agenda-inteligente/issues/07-alteracao.md
-```
-
-```
-/implement .scratch/agenda-inteligente/issues/08-cancelamento.md
-```
-
-```
-/implement .scratch/agenda-inteligente/issues/10-conta-google.md
-```
-
-## Dependências (quem libera quem)
+## Dependências (quem liberou quem)
 
 ```
 01 ──┬── 02 ──┐
@@ -84,7 +57,7 @@ No arquivo do ticket em `.scratch/agenda-inteligente/issues/`:
 
 1. Troque `Status:` para `done`.
 2. Confirme os critérios com `[x]`.
-3. Atualize a tabela “Onde estamos” neste guia (opcional, mas evita se perder de novo).
+3. Atualize a tabela “Onde estamos” neste guia.
 
 ## Artefatos do fluxo (não são código)
 
