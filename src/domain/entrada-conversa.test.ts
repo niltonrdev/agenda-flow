@@ -616,3 +616,323 @@ describe("entrada de conversa — Marcação de Período", () => {
   });
 });
 
+describe("entrada de conversa — Alteração", () => {
+  it("pedido de alterar mostra Confirmação do que sai e do que entra, sem gravar", async () => {
+    const calendario = criarCalendarioEmMemoria(
+      compromissosDeDemonstracao(AGORA_SETEMBRO),
+    );
+    const antes = calendario.listarTodos();
+
+    const saida = await processarTurno(
+      { mensagem: "muda a pescaria para o dia 5", agora: AGORA_SETEMBRO },
+      calendario,
+    );
+
+    expect(saida.texto).toMatch(/Confirmação/i);
+    expect(saida.texto).toMatch(/4 de setembro/);
+    expect(saida.texto).toMatch(/6 de setembro/);
+    expect(saida.texto).toMatch(/5 de setembro/);
+    expect(saida.texto).toMatch(/7 de setembro/);
+    expect(saida.confirmacaoPendente?.acao).toBe("alterar_periodo");
+    expect(calendario.listarTodos()).toEqual(antes);
+  });
+
+  it("Alteração de Pontual muda só a data, só o horário, ou os dois", async () => {
+    const inicio = DateTime.fromObject(
+      { year: 2025, month: 11, day: 15, hour: 15 },
+      { zone: FUSO_DONO },
+    );
+    const calendario = criarCalendarioEmMemoria([
+      {
+        id: "ana",
+        titulo: "Reunião com a Ana",
+        tipo: "pontual",
+        inicio: inicio.toISO()!,
+        fim: inicio.plus({ hours: 1 }).toISO()!,
+      },
+    ]);
+
+    const soData = await processarTurno(
+      {
+        mensagem: "muda a reunião com a Ana para o dia 16",
+        agora: AGORA,
+      },
+      calendario,
+    );
+    expect(soData.texto).toMatch(/16 de novembro/);
+    expect(soData.texto).toMatch(/15h/);
+    expect(soData.texto).toMatch(/16h/);
+    expect(soData.confirmacaoPendente?.acao).toBe("alterar_pontual");
+
+    const soHora = await processarTurno(
+      {
+        mensagem: "muda a reunião com a Ana para as 10h",
+        agora: AGORA,
+      },
+      calendario,
+    );
+    expect(soHora.texto).toMatch(/15 de novembro/);
+    expect(soHora.texto).toMatch(/10h/);
+    expect(soHora.texto).toMatch(/11h/);
+
+    const osDois = await processarTurno(
+      {
+        mensagem: "muda a reunião com a Ana para o dia 16 às 10h",
+        agora: AGORA,
+      },
+      calendario,
+    );
+    expect(osDois.texto).toMatch(/16 de novembro/);
+    expect(osDois.texto).toMatch(/10h/);
+    expect(osDois.texto).toMatch(/11h/);
+    expect(calendario.listarTodos()).toHaveLength(1);
+  });
+
+  it("Alteração de Período muda o primeiro dia, o último, ou os dois, em dias inteiros", async () => {
+    const calendario = criarCalendarioEmMemoria([
+      {
+        id: "pescaria",
+        titulo: "Pescaria",
+        tipo: "periodo",
+        primeiroDia: "2025-09-04",
+        ultimoDia: "2025-09-07",
+      },
+    ]);
+
+    const primeiro = await processarTurno(
+      {
+        mensagem: "muda a pescaria a partir do dia 3",
+        agora: AGORA_SETEMBRO,
+      },
+      calendario,
+    );
+    expect(primeiro.texto).toMatch(/3 de setembro/);
+    expect(primeiro.texto).toMatch(/7 de setembro/);
+    expect(primeiro.texto).toMatch(/dia inteiro/i);
+    expect(primeiro.texto).not.toMatch(/\d{1,2}h/);
+
+    const ultimo = await processarTurno(
+      {
+        mensagem: "muda a pescaria até o dia 8",
+        agora: AGORA_SETEMBRO,
+      },
+      calendario,
+    );
+    expect(ultimo.texto).toMatch(/4 de setembro/);
+    expect(ultimo.texto).toMatch(/8 de setembro/);
+
+    const osDois = await processarTurno(
+      {
+        mensagem: "muda a pescaria para o dia 5 ao 9",
+        agora: AGORA_SETEMBRO,
+      },
+      calendario,
+    );
+    expect(osDois.texto).toMatch(/5 de setembro/);
+    expect(osDois.texto).toMatch(/9 de setembro/);
+    expect(calendario.listarTodos()).toHaveLength(1);
+  });
+
+  it("pedido que casa com mais de um Compromisso lista os candidatos", async () => {
+    const calendario = criarCalendarioEmMemoria([
+      {
+        id: "p1",
+        titulo: "Pescaria",
+        tipo: "periodo",
+        primeiroDia: "2025-09-04",
+        ultimoDia: "2025-09-06",
+      },
+      {
+        id: "p2",
+        titulo: "Pescaria",
+        tipo: "periodo",
+        primeiroDia: "2025-09-12",
+        ultimoDia: "2025-09-14",
+      },
+    ]);
+
+    const saida = await processarTurno(
+      { mensagem: "muda a pescaria para o dia 5", agora: AGORA_SETEMBRO },
+      calendario,
+    );
+
+    expect(saida.texto).toMatch(/mais de um/i);
+    expect(saida.texto).toMatch(/4 de setembro/);
+    expect(saida.texto).toMatch(/12 de setembro/);
+    expect(saida.confirmacaoPendente?.acao).toBe("escolher_alteracao");
+    expect(calendario.listarTodos()).toHaveLength(2);
+  });
+
+  it("o Dono escolhe da lista pelo que ela mostra e recebe a Confirmação daquele Compromisso", async () => {
+    const calendario = criarCalendarioEmMemoria([
+      {
+        id: "p1",
+        titulo: "Pescaria",
+        tipo: "periodo",
+        primeiroDia: "2025-09-04",
+        ultimoDia: "2025-09-06",
+      },
+      {
+        id: "p2",
+        titulo: "Pescaria",
+        tipo: "periodo",
+        primeiroDia: "2025-09-12",
+        ultimoDia: "2025-09-14",
+      },
+    ]);
+
+    const lista = await processarTurno(
+      { mensagem: "muda a pescaria para o dia 5", agora: AGORA_SETEMBRO },
+      calendario,
+    );
+
+    const escolha = await processarTurno(
+      {
+        mensagem: "a de 12 de setembro",
+        agora: AGORA_SETEMBRO,
+        confirmacaoPendente: lista.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(escolha.texto).toMatch(/Confirmação/i);
+    expect(escolha.texto).toMatch(/12 de setembro/);
+    expect(escolha.texto).toMatch(/14 de setembro/);
+    expect(escolha.texto).toMatch(/5 de setembro/);
+    expect(escolha.texto).toMatch(/7 de setembro/);
+    expect(escolha.confirmacaoPendente?.acao).toBe("alterar_periodo");
+    expect(calendario.listarTodos()).toHaveLength(2);
+  });
+
+  it("pedido que não casa com nenhum Compromisso diz que não foi encontrado", async () => {
+    const calendario = criarCalendarioEmMemoria(
+      compromissosDeDemonstracao(AGORA_SETEMBRO),
+    );
+    const antes = calendario.listarTodos();
+
+    const saida = await processarTurno(
+      { mensagem: "muda o jantar para o dia 5", agora: AGORA_SETEMBRO },
+      calendario,
+    );
+
+    expect(saida.texto).toMatch(/não (foi )?encontr/i);
+    expect(saida.confirmacaoPendente).toBeNull();
+    expect(calendario.listarTodos()).toEqual(antes);
+  });
+
+  it("destino que se sobrepõe a outro Compromisso traz Alerta de conflito na Confirmação", async () => {
+    const calendario = criarCalendarioEmMemoria(
+      compromissosDeDemonstracao(AGORA_SETEMBRO),
+    );
+
+    const saida = await processarTurno(
+      { mensagem: "muda a pescaria para o dia 5", agora: AGORA_SETEMBRO },
+      calendario,
+    );
+
+    expect(saida.texto).toMatch(/Alerta de conflito/i);
+    expect(saida.texto).toMatch(/Cirurgia/);
+    expect(saida.texto).toMatch(/7 de setembro/);
+    expect(calendario.listarTodos()).toHaveLength(3);
+  });
+
+  it("só o sim grava a Alteração; o não pergunta o que mudar e a correção reapresenta a Confirmação", async () => {
+    const calendario = criarCalendarioEmMemoria([
+      {
+        id: "pescaria",
+        titulo: "Pescaria",
+        tipo: "periodo",
+        primeiroDia: "2025-09-04",
+        ultimoDia: "2025-09-06",
+      },
+    ]);
+
+    const proposta = await processarTurno(
+      { mensagem: "muda a pescaria para o dia 5", agora: AGORA_SETEMBRO },
+      calendario,
+    );
+    expect(calendario.listarTodos()[0]).toMatchObject({
+      primeiroDia: "2025-09-04",
+      ultimoDia: "2025-09-06",
+    });
+
+    const recusa = await processarTurno(
+      {
+        mensagem: "não",
+        agora: AGORA_SETEMBRO,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(recusa.texto).toMatch(/o que mudar/i);
+    expect(calendario.listarTodos()[0]).toMatchObject({
+      primeiroDia: "2025-09-04",
+      ultimoDia: "2025-09-06",
+    });
+
+    const correcao = await processarTurno(
+      {
+        mensagem: "até o dia 8",
+        agora: AGORA_SETEMBRO,
+        confirmacaoPendente: recusa.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(correcao.texto).toMatch(/Confirmação/i);
+    expect(correcao.texto).toMatch(/5 de setembro/);
+    expect(correcao.texto).toMatch(/8 de setembro/);
+    expect(calendario.listarTodos()[0]).toMatchObject({
+      primeiroDia: "2025-09-04",
+      ultimoDia: "2025-09-06",
+    });
+
+    const gravado = await processarTurno(
+      {
+        mensagem: "sim",
+        agora: AGORA_SETEMBRO,
+        confirmacaoPendente: correcao.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(gravado.texto).toMatch(/alterei/i);
+    expect(gravado.confirmacaoPendente).toBeNull();
+    expect(calendario.listarTodos()).toEqual([
+      expect.objectContaining({
+        tipo: "periodo",
+        titulo: "Pescaria",
+        primeiroDia: "2025-09-05",
+        ultimoDia: "2025-09-08",
+      }),
+    ]);
+  });
+
+  it("o sim depois do Alerta de conflito grava a Alteração mesmo com a sobreposição", async () => {
+    const calendario = criarCalendarioEmMemoria(
+      compromissosDeDemonstracao(AGORA_SETEMBRO),
+    );
+    const proposta = await processarTurno(
+      { mensagem: "muda a pescaria para o dia 5", agora: AGORA_SETEMBRO },
+      calendario,
+    );
+
+    const gravado = await processarTurno(
+      {
+        mensagem: "sim",
+        agora: AGORA_SETEMBRO,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(gravado.texto).toMatch(/alterei/i);
+    const pescaria = calendario
+      .listarTodos()
+      .find((c) => c.titulo === "Pescaria");
+    expect(pescaria).toMatchObject({
+      tipo: "periodo",
+      primeiroDia: "2025-09-05",
+      ultimoDia: "2025-09-07",
+    });
+  });
+});
+

@@ -1,5 +1,10 @@
 import type { Compromisso } from "./compromisso";
-import type { ConfirmacaoPeriodo, ConfirmacaoPontual } from "./confirmacao";
+import type {
+  ConfirmacaoAlterarPeriodo,
+  ConfirmacaoAlterarPontual,
+  ConfirmacaoPeriodo,
+  ConfirmacaoPontual,
+} from "./confirmacao";
 import {
   FUSO_DONO,
   diaCivil,
@@ -12,6 +17,8 @@ import { DateTime } from "luxon";
 
 export const RESPOSTA_NAO_ENTENDI =
   "Não entendi o pedido. Pode reformular?";
+
+export const RESPOSTA_O_QUE_MUDAR = "O que mudar?";
 
 function formatarCompromisso(compromisso: Compromisso): string {
   if (compromisso.tipo === "pontual") {
@@ -46,6 +53,66 @@ export function formatarConfirmacaoPeriodo(proposta: ConfirmacaoPeriodo): string
 
 export function formatarPeriodoMarcado(proposta: ConfirmacaoPeriodo): string {
   return `Marquei ${detalhePeriodo(proposta)}.`;
+}
+
+function avisoConflitos(conflitos: Compromisso[]): string {
+  if (conflitos.length === 0) return "";
+  const detalhes = conflitos
+    .map((c) => formatarCompromissoNoIntervalo(c))
+    .join("; ");
+  return ` Alerta de conflito: ${detalhes}.`;
+}
+
+export function formatarConfirmacaoAlterarPontual(
+  proposta: ConfirmacaoAlterarPontual,
+  conflitos: Compromisso[] = [],
+): string {
+  return `Confirmação: sai ${detalhePontual(proposta.titulo, proposta.inicioAtual, proposta.fimAtual)}; entra ${detalhePontual(proposta.titulo, proposta.inicio, proposta.fim)}.${avisoConflitos(conflitos)} Diga sim para alterar.`;
+}
+
+export function formatarConfirmacaoAlterarPeriodo(
+  proposta: ConfirmacaoAlterarPeriodo,
+  conflitos: Compromisso[] = [],
+): string {
+  const sai: ConfirmacaoPeriodo = {
+    acao: "marcar_periodo",
+    titulo: proposta.titulo,
+    primeiroDia: proposta.primeiroDiaAtual,
+    ultimoDia: proposta.ultimoDiaAtual,
+  };
+  const entra: ConfirmacaoPeriodo = {
+    acao: "marcar_periodo",
+    titulo: proposta.titulo,
+    primeiroDia: proposta.primeiroDia,
+    ultimoDia: proposta.ultimoDia,
+  };
+  return `Confirmação: sai ${detalhePeriodo(sai)}; entra ${detalhePeriodo(entra)}.${avisoConflitos(conflitos)} Diga sim para alterar.`;
+}
+
+export function formatarPontualAlterado(proposta: ConfirmacaoAlterarPontual): string {
+  return `Alterei ${detalhePontual(proposta.titulo, proposta.inicio, proposta.fim)}.`;
+}
+
+export function formatarPeriodoAlterado(proposta: ConfirmacaoAlterarPeriodo): string {
+  return `Alterei ${detalhePeriodo({
+    acao: "marcar_periodo",
+    titulo: proposta.titulo,
+    primeiroDia: proposta.primeiroDia,
+    ultimoDia: proposta.ultimoDia,
+  })}.`;
+}
+
+export function formatarNaoEncontrado(termo: string): string {
+  return `Não encontrei um Compromisso chamado “${termo}”.`;
+}
+
+export function formatarListaCandidatos(rotulos: string[]): string {
+  const linhas = rotulos.map((r) => `• ${r}`);
+  return `Encontrei mais de um Compromisso. Qual você quer alterar?\n${linhas.join("\n")}`;
+}
+
+export function rotuloCandidato(compromisso: Compromisso): string {
+  return formatarCompromissoNoIntervalo(compromisso);
 }
 
 export function formatarConsultaDia(

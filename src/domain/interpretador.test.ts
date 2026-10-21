@@ -1,5 +1,8 @@
 import { FUSO_DONO } from "@/domain/fuso";
-import { interpretarMensagem } from "@/domain/interpretador";
+import {
+  interpretarDestinoAlteracao,
+  interpretarMensagem,
+} from "@/domain/interpretador";
 import { DateTime } from "luxon";
 import { describe, expect, it } from "vitest";
 
@@ -125,6 +128,37 @@ describe("interpretador — Consulta de intervalo", () => {
     expect(interpretarMensagem("15 de novembro", sexta)).toEqual({
       tipo: "consulta_dia",
       dia: "2025-11-15",
+    });
+  });
+});
+
+describe("interpretador — Alteração", () => {
+  it("muda a pescaria para o dia 5 aponta o termo e o novo primeiro dia", () => {
+    expect(interpretarMensagem("muda a pescaria para o dia 5", AGORA_SETEMBRO)).toEqual({
+      tipo: "alterar",
+      termo: "pescaria",
+      destino: { tipo: "dia", dia: 5 },
+    });
+  });
+
+  it("muda um Pontual para outro horário", () => {
+    expect(
+      interpretarMensagem("muda a reunião com a Ana para as 10h", AGORA),
+    ).toEqual({
+      tipo: "alterar",
+      termo: "reunião com a ana",
+      destino: { tipo: "hora", hora: 10, minuto: 0 },
+    });
+  });
+
+  it("não isolado é recusa da Confirmação", () => {
+    expect(interpretarMensagem("não", AGORA)).toEqual({ tipo: "recusar" });
+  });
+
+  it("até o dia 8 é o último dia, não um deslocamento", () => {
+    expect(interpretarDestinoAlteracao("até o dia 8", AGORA_SETEMBRO)).toEqual({
+      tipo: "ultimo_dia",
+      ultimoDia: "2025-09-08",
     });
   });
 });
