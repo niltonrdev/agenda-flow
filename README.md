@@ -2,7 +2,7 @@
 
 Ferramenta pessoal do **Dono**: uma Conversa em português do Brasil que consulta Disponibilidade no Calendário e, depois de Confirmação, cria, altera ou cancela um Compromisso.
 
-Na v1 a Conversa responde a **Consulta de um dia** e a **Consulta de intervalo** — “15 de novembro”, “pescaria do dia 4 ao 7”, “feriado de 7 de setembro”, “esse fim de semana” — usando um Calendário em memória semeado, sem nenhuma credencial do Google.
+A Conversa consulta Disponibilidade e, depois da Confirmação, marca, altera ou cancela Compromissos. Sem credencial do Google o Calendário em memória (demonstração) continua no ar. Com OAuth configurado, o Dono conecta a conta uma vez; a Consulta lê as agendas visíveis e a Marcação grava só na principal.
 
 ## Rodar localmente
 
@@ -16,6 +16,8 @@ npm run dev
 Abra [http://localhost:3000](http://localhost:3000). No iPhone, use o Safari na mesma rede ou o Tunel que preferir; a tela é pensada para viewport estreita.
 
 Não é preciso configurar Google OAuth para desenvolver: o adaptador em memória já vem com Compromissos de demonstração alinhados à data atual (Cirurgia no próximo 7 de setembro, reunião com a Ana no próximo 15 de novembro).
+
+Para o Calendário de verdade, copie `.env.example` para `.env.local`, preencha `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` (escopo `https://www.googleapis.com/auth/calendar`, URI de redirecionamento `/api/auth/google/callback`) e use **Conectar conta Google** na tela da Conversa. A sessão fica no cookie; a suíte automática não fala com a conta real.
 
 ## Testar
 
@@ -38,7 +40,9 @@ Os testes passam um “agora” explícito em `America/Sao_Paulo` e exercitam a 
 
 - `src/domain/` — núcleo determinístico (interpretador, entrada de conversa, Compromisso)
 - `src/adapters/calendario-em-memoria.ts` — porta Calendário para testes e demo
+- `src/adapters/calendario-google.ts` — adaptador Google (fora da suíte automática)
 - `src/app/api/conversa/route.ts` — única entrada HTTP da Conversa
+- `src/app/api/auth/google/` — OAuth e status da sessão
 - `src/app/page.tsx` — tela da Conversa
 
 Vocabulário e ADRs: `CONTEXT.md` e `docs/adr/`.

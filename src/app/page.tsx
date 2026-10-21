@@ -28,12 +28,30 @@ export default function ConversaPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [confirmacaoPendente, setConfirmacaoPendente] =
     useState<ConfirmacaoPendente | null>(null);
+  const [google, setGoogle] = useState<{
+    credencialConfigurada: boolean;
+    conectado: boolean;
+  } | null>(null);
   const fimRef = useRef<HTMLDivElement>(null);
   const campoRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     fimRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [mensagens, carregando, erro]);
+
+  useEffect(() => {
+    void fetch("/api/auth/google/status")
+      .then((r) => r.json())
+      .then((dados: { credencialConfigurada?: boolean; conectado?: boolean }) => {
+        setGoogle({
+          credencialConfigurada: Boolean(dados.credencialConfigurada),
+          conectado: Boolean(dados.conectado),
+        });
+      })
+      .catch(() => {
+        setGoogle({ credencialConfigurada: false, conectado: false });
+      });
+  }, []);
 
   async function enviar() {
     const texto = rascunho.trim();
@@ -100,6 +118,20 @@ export default function ConversaPage() {
       <header className="conversa-topo">
         <p className="conversa-marca">Agenda Inteligente</p>
         <p className="conversa-sub">Conversa com o seu Calendário</p>
+        {google?.credencialConfigurada && !google.conectado ? (
+          <p className="conversa-google">
+            <a className="conversa-google-link" href="/api/auth/google">
+              Conectar conta Google
+            </a>
+            <span> — a sessão fica salva neste aparelho.</span>
+          </p>
+        ) : null}
+        {google?.conectado ? (
+          <p className="conversa-google conversa-google-ok">
+            Conta Google conectada. A Consulta lê as agendas visíveis; a
+            Marcação grava na principal.
+          </p>
+        ) : null}
       </header>
 
       <main className="conversa-fio" aria-live="polite">
