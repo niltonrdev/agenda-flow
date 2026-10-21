@@ -616,6 +616,220 @@ describe("entrada de conversa — Marcação de Período", () => {
   });
 });
 
+
+describe("entrada de conversa — Não na Confirmação", () => {
+  async function proporPontual() {
+    const calendario = criarCalendarioEmMemoria([]);
+    const proposta = await processarTurno(
+      { mensagem: "reunião com a Ana amanhã às 15h", agora: AGORA },
+      calendario,
+    );
+    return { calendario, proposta };
+  }
+
+  it("o não na Confirmação pergunta o que mudar e não descarta a proposta", async () => {
+    const { calendario, proposta } = await proporPontual();
+
+    const saida = await processarTurno(
+      {
+        mensagem: "não",
+        agora: AGORA,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(saida.texto).toMatch(/o que mudar/i);
+    expect(saida.confirmacaoPendente).toMatchObject({
+      acao: "marcar_pontual",
+      titulo: "Reunião com a Ana",
+    });
+    expect(calendario.listarTodos()).toHaveLength(0);
+  });
+
+  it("corrigir só a data reapresenta a Confirmação com título e horário preservados", async () => {
+    const { calendario, proposta } = await proporPontual();
+    const recusa = await processarTurno(
+      {
+        mensagem: "não",
+        agora: AGORA,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    const saida = await processarTurno(
+      {
+        mensagem: "é dia 5",
+        agora: AGORA,
+        confirmacaoPendente: recusa.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(saida.texto).toMatch(/Confirmação/i);
+    expect(saida.texto).toContain("Reunião com a Ana");
+    expect(saida.texto).toContain("5 de agosto");
+    expect(saida.texto).toContain("15h");
+    expect(saida.texto).toContain("16h");
+    expect(saida.texto).not.toContain("2 de agosto");
+    expect(calendario.listarTodos()).toHaveLength(0);
+    const pendente = saida.confirmacaoPendente;
+    if (pendente?.acao !== "marcar_pontual") {
+      throw new Error("esperava Confirmação de Pontual");
+    }
+    expect(pendente.inicio).toContain("2025-08-05T15:00");
+    expect(pendente.fim).toContain("2025-08-05T16:00");
+  });
+
+  it("corrigir só o horário reapresenta a Confirmação com título e data preservados", async () => {
+    const { calendario, proposta } = await proporPontual();
+    const recusa = await processarTurno(
+      {
+        mensagem: "não",
+        agora: AGORA,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    const saida = await processarTurno(
+      {
+        mensagem: "às 16h",
+        agora: AGORA,
+        confirmacaoPendente: recusa.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(saida.texto).toMatch(/Confirmação/i);
+    expect(saida.texto).toContain("Reunião com a Ana");
+    expect(saida.texto).toContain("2 de agosto");
+    expect(saida.texto).toContain("16h");
+    expect(saida.texto).toContain("17h");
+    expect(calendario.listarTodos()).toHaveLength(0);
+  });
+
+  it("corrigir só o título reapresenta a Confirmação com data e horário preservados", async () => {
+    const { calendario, proposta } = await proporPontual();
+    const recusa = await processarTurno(
+      {
+        mensagem: "não",
+        agora: AGORA,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    const saida = await processarTurno(
+      {
+        mensagem: "almoço com a Ana",
+        agora: AGORA,
+        confirmacaoPendente: recusa.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(saida.texto).toMatch(/Confirmação/i);
+    expect(saida.texto).toContain("Almoço com a Ana");
+    expect(saida.texto).toContain("2 de agosto");
+    expect(saida.texto).toContain("15h");
+    expect(saida.texto).toContain("16h");
+    expect(calendario.listarTodos()).toHaveLength(0);
+  });
+
+  it("duas correções seguidas partem cada uma da proposta já corrigida", async () => {
+    const { calendario, proposta } = await proporPontual();
+    const recusa = await processarTurno(
+      {
+        mensagem: "não",
+        agora: AGORA,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      calendario,
+    );
+    const dataCorrigida = await processarTurno(
+      {
+        mensagem: "é dia 5",
+        agora: AGORA,
+        confirmacaoPendente: recusa.confirmacaoPendente,
+      },
+      calendario,
+    );
+    const recusaDeNovo = await processarTurno(
+      {
+        mensagem: "não",
+        agora: AGORA,
+        confirmacaoPendente: dataCorrigida.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    const saida = await processarTurno(
+      {
+        mensagem: "às 16h",
+        agora: AGORA,
+        confirmacaoPendente: recusaDeNovo.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(saida.texto).toContain("Reunião com a Ana");
+    expect(saida.texto).toContain("5 de agosto");
+    expect(saida.texto).toContain("16h");
+    expect(saida.texto).toContain("17h");
+    expect(calendario.listarTodos()).toHaveLength(0);
+  });
+
+  it("nada é gravado durante as correções; o sim grava o Compromisso corrigido", async () => {
+    const { calendario, proposta } = await proporPontual();
+    const recusa = await processarTurno(
+      {
+        mensagem: "não",
+        agora: AGORA,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      calendario,
+    );
+    const corrigida = await processarTurno(
+      {
+        mensagem: "é dia 5",
+        agora: AGORA,
+        confirmacaoPendente: recusa.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(calendario.listarTodos()).toHaveLength(0);
+
+    const saida = await processarTurno(
+      {
+        mensagem: "sim",
+        agora: AGORA,
+        confirmacaoPendente: corrigida.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(saida.texto).toContain("Marquei");
+    expect(saida.texto).toContain("5 de agosto");
+    expect(saida.texto).toContain("Reunião com a Ana");
+    expect(saida.confirmacaoPendente).toBeNull();
+    const pendente = corrigida.confirmacaoPendente;
+    if (pendente?.acao !== "marcar_pontual") {
+      throw new Error("esperava Confirmação de Pontual");
+    }
+    expect(calendario.listarTodos()).toEqual([
+      expect.objectContaining({
+        tipo: "pontual",
+        titulo: "Reunião com a Ana",
+        inicio: pendente.inicio,
+        fim: pendente.fim,
+      }),
+    ]);
+    expect(pendente.inicio).toContain("2025-08-05");
+  });
+});
+
 describe("entrada de conversa — Alerta de conflito", () => {
   it("Pontual no mesmo horário avisa qual Compromisso conflita e não grava", async () => {
     const inicio = DateTime.fromObject(
@@ -804,4 +1018,3 @@ describe("entrada de conversa — Alerta de conflito", () => {
     expect(periodos).toHaveLength(2);
   });
 });
-

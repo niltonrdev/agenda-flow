@@ -5,6 +5,8 @@ export type ConfirmacaoPontual = {
   /** Instantâneo ISO em America/Sao_Paulo. */
   inicio: string;
   fim: string;
+  /** Depois do não: o próximo turno corrige esta proposta, não começa outra. */
+  aguardandoCorrecao?: boolean;
 };
 
 export type ConfirmacaoPeriodo = {
@@ -13,6 +15,7 @@ export type ConfirmacaoPeriodo = {
   /** Dia civil YYYY-MM-DD em America/Sao_Paulo, extremos inclusive. */
   primeiroDia: string;
   ultimoDia: string;
+  aguardandoCorrecao?: boolean;
 };
 
 export type ConfirmacaoPendente = ConfirmacaoPontual | ConfirmacaoPeriodo;

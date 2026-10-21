@@ -5,12 +5,18 @@ import {
 } from "./confirmacao";
 import { compromissosEmConflito } from "./conflito";
 import {
+  aplicarCorrecao,
+  ehRecusaPura,
+  temPrefixoDeRecusa,
+} from "./corrigir-confirmacao";
+import {
   formatarConfirmacao,
   formatarConsultaDia,
   formatarConsultaIntervalo,
   formatarPeriodoMarcado,
   formatarPontualMarcado,
   RESPOSTA_NAO_ENTENDI,
+  RESPOSTA_O_QUE_MUDAR,
 } from "./formatar-resposta";
 import { fimDoDia, inicioDoDia } from "./fuso";
 import { interpretarMensagem } from "./interpretador";
@@ -30,6 +36,34 @@ export type SaidaConversa = {
   texto: string;
   confirmacaoPendente: ConfirmacaoPendente | null;
 };
+
+async function saidaDeConfirmacao(
+  proposta: ConfirmacaoPendente,
+  calendario: Calendario,
+): Promise<SaidaConversa> {
+  const janela =
+    proposta.acao === "marcar_pontual"
+      ? { inicio: proposta.inicio, fim: proposta.fim }
+      : {
+          inicio: inicioDoDia(proposta.primeiroDia).toISO()!,
+          fim: fimDoDia(proposta.ultimoDia).toISO()!,
+        };
+  const existentes = await calendario.listar(janela);
+  const conflitos = compromissosEmConflito(
+    proposta.acao === "marcar_pontual"
+      ? { tipo: "pontual", inicio: proposta.inicio, fim: proposta.fim }
+      : {
+          tipo: "periodo",
+          primeiroDia: proposta.primeiroDia,
+          ultimoDia: proposta.ultimoDia,
+        },
+    existentes,
+  );
+  return {
+    texto: formatarConfirmacao(proposta, conflitos),
+    confirmacaoPendente: proposta,
+  };
+}
 
 /**
  * Única entrada de conversa: Mensagem + agora → resposta em PT-BR.
@@ -70,6 +104,34 @@ export async function processarTurno(
       texto: formatarPontualMarcado(pendente),
       confirmacaoPendente: null,
     };
+  }
+
+  if (pendente && ehRecusaPura(entrada.mensagem)) {
+    return {
+      texto: RESPOSTA_O_QUE_MUDAR,
+      confirmacaoPendente: { ...pendente, aguardandoCorrecao: true },
+    };
+  }
+
+  if (
+    pendente &&
+    (pendente.aguardandoCorrecao || temPrefixoDeRecusa(entrada.mensagem))
+  ) {
+    const corrigida = aplicarCorrecao(
+      pendente,
+      entrada.mensagem,
+      entrada.agora,
+    );
+    if (!corrigida) {
+      return {
+        texto: RESPOSTA_O_QUE_MUDAR,
+        confirmacaoPendente: { ...pendente, aguardandoCorrecao: true },
+      };
+    }
+    return saidaDeConfirmacao(
+      { ...corrigida, aguardandoCorrecao: false },
+      calendario,
+    );
   }
 
   if (intencao.tipo === "desconhecida") {
@@ -117,28 +179,7 @@ export async function processarTurno(
             primeiroDia: intencao.primeiroDia,
             ultimoDia: intencao.ultimoDia,
           };
-    const janela =
-      proposta.acao === "marcar_pontual"
-        ? { inicio: proposta.inicio, fim: proposta.fim }
-        : {
-            inicio: inicioDoDia(proposta.primeiroDia).toISO()!,
-            fim: fimDoDia(proposta.ultimoDia).toISO()!,
-          };
-    const existentes = await calendario.listar(janela);
-    const conflitos = compromissosEmConflito(
-      proposta.acao === "marcar_pontual"
-        ? { tipo: "pontual", inicio: proposta.inicio, fim: proposta.fim }
-        : {
-            tipo: "periodo",
-            primeiroDia: proposta.primeiroDia,
-            ultimoDia: proposta.ultimoDia,
-          },
-      existentes,
-    );
-    return {
-      texto: formatarConfirmacao(proposta, conflitos),
-      confirmacaoPendente: proposta,
-    };
+    return saidaDeConfirmacao(proposta, calendario);
   }
 
   return { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: null };
