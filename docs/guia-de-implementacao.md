@@ -8,48 +8,48 @@ Como seguir depois do grill / spec / tickets. Cada ticket = **uma conversa nova*
 | --- | --- | --- |
 | 01 Consulta de um dia | **feito** (na `main`) | mergeado |
 | 02 Consulta de intervalo | **feito** (na `main`) | mergeado |
-| 03–10 | prontos, bloqueados conforme a tabela abaixo | ainda não começados |
+| 03 Marcação de Pontual | **feito** (na `main`) | mergeado |
+| 04–08, 10 | prontos, bloqueados conforme a tabela abaixo | ainda não começados |
+| 09 Áudio e tela inicial | pronto (só depende do 01) | ainda não começado |
 
 ## Como pedir o próximo ticket
 
 1. Abra um **Cloud Agent novo** neste repo (`agenda-flow`), na branch `main`.
-2. Cole **só um** dos blocos abaixo (referência completa do arquivo — não use só `#03`).
+2. Cole **só um** dos blocos abaixo (referência completa do arquivo — não use só `#04`).
 3. Deixe o agente fazer TDD, commit e push na branch dele.
 4. **Você** revisa o diff, faz o merge na `main` e marca o ticket (`Status: done`). O skill `/implement` **não** fecha o ticket.
 
 ## Ordem e comandos (cole na conversa nova)
 
-### Próximo agora → 03 (e 09 em paralelo, se quiser)
+### Próximo agora → 04 (cadeia principal)
 
 ```
-/implement .scratch/agenda-inteligente/issues/03-marcacao-de-pontual.md
+/implement .scratch/agenda-inteligente/issues/04-marcacao-de-periodo.md
+```
+
+### Em paralelo, se quiser (conversas **separadas**)
+
+```
+/implement .scratch/agenda-inteligente/issues/06-nao-na-confirmacao.md
 ```
 
 ```
 /implement .scratch/agenda-inteligente/issues/09-audio-e-tela-inicial.md
 ```
 
-*(03 e 09 só dependem do 01; podem rodar em conversas **separadas** ao mesmo tempo.)*
+*(06 só depende do 03; 09 só do 01.)*
 
-### Cadeia linear depois do 03 (+ 02 já na main)
-
-```
-/implement .scratch/agenda-inteligente/issues/04-marcacao-de-periodo.md
-```
+### Depois do 04
 
 ```
 /implement .scratch/agenda-inteligente/issues/05-alerta-de-conflito.md
 ```
 
 ```
-/implement .scratch/agenda-inteligente/issues/06-nao-na-confirmacao.md
-```
-
-*(O 06 só depende do 03; pode começar assim que o 03 estiver na `main`, em paralelo com 04/05 se quiser.)*
-
-```
 /implement .scratch/agenda-inteligente/issues/07-alteracao.md
 ```
+
+*(07 depende de 05 e 06.)*
 
 ```
 /implement .scratch/agenda-inteligente/issues/08-cancelamento.md
