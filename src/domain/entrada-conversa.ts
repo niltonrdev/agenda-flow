@@ -1,7 +1,13 @@
 import type { Calendario } from "./calendario";
 import {
+  ehConfirmacaoPendente,
+  type ConfirmacaoPendente,
+} from "./confirmacao";
+import {
+  formatarConfirmacaoPontual,
   formatarConsultaDia,
   formatarConsultaIntervalo,
+  formatarPontualMarcado,
   RESPOSTA_NAO_ENTENDI,
 } from "./formatar-resposta";
 import { fimDoDia, inicioDoDia } from "./fuso";
@@ -12,10 +18,15 @@ export type EntradaConversa = {
   mensagem: string;
   /** Relógio congelado nos testes; nunca ler Date.now() no núcleo. */
   agora: DateTime;
+  /**
+   * Proposta do turno anterior. O chamador devolve; o servidor não guarda.
+   */
+  confirmacaoPendente?: ConfirmacaoPendente | null;
 };
 
 export type SaidaConversa = {
   texto: string;
+  confirmacaoPendente: ConfirmacaoPendente | null;
 };
 
 /**
@@ -27,9 +38,28 @@ export async function processarTurno(
   calendario: Calendario,
 ): Promise<SaidaConversa> {
   const intencao = interpretarMensagem(entrada.mensagem, entrada.agora);
+  const pendente = ehConfirmacaoPendente(entrada.confirmacaoPendente)
+    ? entrada.confirmacaoPendente
+    : null;
+
+  if (intencao.tipo === "confirmar") {
+    if (!pendente) {
+      return { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: null };
+    }
+    await calendario.criar({
+      tipo: "pontual",
+      titulo: pendente.titulo,
+      inicio: pendente.inicio,
+      fim: pendente.fim,
+    });
+    return {
+      texto: formatarPontualMarcado(pendente),
+      confirmacaoPendente: null,
+    };
+  }
 
   if (intencao.tipo === "desconhecida") {
-    return { texto: RESPOSTA_NAO_ENTENDI };
+    return { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: null };
   }
 
   if (intencao.tipo === "consulta_dia") {
@@ -37,7 +67,10 @@ export async function processarTurno(
       inicio: inicioDoDia(intencao.dia).toISO()!,
       fim: fimDoDia(intencao.dia).toISO()!,
     });
-    return { texto: formatarConsultaDia(intencao.dia, compromissos) };
+    return {
+      texto: formatarConsultaDia(intencao.dia, compromissos),
+      confirmacaoPendente: null,
+    };
   }
 
   if (intencao.tipo === "consulta_intervalo") {
@@ -51,8 +84,22 @@ export async function processarTurno(
         intencao.ultimoDia,
         compromissos,
       ),
+      confirmacaoPendente: null,
     };
   }
 
-  return { texto: RESPOSTA_NAO_ENTENDI };
+  if (intencao.tipo === "marcar_pontual") {
+    const proposta: ConfirmacaoPendente = {
+      acao: "marcar_pontual",
+      titulo: intencao.titulo,
+      inicio: intencao.inicio,
+      fim: intencao.fim,
+    };
+    return {
+      texto: formatarConfirmacaoPontual(proposta),
+      confirmacaoPendente: proposta,
+    };
+  }
+
+  return { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: null };
 }

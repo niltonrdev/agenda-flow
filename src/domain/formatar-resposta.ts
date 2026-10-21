@@ -1,4 +1,5 @@
 import type { Compromisso } from "./compromisso";
+import type { ConfirmacaoPendente } from "./confirmacao";
 import {
   FUSO_DONO,
   diaCivil,
@@ -20,6 +21,19 @@ function formatarCompromisso(compromisso: Compromisso): string {
     return `${compromisso.titulo} (dia inteiro)`;
   }
   return `${compromisso.titulo}, de ${formatarDiaPorExtenso(compromisso.primeiroDia)} a ${formatarDiaPorExtenso(compromisso.ultimoDia)}`;
+}
+
+function detalhePontual(titulo: string, inicio: string, fim: string): string {
+  const dia = diaCivil(DateTime.fromISO(inicio, { setZone: true }));
+  return `${titulo}, ${formatarDiaPorExtenso(dia)}, das ${formatarHora(inicio)} às ${formatarHora(fim)}`;
+}
+
+export function formatarConfirmacaoPontual(proposta: ConfirmacaoPendente): string {
+  return `Confirmação: ${detalhePontual(proposta.titulo, proposta.inicio, proposta.fim)}. Diga sim para marcar.`;
+}
+
+export function formatarPontualMarcado(proposta: ConfirmacaoPendente): string {
+  return `Marquei ${detalhePontual(proposta.titulo, proposta.inicio, proposta.fim)}.`;
 }
 
 export function formatarConsultaDia(

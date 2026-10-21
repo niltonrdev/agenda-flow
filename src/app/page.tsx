@@ -1,5 +1,6 @@
 "use client";
 
+import type { ConfirmacaoPendente } from "@/domain/confirmacao";
 import {
   useEffect,
   useRef,
@@ -25,6 +26,8 @@ export default function ConversaPage() {
   const [rascunho, setRascunho] = useState("");
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [confirmacaoPendente, setConfirmacaoPendente] =
+    useState<ConfirmacaoPendente | null>(null);
   const fimRef = useRef<HTMLDivElement>(null);
   const campoRef = useRef<HTMLTextAreaElement>(null);
 
@@ -49,14 +52,22 @@ export default function ConversaPage() {
       const resposta = await fetch("/api/conversa", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mensagem: texto }),
+        body: JSON.stringify({
+          mensagem: texto,
+          confirmacaoPendente,
+        }),
       });
-      const dados = (await resposta.json()) as { texto?: string; erro?: string };
+      const dados = (await resposta.json()) as {
+        texto?: string;
+        erro?: string;
+        confirmacaoPendente?: ConfirmacaoPendente | null;
+      };
 
       if (!resposta.ok) {
         throw new Error(dados.erro ?? "Falha ao falar com a agenda.");
       }
 
+      setConfirmacaoPendente(dados.confirmacaoPendente ?? null);
       setMensagens((atual) => [
         ...atual,
         {
@@ -136,7 +147,7 @@ export default function ConversaPage() {
           ref={campoRef}
           className="conversa-campo"
           rows={1}
-          placeholder="Ex.: pescaria do dia 4 ao 7"
+          placeholder="Ex.: reunião com a Ana amanhã às 15h"
           value={rascunho}
           onChange={(e) => setRascunho(e.target.value)}
           onKeyDown={aoTeclar}
