@@ -162,3 +162,22 @@ describe("interpretador — Alteração", () => {
     });
   });
 });
+
+describe("interpretador — Cancelamento", () => {
+  it("cancela a reunião da Ana aponta o termo, sem recortar dia", () => {
+    expect(interpretarMensagem("cancela a reunião da Ana", AGORA)).toEqual({
+      tipo: "cancelar",
+      termo: "reunião da ana",
+    });
+  });
+
+  it("tira o dia 5 da pescaria é recorte de um dia, não Cancelamento do Compromisso", () => {
+    expect(
+      interpretarMensagem("tira o dia 5 da pescaria", AGORA_SETEMBRO),
+    ).toEqual({
+      tipo: "cancelar",
+      termo: "pescaria",
+      dia: { dia: 5 },
+    });
+  });
+});

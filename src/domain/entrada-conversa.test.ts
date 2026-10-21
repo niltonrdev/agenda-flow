@@ -1339,3 +1339,215 @@ describe("entrada de conversa — Alteração", () => {
   });
 });
 
+describe("entrada de conversa — Cancelamento", () => {
+  it("pedido de cancelar produz Confirmação identificando o Compromisso, com dia e horário", async () => {
+    const calendario = criarCalendarioEmMemoria(
+      compromissosDeDemonstracao(AGORA),
+    );
+    const antes = calendario.listarTodos();
+
+    const saida = await processarTurno(
+      { mensagem: "cancela a reunião da Ana", agora: AGORA },
+      calendario,
+    );
+
+    expect(saida.texto).toMatch(/Confirmação/i);
+    expect(saida.texto).toMatch(/Reunião com a Ana/);
+    expect(saida.texto).toMatch(/15 de novembro/);
+    expect(saida.texto).toMatch(/15h/);
+    expect(saida.texto).toMatch(/16h/);
+    expect(saida.confirmacaoPendente?.acao).toBe("cancelar_pontual");
+    expect(calendario.listarTodos()).toEqual(antes);
+  });
+
+  it("o sim remove o Compromisso do Calendário e a Conversa avisa", async () => {
+    const calendario = criarCalendarioEmMemoria(
+      compromissosDeDemonstracao(AGORA),
+    );
+
+    const proposta = await processarTurno(
+      { mensagem: "cancela a reunião da Ana", agora: AGORA },
+      calendario,
+    );
+    const gravado = await processarTurno(
+      {
+        mensagem: "sim",
+        agora: AGORA,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(gravado.texto).toMatch(/cancelei/i);
+    expect(gravado.texto).toMatch(/Reunião com a Ana/);
+    expect(gravado.confirmacaoPendente).toBeNull();
+    expect(
+      calendario.listarTodos().some((c) => c.titulo === "Reunião com a Ana"),
+    ).toBe(false);
+  });
+
+  it("o não deixa o Compromisso intacto", async () => {
+    const calendario = criarCalendarioEmMemoria(
+      compromissosDeDemonstracao(AGORA),
+    );
+    const antes = calendario.listarTodos();
+
+    const proposta = await processarTurno(
+      { mensagem: "cancela a reunião da Ana", agora: AGORA },
+      calendario,
+    );
+    const recusa = await processarTurno(
+      {
+        mensagem: "não",
+        agora: AGORA,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(recusa.texto).toMatch(/o que mudar/i);
+    expect(calendario.listarTodos()).toEqual(antes);
+  });
+
+  it("pedido ambíguo lista os candidatos e o Dono escolhe pelo que a lista mostra", async () => {
+    const inicio = DateTime.fromObject(
+      { year: 2025, month: 11, day: 14, hour: 10 },
+      { zone: FUSO_DONO },
+    );
+    const outro = DateTime.fromObject(
+      { year: 2025, month: 11, day: 15, hour: 15 },
+      { zone: FUSO_DONO },
+    );
+    const calendario = criarCalendarioEmMemoria([
+      {
+        id: "sexta",
+        titulo: "Reunião com a Ana",
+        tipo: "pontual",
+        inicio: inicio.toISO()!,
+        fim: inicio.plus({ hours: 1 }).toISO()!,
+      },
+      {
+        id: "sabado",
+        titulo: "Reunião com a Ana",
+        tipo: "pontual",
+        inicio: outro.toISO()!,
+        fim: outro.plus({ hours: 1 }).toISO()!,
+      },
+    ]);
+
+    const lista = await processarTurno(
+      { mensagem: "cancela a reunião da Ana", agora: AGORA },
+      calendario,
+    );
+
+    expect(lista.texto).toMatch(/mais de um/i);
+    expect(lista.texto).toMatch(/14 de novembro/);
+    expect(lista.texto).toMatch(/15 de novembro/);
+    expect(lista.confirmacaoPendente?.acao).toBe("escolher_cancelamento");
+    expect(calendario.listarTodos()).toHaveLength(2);
+
+    const escolha = await processarTurno(
+      {
+        mensagem: "a de 14 de novembro",
+        agora: AGORA,
+        confirmacaoPendente: lista.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(escolha.texto).toMatch(/Confirmação/i);
+    expect(escolha.texto).toMatch(/14 de novembro/);
+    expect(escolha.texto).not.toMatch(/15 de novembro/);
+    expect(escolha.confirmacaoPendente?.acao).toBe("cancelar_pontual");
+    expect(calendario.listarTodos()).toHaveLength(2);
+  });
+
+  it("pedido que não casa com nenhum Compromisso diz que não foi encontrado", async () => {
+    const calendario = criarCalendarioEmMemoria(
+      compromissosDeDemonstracao(AGORA),
+    );
+    const antes = calendario.listarTodos();
+
+    const saida = await processarTurno(
+      { mensagem: "cancela o jantar", agora: AGORA },
+      calendario,
+    );
+
+    expect(saida.texto).toMatch(/não (foi )?encontr/i);
+    expect(saida.confirmacaoPendente).toBeNull();
+    expect(calendario.listarTodos()).toEqual(antes);
+  });
+
+  it("cancelar um Período remove o Compromisso inteiro", async () => {
+    const calendario = criarCalendarioEmMemoria(
+      compromissosDeDemonstracao(AGORA_SETEMBRO),
+    );
+
+    const proposta = await processarTurno(
+      { mensagem: "cancela a pescaria", agora: AGORA_SETEMBRO },
+      calendario,
+    );
+    expect(proposta.texto).toMatch(/Confirmação/i);
+    expect(proposta.texto).toMatch(/4 de setembro/);
+    expect(proposta.texto).toMatch(/6 de setembro/);
+    expect(proposta.confirmacaoPendente?.acao).toBe("cancelar_periodo");
+
+    const gravado = await processarTurno(
+      {
+        mensagem: "sim",
+        agora: AGORA_SETEMBRO,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(gravado.texto).toMatch(/cancelei/i);
+    expect(
+      calendario.listarTodos().some((c) => c.titulo === "Pescaria"),
+    ).toBe(false);
+  });
+
+  it("pedido de tirar só um dia de um Período responde que isso é Alteração dos extremos, e não remove nada", async () => {
+    const calendario = criarCalendarioEmMemoria(
+      compromissosDeDemonstracao(AGORA_SETEMBRO),
+    );
+    const antes = calendario.listarTodos();
+
+    const saida = await processarTurno(
+      { mensagem: "tira o dia 5 da pescaria", agora: AGORA_SETEMBRO },
+      calendario,
+    );
+
+    expect(saida.texto).toMatch(/Alteração dos extremos/i);
+    expect(saida.confirmacaoPendente).toBeNull();
+    expect(calendario.listarTodos()).toEqual(antes);
+  });
+
+  it("depois de cancelado, consultar o dia não mostra mais o Compromisso", async () => {
+    const calendario = criarCalendarioEmMemoria(
+      compromissosDeDemonstracao(AGORA),
+    );
+
+    const proposta = await processarTurno(
+      { mensagem: "cancela a reunião da Ana", agora: AGORA },
+      calendario,
+    );
+    await processarTurno(
+      {
+        mensagem: "sim",
+        agora: AGORA,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    const consulta = await processarTurno(
+      { mensagem: "15 de novembro", agora: AGORA },
+      calendario,
+    );
+
+    expect(consulta.texto).toMatch(/livre/i);
+    expect(consulta.texto).not.toMatch(/Ana/);
+  });
+});
+
