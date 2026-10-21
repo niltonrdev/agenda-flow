@@ -3,9 +3,9 @@ import {
   ehConfirmacaoPendente,
   type ConfirmacaoPendente,
 } from "./confirmacao";
+import { compromissosEmConflito } from "./conflito";
 import {
-  formatarConfirmacaoPeriodo,
-  formatarConfirmacaoPontual,
+  formatarConfirmacao,
   formatarConsultaDia,
   formatarConsultaIntervalo,
   formatarPeriodoMarcado,
@@ -102,28 +102,41 @@ export async function processarTurno(
     };
   }
 
-  if (intencao.tipo === "marcar_periodo") {
-    const proposta: ConfirmacaoPendente = {
-      acao: "marcar_periodo",
-      titulo: intencao.titulo,
-      primeiroDia: intencao.primeiroDia,
-      ultimoDia: intencao.ultimoDia,
-    };
+  if (intencao.tipo === "marcar_pontual" || intencao.tipo === "marcar_periodo") {
+    const proposta: ConfirmacaoPendente =
+      intencao.tipo === "marcar_pontual"
+        ? {
+            acao: "marcar_pontual",
+            titulo: intencao.titulo,
+            inicio: intencao.inicio,
+            fim: intencao.fim,
+          }
+        : {
+            acao: "marcar_periodo",
+            titulo: intencao.titulo,
+            primeiroDia: intencao.primeiroDia,
+            ultimoDia: intencao.ultimoDia,
+          };
+    const janela =
+      proposta.acao === "marcar_pontual"
+        ? { inicio: proposta.inicio, fim: proposta.fim }
+        : {
+            inicio: inicioDoDia(proposta.primeiroDia).toISO()!,
+            fim: fimDoDia(proposta.ultimoDia).toISO()!,
+          };
+    const existentes = await calendario.listar(janela);
+    const conflitos = compromissosEmConflito(
+      proposta.acao === "marcar_pontual"
+        ? { tipo: "pontual", inicio: proposta.inicio, fim: proposta.fim }
+        : {
+            tipo: "periodo",
+            primeiroDia: proposta.primeiroDia,
+            ultimoDia: proposta.ultimoDia,
+          },
+      existentes,
+    );
     return {
-      texto: formatarConfirmacaoPeriodo(proposta),
-      confirmacaoPendente: proposta,
-    };
-  }
-
-  if (intencao.tipo === "marcar_pontual") {
-    const proposta: ConfirmacaoPendente = {
-      acao: "marcar_pontual",
-      titulo: intencao.titulo,
-      inicio: intencao.inicio,
-      fim: intencao.fim,
-    };
-    return {
-      texto: formatarConfirmacaoPontual(proposta),
+      texto: formatarConfirmacao(proposta, conflitos),
       confirmacaoPendente: proposta,
     };
   }

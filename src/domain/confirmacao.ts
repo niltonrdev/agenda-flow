@@ -10,6 +10,7 @@ export type ConfirmacaoPontual = {
 export type ConfirmacaoPeriodo = {
   acao: "marcar_periodo";
   titulo: string;
+  /** Dia civil YYYY-MM-DD em America/Sao_Paulo, extremos inclusive. */
   primeiroDia: string;
   ultimoDia: string;
 };
