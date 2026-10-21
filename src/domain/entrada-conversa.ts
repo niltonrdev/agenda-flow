@@ -10,17 +10,23 @@ import {
 } from "./conflito";
 import type { Compromisso, NovoCompromisso } from "./compromisso";
 import {
+  ehConfirmacaoMarcacao,
   ehConfirmacaoPendente,
   type ConfirmacaoAlterarPeriodo,
   type ConfirmacaoAlterarPontual,
   type ConfirmacaoEscolherAlteracao,
+  type ConfirmacaoMarcacao,
   type ConfirmacaoPendente,
 } from "./confirmacao";
 import {
+  aplicarCorrecao,
+  ehRecusaPura,
+  temPrefixoDeRecusa,
+} from "./corrigir-confirmacao";
+import {
+  formatarConfirmacao,
   formatarConfirmacaoAlterarPeriodo,
   formatarConfirmacaoAlterarPontual,
-  formatarConfirmacaoPeriodo,
-  formatarConfirmacaoPontual,
   formatarConsultaDia,
   formatarConsultaIntervalo,
   formatarListaCandidatos,
@@ -85,13 +91,55 @@ function casarEscolha(
   return candidatos.filter((c) => normalizar(c.rotulo).includes(bruto));
 }
 
+function ehAlteracao(
+  pendente: ConfirmacaoPendente,
+): pendente is ConfirmacaoAlterarPontual | ConfirmacaoAlterarPeriodo {
+  return pendente.acao === "alterar_pontual" || pendente.acao === "alterar_periodo";
+}
+
 async function conflitosDaProposta(
   calendario: Calendario,
   proposto: NovoCompromisso,
   ignorarId?: string,
 ): Promise<Compromisso[]> {
-  const existentes = await calendario.listar(intervaloDeListagem(proposto));
-  return compromissosEmConflito(proposto, existentes, ignorarId);
+  const proposta =
+    proposto.tipo === "pontual"
+      ? { tipo: "pontual" as const, inicio: proposto.inicio, fim: proposto.fim }
+      : {
+          tipo: "periodo" as const,
+          primeiroDia: proposto.primeiroDia,
+          ultimoDia: proposto.ultimoDia,
+        };
+  const existentes = await calendario.listar(intervaloDeListagem(proposta));
+  return compromissosEmConflito(proposta, existentes, ignorarId);
+}
+
+async function saidaDeConfirmacao(
+  proposta: ConfirmacaoMarcacao,
+  calendario: Calendario,
+): Promise<SaidaConversa> {
+  const janela =
+    proposta.acao === "marcar_pontual"
+      ? { inicio: proposta.inicio, fim: proposta.fim }
+      : {
+          inicio: inicioDoDia(proposta.primeiroDia).toISO()!,
+          fim: fimDoDia(proposta.ultimoDia).toISO()!,
+        };
+  const existentes = await calendario.listar(janela);
+  const conflitos = compromissosEmConflito(
+    proposta.acao === "marcar_pontual"
+      ? { tipo: "pontual", inicio: proposta.inicio, fim: proposta.fim }
+      : {
+          tipo: "periodo",
+          primeiroDia: proposta.primeiroDia,
+          ultimoDia: proposta.ultimoDia,
+        },
+    existentes,
+  );
+  return {
+    texto: formatarConfirmacao(proposta, conflitos),
+    confirmacaoPendente: proposta,
+  };
 }
 
 async function confirmarAlteracao(
@@ -99,7 +147,11 @@ async function confirmarAlteracao(
   proposto: NovoCompromisso,
   calendario: Calendario,
 ): Promise<SaidaConversa> {
-  const conflitos = await conflitosDaProposta(calendario, proposto, compromisso.id);
+  const conflitos = await conflitosDaProposta(
+    calendario,
+    proposto,
+    compromisso.id,
+  );
   if (compromisso.tipo === "pontual" && proposto.tipo === "pontual") {
     const proposta: ConfirmacaoAlterarPontual = {
       acao: "alterar_pontual",
@@ -145,8 +197,8 @@ async function montarAlteracao(
   return confirmarAlteracao(compromisso, proposto, calendario);
 }
 
-async function corrigirPendente(
-  pendente: ConfirmacaoPendente,
+async function corrigirAlteracao(
+  pendente: ConfirmacaoAlterarPontual | ConfirmacaoAlterarPeriodo,
   destino: DestinoAlteracao,
   calendario: Calendario,
 ): Promise<SaidaConversa | null> {
@@ -170,71 +222,24 @@ async function corrigirPendente(
     };
     return confirmarAlteracao(atual, proposto, calendario);
   }
-  if (pendente.acao === "alterar_periodo") {
-    const proposto = aplicarDestinoNaProposta(
-      {
-        tipo: "periodo",
-        titulo: pendente.titulo,
-        primeiroDia: pendente.primeiroDia,
-        ultimoDia: pendente.ultimoDia,
-      },
-      destino,
-    );
-    if (!proposto || proposto.tipo !== "periodo") return null;
-    const atual: Compromisso = {
-      id: pendente.id,
+  const proposto = aplicarDestinoNaProposta(
+    {
       tipo: "periodo",
       titulo: pendente.titulo,
-      primeiroDia: pendente.primeiroDiaAtual,
-      ultimoDia: pendente.ultimoDiaAtual,
-    };
-    return confirmarAlteracao(atual, proposto, calendario);
-  }
-  if (pendente.acao === "marcar_pontual") {
-    const proposto = aplicarDestinoNaProposta(
-      {
-        tipo: "pontual",
-        titulo: pendente.titulo,
-        inicio: pendente.inicio,
-        fim: pendente.fim,
-      },
-      destino,
-    );
-    if (!proposto || proposto.tipo !== "pontual") return null;
-    const proposta = {
-      acao: "marcar_pontual" as const,
-      titulo: pendente.titulo,
-      inicio: proposto.inicio,
-      fim: proposto.fim,
-    };
-    return {
-      texto: formatarConfirmacaoPontual(proposta),
-      confirmacaoPendente: proposta,
-    };
-  }
-  if (pendente.acao === "marcar_periodo") {
-    const proposto = aplicarDestinoNaProposta(
-      {
-        tipo: "periodo",
-        titulo: pendente.titulo,
-        primeiroDia: pendente.primeiroDia,
-        ultimoDia: pendente.ultimoDia,
-      },
-      destino,
-    );
-    if (!proposto || proposto.tipo !== "periodo") return null;
-    const proposta = {
-      acao: "marcar_periodo" as const,
-      titulo: pendente.titulo,
-      primeiroDia: proposto.primeiroDia,
-      ultimoDia: proposto.ultimoDia,
-    };
-    return {
-      texto: formatarConfirmacaoPeriodo(proposta),
-      confirmacaoPendente: proposta,
-    };
-  }
-  return null;
+      primeiroDia: pendente.primeiroDia,
+      ultimoDia: pendente.ultimoDia,
+    },
+    destino,
+  );
+  if (!proposto || proposto.tipo !== "periodo") return null;
+  const atual: Compromisso = {
+    id: pendente.id,
+    tipo: "periodo",
+    titulo: pendente.titulo,
+    primeiroDia: pendente.primeiroDiaAtual,
+    ultimoDia: pendente.ultimoDiaAtual,
+  };
+  return confirmarAlteracao(atual, proposto, calendario);
 }
 
 /**
@@ -271,30 +276,8 @@ export async function processarTurno(
     }
   }
 
-  if (
-    pendente &&
-    "aguardandoCorrecao" in pendente &&
-    pendente.aguardandoCorrecao &&
-    intencao.tipo !== "confirmar" &&
-    intencao.tipo !== "recusar" &&
-    intencao.tipo !== "alterar"
-  ) {
-    const destino = interpretarDestinoAlteracao(entrada.mensagem, entrada.agora);
-    if (destino) {
-      const corrigida = await corrigirPendente(pendente, destino, calendario);
-      if (corrigida) return corrigida;
-    }
-    return {
-      texto: RESPOSTA_O_QUE_MUDAR,
-      confirmacaoPendente: pendente,
-    };
-  }
-
   if (intencao.tipo === "confirmar") {
-    if (!pendente) {
-      return { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: null };
-    }
-    if (pendente.acao === "escolher_alteracao") {
+    if (!pendente || pendente.acao === "escolher_alteracao") {
       return { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: pendente };
     }
     if (pendente.acao === "marcar_periodo") {
@@ -345,17 +328,50 @@ export async function processarTurno(
     };
   }
 
-  if (intencao.tipo === "recusar") {
-    if (
-      !pendente ||
-      pendente.acao === "escolher_alteracao"
-    ) {
-      return { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: null };
+  if (pendente && pendente.acao !== "escolher_alteracao" && ehRecusaPura(entrada.mensagem)) {
+    return {
+      texto: RESPOSTA_O_QUE_MUDAR,
+      confirmacaoPendente: { ...pendente, aguardandoCorrecao: true },
+    };
+  }
+
+  if (
+    pendente &&
+    ehAlteracao(pendente) &&
+    (pendente.aguardandoCorrecao || temPrefixoDeRecusa(entrada.mensagem)) &&
+    intencao.tipo !== "alterar"
+  ) {
+    const destino = interpretarDestinoAlteracao(entrada.mensagem, entrada.agora);
+    if (destino) {
+      const corrigida = await corrigirAlteracao(pendente, destino, calendario);
+      if (corrigida) return corrigida;
     }
     return {
       texto: RESPOSTA_O_QUE_MUDAR,
       confirmacaoPendente: { ...pendente, aguardandoCorrecao: true },
     };
+  }
+
+  if (
+    pendente &&
+    ehConfirmacaoMarcacao(pendente) &&
+    (pendente.aguardandoCorrecao || temPrefixoDeRecusa(entrada.mensagem))
+  ) {
+    const corrigida = aplicarCorrecao(
+      pendente,
+      entrada.mensagem,
+      entrada.agora,
+    );
+    if (!corrigida || !ehConfirmacaoMarcacao(corrigida)) {
+      return {
+        texto: RESPOSTA_O_QUE_MUDAR,
+        confirmacaoPendente: { ...pendente, aguardandoCorrecao: true },
+      };
+    }
+    return saidaDeConfirmacao(
+      { ...corrigida, aguardandoCorrecao: false },
+      calendario,
+    );
   }
 
   if (intencao.tipo === "alterar") {
@@ -387,7 +403,7 @@ export async function processarTurno(
     return montarAlteracao(candidatos[0], intencao.destino, calendario);
   }
 
-  if (intencao.tipo === "desconhecida") {
+  if (intencao.tipo === "desconhecida" || intencao.tipo === "recusar") {
     return { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: null };
   }
 
@@ -417,30 +433,22 @@ export async function processarTurno(
     };
   }
 
-  if (intencao.tipo === "marcar_periodo") {
-    const proposta: ConfirmacaoPendente = {
-      acao: "marcar_periodo",
-      titulo: intencao.titulo,
-      primeiroDia: intencao.primeiroDia,
-      ultimoDia: intencao.ultimoDia,
-    };
-    return {
-      texto: formatarConfirmacaoPeriodo(proposta),
-      confirmacaoPendente: proposta,
-    };
-  }
-
-  if (intencao.tipo === "marcar_pontual") {
-    const proposta: ConfirmacaoPendente = {
-      acao: "marcar_pontual",
-      titulo: intencao.titulo,
-      inicio: intencao.inicio,
-      fim: intencao.fim,
-    };
-    return {
-      texto: formatarConfirmacaoPontual(proposta),
-      confirmacaoPendente: proposta,
-    };
+  if (intencao.tipo === "marcar_pontual" || intencao.tipo === "marcar_periodo") {
+    const proposta: ConfirmacaoMarcacao =
+      intencao.tipo === "marcar_pontual"
+        ? {
+            acao: "marcar_pontual",
+            titulo: intencao.titulo,
+            inicio: intencao.inicio,
+            fim: intencao.fim,
+          }
+        : {
+            acao: "marcar_periodo",
+            titulo: intencao.titulo,
+            primeiroDia: intencao.primeiroDia,
+            ultimoDia: intencao.ultimoDia,
+          };
+    return saidaDeConfirmacao(proposta, calendario);
   }
 
   return { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: null };

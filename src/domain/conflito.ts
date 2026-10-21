@@ -1,47 +1,78 @@
-import type { Compromisso, NovoCompromisso } from "./compromisso";
-import { FUSO_DONO, fimDoDia, inicioDoDia } from "./fuso";
+import type { Compromisso } from "./compromisso";
+import { FUSO_DONO, inicioDoDia } from "./fuso";
 import { DateTime } from "luxon";
 
-function intervaloDe(compromisso: NovoCompromisso): {
+/** O que o Dono quer marcar ou o destino de uma Alteração, ainda sem id. */
+export type PropostaConflito =
+  | { tipo: "pontual"; inicio: string; fim: string }
+  | { tipo: "periodo"; primeiroDia: string; ultimoDia: string };
+
+function inicioPontual(iso: string): DateTime {
+  return DateTime.fromISO(iso, { setZone: true });
+}
+
+/** Intervalo meio-aberto [início, fim) em instantes. */
+function faixaPontual(inicio: string, fim: string): { inicio: DateTime; fim: DateTime } {
+  return { inicio: inicioPontual(inicio), fim: inicioPontual(fim) };
+}
+
+/** Dias inteiros inclusive: [início do primeiro, início do dia seguinte ao último). */
+function faixaPeriodo(
+  primeiroDia: string,
+  ultimoDia: string,
+): { inicio: DateTime; fim: DateTime } {
+  return {
+    inicio: inicioDoDia(primeiroDia),
+    fim: inicioDoDia(ultimoDia).plus({ days: 1 }),
+  };
+}
+
+function faixaDe(item: PropostaConflito | Compromisso): {
   inicio: DateTime;
   fim: DateTime;
 } {
-  if (compromisso.tipo === "pontual") {
-    return {
-      inicio: DateTime.fromISO(compromisso.inicio, { setZone: true }),
-      fim: DateTime.fromISO(compromisso.fim, { setZone: true }),
-    };
+  if (item.tipo === "pontual") {
+    return faixaPontual(item.inicio, item.fim);
   }
-  return {
-    inicio: inicioDoDia(compromisso.primeiroDia),
-    fim: fimDoDia(compromisso.ultimoDia),
-  };
+  return faixaPeriodo(item.primeiroDia, item.ultimoDia);
 }
 
 function sobrepoe(
   a: { inicio: DateTime; fim: DateTime },
   b: { inicio: DateTime; fim: DateTime },
 ): boolean {
-  return a.inicio < b.fim && b.inicio < a.fim;
+  return a.inicio < b.fim && a.fim > b.inicio;
 }
 
+function chaveOrdenacao(compromisso: Compromisso): string {
+  if (compromisso.tipo === "pontual") return compromisso.inicio;
+  return inicioDoDia(compromisso.primeiroDia).toISO()!;
+}
+
+/**
+ * Compromissos já no Calendário que se sobrepõem à proposta.
+ * Encostar (um termina quando o outro começa) não é sobreposição.
+ * O fuso entra só para achar o dia civil do Período; o relógio não é lido.
+ */
 export function compromissosEmConflito(
-  proposto: NovoCompromisso,
+  proposta: PropostaConflito,
   existentes: Compromisso[],
   ignorarId?: string,
 ): Compromisso[] {
-  const alvo = intervaloDe(proposto);
-  return existentes.filter((atual) => {
-    if (ignorarId && atual.id === ignorarId) return false;
-    return sobrepoe(alvo, intervaloDe(atual));
-  });
+  const faixa = faixaDe(proposta);
+  return existentes
+    .filter((existente) => {
+      if (ignorarId && existente.id === ignorarId) return false;
+      return sobrepoe(faixa, faixaDe(existente));
+    })
+    .sort((a, b) => chaveOrdenacao(a).localeCompare(chaveOrdenacao(b)));
 }
 
-export function intervaloDeListagem(proposto: NovoCompromisso): {
+export function intervaloDeListagem(proposta: PropostaConflito): {
   inicio: string;
   fim: string;
 } {
-  const { inicio, fim } = intervaloDe(proposto);
+  const { inicio, fim } = faixaDe(proposta);
   return { inicio: inicio.toISO()!, fim: fim.toISO()! };
 }
 

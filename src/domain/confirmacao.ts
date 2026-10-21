@@ -7,12 +7,14 @@ export type ConfirmacaoPontual = {
   /** Instantâneo ISO em America/Sao_Paulo. */
   inicio: string;
   fim: string;
+  /** Depois do não: o próximo turno corrige esta proposta, não começa outra. */
   aguardandoCorrecao?: boolean;
 };
 
 export type ConfirmacaoPeriodo = {
   acao: "marcar_periodo";
   titulo: string;
+  /** Dia civil YYYY-MM-DD em America/Sao_Paulo, extremos inclusive. */
   primeiroDia: string;
   ultimoDia: string;
   aguardandoCorrecao?: boolean;
@@ -58,6 +60,8 @@ export type ConfirmacaoPendente =
   | ConfirmacaoAlterarPeriodo
   | ConfirmacaoEscolherAlteracao;
 
+export type ConfirmacaoMarcacao = ConfirmacaoPontual | ConfirmacaoPeriodo;
+
 function tituloValido(valor: unknown): valor is string {
   return typeof valor === "string" && valor.trim() !== "";
 }
@@ -89,6 +93,12 @@ function destinoValido(valor: unknown): valor is DestinoAlteracao {
     return typeof destino.ultimoDia === "string";
   }
   return false;
+}
+
+export function ehConfirmacaoMarcacao(
+  valor: ConfirmacaoPendente,
+): valor is ConfirmacaoMarcacao {
+  return valor.acao === "marcar_pontual" || valor.acao === "marcar_periodo";
 }
 
 export function ehConfirmacaoPendente(valor: unknown): valor is ConfirmacaoPendente {
