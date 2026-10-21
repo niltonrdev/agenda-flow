@@ -4,6 +4,11 @@ import {
   type ConfirmacaoPendente,
 } from "./confirmacao";
 import {
+  aplicarCorrecao,
+  ehRecusaPura,
+  temPrefixoDeRecusa,
+} from "./corrigir-confirmacao";
+import {
   formatarConfirmacaoPeriodo,
   formatarConfirmacaoPontual,
   formatarConsultaDia,
@@ -11,6 +16,7 @@ import {
   formatarPeriodoMarcado,
   formatarPontualMarcado,
   RESPOSTA_NAO_ENTENDI,
+  RESPOSTA_O_QUE_MUDAR,
 } from "./formatar-resposta";
 import { fimDoDia, inicioDoDia } from "./fuso";
 import { interpretarMensagem } from "./interpretador";
@@ -69,6 +75,40 @@ export async function processarTurno(
     return {
       texto: formatarPontualMarcado(pendente),
       confirmacaoPendente: null,
+    };
+  }
+
+  if (pendente && ehRecusaPura(entrada.mensagem)) {
+    return {
+      texto: RESPOSTA_O_QUE_MUDAR,
+      confirmacaoPendente: { ...pendente, aguardandoCorrecao: true },
+    };
+  }
+
+  if (
+    pendente &&
+    (pendente.aguardandoCorrecao || temPrefixoDeRecusa(entrada.mensagem))
+  ) {
+    const corrigida = aplicarCorrecao(
+      pendente,
+      entrada.mensagem,
+      entrada.agora,
+    );
+    if (!corrigida) {
+      return {
+        texto: RESPOSTA_O_QUE_MUDAR,
+        confirmacaoPendente: { ...pendente, aguardandoCorrecao: true },
+      };
+    }
+    if (corrigida.acao === "marcar_periodo") {
+      return {
+        texto: formatarConfirmacaoPeriodo(corrigida),
+        confirmacaoPendente: { ...corrigida, aguardandoCorrecao: false },
+      };
+    }
+    return {
+      texto: formatarConfirmacaoPontual(corrigida),
+      confirmacaoPendente: { ...corrigida, aguardandoCorrecao: false },
     };
   }
 

@@ -13,6 +13,8 @@ import { DateTime } from "luxon";
 export const RESPOSTA_NAO_ENTENDI =
   "Não entendi o pedido. Pode reformular?";
 
+export const RESPOSTA_O_QUE_MUDAR = "O que mudar?";
+
 function formatarCompromisso(compromisso: Compromisso): string {
   if (compromisso.tipo === "pontual") {
     return `${compromisso.titulo}, ${formatarHora(compromisso.inicio)}–${formatarHora(compromisso.fim)}`;
