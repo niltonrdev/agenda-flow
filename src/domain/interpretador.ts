@@ -36,6 +36,24 @@ export type IntencaoConfirmar = {
   tipo: "confirmar";
 };
 
+export type IntencaoRecusar = {
+  tipo: "recusar";
+};
+
+export type DestinoAlteracao =
+  | { tipo: "dia"; dia: number; mes?: number }
+  | { tipo: "hora"; hora: number; minuto: number }
+  | { tipo: "dia_e_hora"; dia: number; mes?: number; hora: number; minuto: number }
+  | { tipo: "periodo"; primeiroDia: string; ultimoDia: string }
+  | { tipo: "primeiro_dia"; primeiroDia: string }
+  | { tipo: "ultimo_dia"; ultimoDia: string };
+
+export type IntencaoAlterar = {
+  tipo: "alterar";
+  termo: string;
+  destino: DestinoAlteracao;
+};
+
 export type IntencaoDesconhecida = {
   tipo: "desconhecida";
 };
@@ -46,6 +64,8 @@ export type Intencao =
   | IntencaoMarcarPontual
   | IntencaoMarcarPeriodo
   | IntencaoConfirmar
+  | IntencaoRecusar
+  | IntencaoAlterar
   | IntencaoDesconhecida;
 
 const GRUPO_MES =
@@ -70,6 +90,11 @@ const RE_DATA = new RegExp(
 );
 
 const RE_CONFIRMAR = /^(?:sim|confirmo|pode gravar)\s*[.!]?\s*$/u;
+
+const RE_RECUSAR = /^(?:n[aã]o)\s*[.!]?\s*$/u;
+
+const RE_ALTERAR =
+  /^(?:muda|mudar|altere|alterar|remarca|remarcar)(?:\s+(?:o|a))?\s+/u;
 
 const RE_TEM_HORA = /\b\d{1,2}\s*h(?:\d{2})?\b|\b\d{1,2}:\d{2}\b/u;
 
@@ -271,6 +296,162 @@ function tituloDaMensagem(mensagemOriginal: string): string {
   return titulo.charAt(0).toLocaleUpperCase("pt-BR") + titulo.slice(1);
 }
 
+function resolverDiaDoMes(dia: number, agora: DateTime): string | null {
+  if (dia < 1 || dia > 31) return null;
+  const base = agora.setZone(FUSO_DONO).startOf("day");
+  try {
+    let candidato = exigirDia(base.year, base.month, dia);
+    if (candidato < base) {
+      const proximoMes = candidato.plus({ months: 1 });
+      candidato = exigirDia(proximoMes.year, proximoMes.month, dia);
+    }
+    return candidato.toISODate()!;
+  } catch {
+    return null;
+  }
+}
+
+function partesDoDia(
+  texto: string,
+): { dia: number; mes?: number } | null {
+  const matchData = RE_DATA.exec(texto);
+  if (matchData) {
+    const dia = Number(matchData[1]);
+    const mes = mesDe(matchData[2]);
+    if (!mes || dia < 1 || dia > 31) return null;
+    return { dia, mes };
+  }
+  const matchDia = /(?:^|\b)(?:o\s+)?dia\s+(\d{1,2})\b/u.exec(texto);
+  if (matchDia) {
+    const dia = Number(matchDia[1]);
+    if (dia < 1 || dia > 31) return null;
+    return { dia };
+  }
+  return null;
+}
+
+function diaIsoDeTexto(texto: string, agora: DateTime): string | null {
+  const base = agora.setZone(FUSO_DONO);
+  if (new RegExp(`${PALAVRA}depois de amanh[aã]${FIM_PALAVRA}`, "u").test(texto)) {
+    return base.plus({ days: 2 }).toISODate();
+  }
+  if (new RegExp(`${PALAVRA}amanh[aã]${FIM_PALAVRA}`, "u").test(texto)) {
+    return base.plus({ days: 1 }).toISODate();
+  }
+  if (new RegExp(`${PALAVRA}hoje${FIM_PALAVRA}`, "u").test(texto)) {
+    return base.toISODate();
+  }
+  const matchData = RE_DATA.exec(texto);
+  if (matchData) {
+    const dia = Number(matchData[1]);
+    const mes = mesDe(matchData[2]);
+    if (!mes || dia < 1 || dia > 31) return null;
+    try {
+      return resolverAnoDaData(dia, mes, agora);
+    } catch {
+      return null;
+    }
+  }
+  const matchDia = /(?:^|\b)(?:o\s+)?dia\s+(\d{1,2})\b/u.exec(texto);
+  if (matchDia) {
+    return resolverDiaDoMes(Number(matchDia[1]), agora);
+  }
+  return null;
+}
+
+export function interpretarDestinoAlteracao(
+  textoDestino: string,
+  agora: DateTime,
+): DestinoAlteracao | null {
+  const texto = textoDestino.trim().toLowerCase().normalize("NFC");
+  if (!texto) return null;
+
+  const aPartir = /(?:a\s+partir\s+d[eo]|come[cç]a(?:ndo)?(?:\s+no)?)\s+/u.test(texto);
+  const ate = new RegExp(`${PALAVRA}at[eé]${FIM_PALAVRA}`, "u").test(texto);
+
+  const matchIntervalo = RE_INTERVALO.exec(texto);
+  if (matchIntervalo) {
+    const recorte = montarIntervalo(
+      Number(matchIntervalo[1]),
+      mesDe(matchIntervalo[2]),
+      Number(matchIntervalo[3]),
+      mesDe(matchIntervalo[4]),
+      agora,
+    );
+    if (recorte.tipo !== "consulta_intervalo") return null;
+    return {
+      tipo: "periodo",
+      primeiroDia: recorte.primeiroDia,
+      ultimoDia: recorte.ultimoDia,
+    };
+  }
+
+  const diaIso = diaIsoDeTexto(texto, agora);
+  const partes = partesDoDia(texto);
+  const horaMatch = RE_HORA_INICIO.exec(texto);
+  const hora = horaMatch
+    ? horaMinuto(horaMatch[1], horaMatch[2], horaMatch[3])
+    : null;
+
+  if (aPartir && diaIso) {
+    return { tipo: "primeiro_dia", primeiroDia: diaIso };
+  }
+  if (ate && diaIso) {
+    return { tipo: "ultimo_dia", ultimoDia: diaIso };
+  }
+  if (partes && hora) {
+    return {
+      tipo: "dia_e_hora",
+      dia: partes.dia,
+      ...(partes.mes != null ? { mes: partes.mes } : {}),
+      hora: hora.hour,
+      minuto: hora.minute,
+    };
+  }
+  if (hora && !partes) {
+    return { tipo: "hora", hora: hora.hour, minuto: hora.minute };
+  }
+  if (partes) {
+    return {
+      tipo: "dia",
+      dia: partes.dia,
+      ...(partes.mes != null ? { mes: partes.mes } : {}),
+    };
+  }
+  return null;
+}
+
+function termoDeAlteracao(trecho: string): string {
+  return trecho
+    .replace(/^(?:o|a|os|as)\s+/iu, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase()
+    .normalize("NFC");
+}
+
+function montarAlterar(mensagem: string, agora: DateTime): Intencao {
+  const semVerbo = mensagem.trim().replace(RE_ALTERAR, "");
+  let termoBruto = semVerbo;
+  let destinoBruto = "";
+
+  const partesPara = semVerbo.split(/\s+para\s+/iu);
+  if (partesPara.length > 1) {
+    termoBruto = partesPara[0];
+    destinoBruto = partesPara.slice(1).join(" para ");
+  } else {
+    const sufixo = /\s+((?:a\s+partir|at[eé]|come[cç]a).+)$/iu.exec(semVerbo);
+    if (!sufixo) return { tipo: "desconhecida" };
+    termoBruto = semVerbo.slice(0, sufixo.index);
+    destinoBruto = sufixo[1];
+  }
+
+  const termo = termoDeAlteracao(termoBruto);
+  const destino = interpretarDestinoAlteracao(destinoBruto, agora);
+  if (!termo || !destino) return { tipo: "desconhecida" };
+  return { tipo: "alterar", termo, destino };
+}
+
 function montarPontual(mensagem: string, texto: string, agora: DateTime): Intencao {
   const dia = diaDoPontual(texto, agora);
   if (!dia) return { tipo: "desconhecida" };
@@ -317,6 +498,14 @@ export function interpretarMensagem(
 
   if (RE_CONFIRMAR.test(texto)) {
     return { tipo: "confirmar" };
+  }
+
+  if (RE_RECUSAR.test(texto)) {
+    return { tipo: "recusar" };
+  }
+
+  if (RE_ALTERAR.test(texto)) {
+    return montarAlterar(mensagem.trim(), agora);
   }
 
   if (RE_TEM_HORA.test(texto)) {

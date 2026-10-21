@@ -130,4 +130,25 @@ describe("Alerta de conflito", () => {
 
     expect(conflitos).toEqual([]);
   });
+
+  it("ignora o próprio Compromisso na Alteração", () => {
+    const pescaria: Compromisso = {
+      id: "p",
+      titulo: "Pescaria",
+      tipo: "periodo",
+      primeiroDia: "2025-09-04",
+      ultimoDia: "2025-09-06",
+    };
+    expect(
+      compromissosEmConflito(
+        {
+          tipo: "periodo",
+          primeiroDia: "2025-09-05",
+          ultimoDia: "2025-09-07",
+        },
+        [pescaria],
+        "p",
+      ),
+    ).toEqual([]);
+  });
 });

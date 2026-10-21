@@ -1,8 +1,8 @@
 import type { Compromisso } from "./compromisso";
-import { inicioDoDia } from "./fuso";
+import { FUSO_DONO, inicioDoDia } from "./fuso";
 import { DateTime } from "luxon";
 
-/** O que o Dono quer marcar, ainda sem id. */
+/** O que o Dono quer marcar ou o destino de uma Alteração, ainda sem id. */
 export type PropostaConflito =
   | { tipo: "pontual"; inicio: string; fim: string }
   | { tipo: "periodo"; primeiroDia: string; ultimoDia: string };
@@ -57,9 +57,29 @@ function chaveOrdenacao(compromisso: Compromisso): string {
 export function compromissosEmConflito(
   proposta: PropostaConflito,
   existentes: Compromisso[],
+  ignorarId?: string,
 ): Compromisso[] {
   const faixa = faixaDe(proposta);
   return existentes
-    .filter((existente) => sobrepoe(faixa, faixaDe(existente)))
+    .filter((existente) => {
+      if (ignorarId && existente.id === ignorarId) return false;
+      return sobrepoe(faixa, faixaDe(existente));
+    })
     .sort((a, b) => chaveOrdenacao(a).localeCompare(chaveOrdenacao(b)));
+}
+
+export function intervaloDeListagem(proposta: PropostaConflito): {
+  inicio: string;
+  fim: string;
+} {
+  const { inicio, fim } = faixaDe(proposta);
+  return { inicio: inicio.toISO()!, fim: fim.toISO()! };
+}
+
+export function janelaDeBusca(agora: DateTime): { inicio: string; fim: string } {
+  const base = agora.setZone(FUSO_DONO);
+  return {
+    inicio: base.minus({ years: 1 }).startOf("year").toISO()!,
+    fim: base.plus({ years: 2 }).endOf("year").toISO()!,
+  };
 }

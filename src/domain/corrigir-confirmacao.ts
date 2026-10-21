@@ -290,5 +290,8 @@ export function aplicarCorrecao(
   if (pendente.acao === "marcar_pontual") {
     return aplicarPontual(pendente, mensagem, agora);
   }
-  return aplicarPeriodo(pendente, mensagem, agora);
+  if (pendente.acao === "marcar_periodo") {
+    return aplicarPeriodo(pendente, mensagem, agora);
+  }
+  return null;
 }
