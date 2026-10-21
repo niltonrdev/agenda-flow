@@ -25,6 +25,13 @@ export type IntencaoMarcarPontual = {
   fim: string;
 };
 
+export type IntencaoMarcarPeriodo = {
+  tipo: "marcar_periodo";
+  titulo: string;
+  primeiroDia: string;
+  ultimoDia: string;
+};
+
 export type IntencaoConfirmar = {
   tipo: "confirmar";
 };
@@ -37,6 +44,7 @@ export type Intencao =
   | IntencaoConsultaDia
   | IntencaoConsultaIntervalo
   | IntencaoMarcarPontual
+  | IntencaoMarcarPeriodo
   | IntencaoConfirmar
   | IntencaoDesconhecida;
 
@@ -62,6 +70,8 @@ const RE_DATA = new RegExp(
 );
 
 const RE_CONFIRMAR = /^(?:sim|confirmo|pode gravar)\s*[.!]?\s*$/u;
+
+const RE_PEDIDO_MARCAR = /^(?:marcar|marca|marque)\b/u;
 
 const RE_TEM_HORA = /\b\d{1,2}\s*h(?:\d{2})?\b|\b\d{1,2}:\d{2}\b/u;
 
@@ -213,7 +223,7 @@ function duracaoEmMinutos(texto: string): number | null {
   return quantidade;
 }
 
-function tituloDoPontual(mensagemOriginal: string): string {
+function tituloDaMensagem(mensagemOriginal: string): string {
   let titulo = mensagemOriginal.normalize("NFC").trim();
   titulo = titulo.replace(/^\s*(?:marcar|marca|marque)\s+/iu, "");
   titulo = titulo.replace(
@@ -257,6 +267,7 @@ function tituloDoPontual(mensagemOriginal: string): string {
     ),
     " ",
   );
+  titulo = titulo.replace(new RegExp(RE_INTERVALO.source, "giu"), " ");
   titulo = titulo.replace(/[?.!,]+/g, " ").replace(/\s+/g, " ").trim();
   if (!titulo) return "Compromisso";
   return titulo.charAt(0).toLocaleUpperCase("pt-BR") + titulo.slice(1);
@@ -290,7 +301,7 @@ function montarPontual(mensagem: string, texto: string, agora: DateTime): Intenc
 
   return {
     tipo: "marcar_pontual",
-    titulo: tituloDoPontual(mensagem),
+    titulo: tituloDaMensagem(mensagem),
     inicio: inicio.toISO()!,
     fim: fim.toISO()!,
   };
@@ -316,13 +327,22 @@ export function interpretarMensagem(
 
   const matchIntervalo = RE_INTERVALO.exec(texto);
   if (matchIntervalo) {
-    return montarIntervalo(
+    const intervalo = montarIntervalo(
       Number(matchIntervalo[1]),
       mesDe(matchIntervalo[2]),
       Number(matchIntervalo[3]),
       mesDe(matchIntervalo[4]),
       agora,
     );
+    if (intervalo.tipo === "consulta_intervalo" && RE_PEDIDO_MARCAR.test(texto)) {
+      return {
+        tipo: "marcar_periodo",
+        titulo: tituloDaMensagem(mensagem.trim()),
+        primeiroDia: intervalo.primeiroDia,
+        ultimoDia: intervalo.ultimoDia,
+      };
+    }
+    return intervalo;
   }
 
   const matchFeriado = RE_FERIADO.exec(texto);

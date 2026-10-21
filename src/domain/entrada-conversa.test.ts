@@ -336,8 +336,11 @@ describe("entrada de conversa — Marcação de Pontual", () => {
 
     expect(saida.texto).toContain("9h");
     expect(saida.texto).toContain("10h");
-    expect(saida.confirmacaoPendente?.inicio).toContain("T09:00");
-    expect(saida.confirmacaoPendente?.fim).toContain("T10:00");
+    expect(saida.confirmacaoPendente?.acao).toBe("marcar_pontual");
+    if (saida.confirmacaoPendente?.acao === "marcar_pontual") {
+      expect(saida.confirmacaoPendente.inicio).toContain("T09:00");
+      expect(saida.confirmacaoPendente.fim).toContain("T10:00");
+    }
     expect(calendario.listarTodos()).toHaveLength(0);
   });
 
@@ -354,7 +357,10 @@ describe("entrada de conversa — Marcação de Pontual", () => {
 
     expect(saida.texto).toContain("15h");
     expect(saida.texto).toContain("16h30");
-    expect(saida.confirmacaoPendente?.fim).toContain("T16:30");
+    expect(saida.confirmacaoPendente?.acao).toBe("marcar_pontual");
+    if (saida.confirmacaoPendente?.acao === "marcar_pontual") {
+      expect(saida.confirmacaoPendente.fim).toContain("T16:30");
+    }
   });
 
   it("duração dita por 30 minutos é respeitada", async () => {
@@ -370,7 +376,10 @@ describe("entrada de conversa — Marcação de Pontual", () => {
 
     expect(saida.texto).toContain("15h");
     expect(saida.texto).toContain("15h30");
-    expect(saida.confirmacaoPendente?.fim).toContain("T15:30");
+    expect(saida.confirmacaoPendente?.acao).toBe("marcar_pontual");
+    if (saida.confirmacaoPendente?.acao === "marcar_pontual") {
+      expect(saida.confirmacaoPendente.fim).toContain("T15:30");
+    }
   });
 
   it("o sim grava o Compromisso e a Conversa avisa que ficou marcado", async () => {
@@ -393,12 +402,16 @@ describe("entrada de conversa — Marcação de Pontual", () => {
     expect(saida.texto).toContain("Marquei");
     expect(saida.texto).toContain("Reunião com a Ana");
     expect(saida.confirmacaoPendente).toBeNull();
+    expect(proposta.confirmacaoPendente?.acao).toBe("marcar_pontual");
+    if (proposta.confirmacaoPendente?.acao !== "marcar_pontual") {
+      throw new Error("esperava Confirmação de Pontual");
+    }
     expect(calendario.listarTodos()).toEqual([
       expect.objectContaining({
         tipo: "pontual",
         titulo: "Reunião com a Ana",
-        inicio: proposta.confirmacaoPendente!.inicio,
-        fim: proposta.confirmacaoPendente!.fim,
+        inicio: proposta.confirmacaoPendente.inicio,
+        fim: proposta.confirmacaoPendente.fim,
       }),
     ]);
   });
@@ -465,6 +478,194 @@ describe("entrada de conversa — Marcação de Pontual", () => {
     expect(consulta.texto).toContain("15h");
     expect(consulta.texto).toContain("16h");
     expect(consulta.texto).toMatch(/2 de agosto/i);
+  });
+});
+
+describe("entrada de conversa — Alerta de conflito", () => {
+  it("Pontual no mesmo horário avisa qual Compromisso conflita e não grava", async () => {
+    const inicio = DateTime.fromObject(
+      { year: 2025, month: 8, day: 2, hour: 15 },
+      { zone: FUSO_DONO },
+    );
+    const calendario = criarCalendarioEmMemoria([
+      {
+        id: "dentista",
+        titulo: "Dentista",
+        tipo: "pontual",
+        inicio: inicio.toISO()!,
+        fim: inicio.plus({ hours: 1 }).toISO()!,
+      },
+    ]);
+
+    const saida = await processarTurno(
+      { mensagem: "reunião com a Ana amanhã às 15h", agora: AGORA },
+      calendario,
+    );
+
+    expect(saida.texto).toMatch(/Alerta de conflito/i);
+    expect(saida.texto).toContain("Dentista");
+    expect(saida.texto).toContain("15h");
+    expect(saida.texto).toMatch(/2 de agosto/i);
+    expect(saida.confirmacaoPendente).toMatchObject({ acao: "marcar_pontual" });
+    expect(calendario.listarTodos()).toHaveLength(1);
+  });
+
+  it("Pontual que cai dentro de um Período gera Alerta de conflito", async () => {
+    const calendario = criarCalendarioEmMemoria([
+      {
+        id: "cirurgia",
+        titulo: "Cirurgia",
+        tipo: "periodo",
+        primeiroDia: "2025-08-02",
+        ultimoDia: "2025-08-02",
+      },
+    ]);
+
+    const saida = await processarTurno(
+      { mensagem: "reunião com a Ana amanhã às 15h", agora: AGORA },
+      calendario,
+    );
+
+    expect(saida.texto).toMatch(/Alerta de conflito/i);
+    expect(saida.texto).toContain("Cirurgia");
+    expect(saida.texto).toMatch(/2 de agosto/i);
+    expect(calendario.listarTodos()).toHaveLength(1);
+  });
+
+  it("horários que só se encostam não geram alerta", async () => {
+    const inicio = DateTime.fromObject(
+      { year: 2025, month: 8, day: 2, hour: 14 },
+      { zone: FUSO_DONO },
+    );
+    const calendario = criarCalendarioEmMemoria([
+      {
+        id: "almoco",
+        titulo: "Almoço",
+        tipo: "pontual",
+        inicio: inicio.toISO()!,
+        fim: inicio.plus({ hours: 1 }).toISO()!,
+      },
+    ]);
+
+    const saida = await processarTurno(
+      { mensagem: "reunião com a Ana amanhã às 15h", agora: AGORA },
+      calendario,
+    );
+
+    expect(saida.texto).not.toMatch(/Alerta de conflito/i);
+    expect(saida.texto).toMatch(/Confirmação/i);
+    expect(calendario.listarTodos()).toHaveLength(1);
+  });
+
+  it("depois do aviso, o sim grava mesmo com a sobreposição", async () => {
+    const inicio = DateTime.fromObject(
+      { year: 2025, month: 8, day: 2, hour: 15 },
+      { zone: FUSO_DONO },
+    );
+    const calendario = criarCalendarioEmMemoria([
+      {
+        id: "dentista",
+        titulo: "Dentista",
+        tipo: "pontual",
+        inicio: inicio.toISO()!,
+        fim: inicio.plus({ hours: 1 }).toISO()!,
+      },
+    ]);
+    const proposta = await processarTurno(
+      { mensagem: "reunião com a Ana amanhã às 15h", agora: AGORA },
+      calendario,
+    );
+
+    const saida = await processarTurno(
+      {
+        mensagem: "sim",
+        agora: AGORA,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(saida.texto).toContain("Marquei");
+    expect(calendario.listarTodos()).toHaveLength(2);
+    expect(calendario.listarTodos().map((c) => c.titulo)).toContain(
+      "Reunião com a Ana",
+    );
+  });
+
+  it("depois do aviso, sem o sim nada é gravado", async () => {
+    const inicio = DateTime.fromObject(
+      { year: 2025, month: 8, day: 2, hour: 15 },
+      { zone: FUSO_DONO },
+    );
+    const calendario = criarCalendarioEmMemoria([
+      {
+        id: "dentista",
+        titulo: "Dentista",
+        tipo: "pontual",
+        inicio: inicio.toISO()!,
+        fim: inicio.plus({ hours: 1 }).toISO()!,
+      },
+    ]);
+    const antes = calendario.listarTodos();
+    const proposta = await processarTurno(
+      { mensagem: "reunião com a Ana amanhã às 15h", agora: AGORA },
+      calendario,
+    );
+
+    const saida = await processarTurno(
+      {
+        mensagem: "15 de outubro",
+        agora: AGORA,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(saida.texto).toBe("15 de outubro está livre.");
+    expect(calendario.listarTodos()).toEqual(antes);
+  });
+
+  it("marcar a pescaria de 4 a 7 com a cirurgia no dia 7 mostra a cirurgia antes de gravar", async () => {
+    const calendario = criarCalendarioEmMemoria(
+      compromissosDeDemonstracao(AGORA_SETEMBRO),
+    );
+    const antes = calendario.listarTodos();
+
+    const saida = await processarTurno(
+      {
+        mensagem: "marcar pescaria do dia 4 ao 7",
+        agora: AGORA_SETEMBRO,
+      },
+      calendario,
+    );
+
+    expect(saida.texto).toMatch(/Confirmação/i);
+    expect(saida.texto).toMatch(/Alerta de conflito/i);
+    expect(saida.texto).toContain("Cirurgia");
+    expect(saida.texto).toMatch(/7 de setembro/i);
+    expect(saida.texto).toContain("Pescaria");
+    expect(saida.confirmacaoPendente).toMatchObject({
+      acao: "marcar_periodo",
+      titulo: "Pescaria",
+      primeiroDia: "2025-09-04",
+      ultimoDia: "2025-09-07",
+    });
+    expect(calendario.listarTodos()).toEqual(antes);
+
+    const gravado = await processarTurno(
+      {
+        mensagem: "sim",
+        agora: AGORA_SETEMBRO,
+        confirmacaoPendente: saida.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(gravado.texto).toContain("Marquei");
+    const periodos = calendario
+      .listarTodos()
+      .filter((c) => c.titulo === "Pescaria" && c.tipo === "periodo");
+    expect(periodos).toHaveLength(2);
   });
 });
 
