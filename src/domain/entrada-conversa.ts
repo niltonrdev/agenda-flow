@@ -1,5 +1,9 @@
 import type { Calendario } from "./calendario";
-import { formatarConsultaDia, RESPOSTA_NAO_ENTENDI } from "./formatar-resposta";
+import {
+  formatarConsultaDia,
+  formatarConsultaIntervalo,
+  RESPOSTA_NAO_ENTENDI,
+} from "./formatar-resposta";
 import { fimDoDia, inicioDoDia } from "./fuso";
 import { interpretarMensagem } from "./interpretador";
 import { DateTime } from "luxon";
@@ -34,6 +38,20 @@ export async function processarTurno(
       fim: fimDoDia(intencao.dia).toISO()!,
     });
     return { texto: formatarConsultaDia(intencao.dia, compromissos) };
+  }
+
+  if (intencao.tipo === "consulta_intervalo") {
+    const compromissos = await calendario.listar({
+      inicio: inicioDoDia(intencao.primeiroDia).toISO()!,
+      fim: fimDoDia(intencao.ultimoDia).toISO()!,
+    });
+    return {
+      texto: formatarConsultaIntervalo(
+        intencao.primeiroDia,
+        intencao.ultimoDia,
+        compromissos,
+      ),
+    };
   }
 
   return { texto: RESPOSTA_NAO_ENTENDI };
