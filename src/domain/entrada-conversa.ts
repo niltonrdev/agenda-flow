@@ -3,14 +3,14 @@ import {
   ehConfirmacaoPendente,
   type ConfirmacaoPendente,
 } from "./confirmacao";
+import { compromissosEmConflito } from "./conflito";
 import {
   aplicarCorrecao,
   ehRecusaPura,
   temPrefixoDeRecusa,
 } from "./corrigir-confirmacao";
 import {
-  formatarConfirmacaoPeriodo,
-  formatarConfirmacaoPontual,
+  formatarConfirmacao,
   formatarConsultaDia,
   formatarConsultaIntervalo,
   formatarPeriodoMarcado,
@@ -36,6 +36,34 @@ export type SaidaConversa = {
   texto: string;
   confirmacaoPendente: ConfirmacaoPendente | null;
 };
+
+async function saidaDeConfirmacao(
+  proposta: ConfirmacaoPendente,
+  calendario: Calendario,
+): Promise<SaidaConversa> {
+  const janela =
+    proposta.acao === "marcar_pontual"
+      ? { inicio: proposta.inicio, fim: proposta.fim }
+      : {
+          inicio: inicioDoDia(proposta.primeiroDia).toISO()!,
+          fim: fimDoDia(proposta.ultimoDia).toISO()!,
+        };
+  const existentes = await calendario.listar(janela);
+  const conflitos = compromissosEmConflito(
+    proposta.acao === "marcar_pontual"
+      ? { tipo: "pontual", inicio: proposta.inicio, fim: proposta.fim }
+      : {
+          tipo: "periodo",
+          primeiroDia: proposta.primeiroDia,
+          ultimoDia: proposta.ultimoDia,
+        },
+    existentes,
+  );
+  return {
+    texto: formatarConfirmacao(proposta, conflitos),
+    confirmacaoPendente: proposta,
+  };
+}
 
 /**
  * Única entrada de conversa: Mensagem + agora → resposta em PT-BR.
@@ -100,16 +128,10 @@ export async function processarTurno(
         confirmacaoPendente: { ...pendente, aguardandoCorrecao: true },
       };
     }
-    if (corrigida.acao === "marcar_periodo") {
-      return {
-        texto: formatarConfirmacaoPeriodo(corrigida),
-        confirmacaoPendente: { ...corrigida, aguardandoCorrecao: false },
-      };
-    }
-    return {
-      texto: formatarConfirmacaoPontual(corrigida),
-      confirmacaoPendente: { ...corrigida, aguardandoCorrecao: false },
-    };
+    return saidaDeConfirmacao(
+      { ...corrigida, aguardandoCorrecao: false },
+      calendario,
+    );
   }
 
   if (intencao.tipo === "desconhecida") {
@@ -142,30 +164,22 @@ export async function processarTurno(
     };
   }
 
-  if (intencao.tipo === "marcar_periodo") {
-    const proposta: ConfirmacaoPendente = {
-      acao: "marcar_periodo",
-      titulo: intencao.titulo,
-      primeiroDia: intencao.primeiroDia,
-      ultimoDia: intencao.ultimoDia,
-    };
-    return {
-      texto: formatarConfirmacaoPeriodo(proposta),
-      confirmacaoPendente: proposta,
-    };
-  }
-
-  if (intencao.tipo === "marcar_pontual") {
-    const proposta: ConfirmacaoPendente = {
-      acao: "marcar_pontual",
-      titulo: intencao.titulo,
-      inicio: intencao.inicio,
-      fim: intencao.fim,
-    };
-    return {
-      texto: formatarConfirmacaoPontual(proposta),
-      confirmacaoPendente: proposta,
-    };
+  if (intencao.tipo === "marcar_pontual" || intencao.tipo === "marcar_periodo") {
+    const proposta: ConfirmacaoPendente =
+      intencao.tipo === "marcar_pontual"
+        ? {
+            acao: "marcar_pontual",
+            titulo: intencao.titulo,
+            inicio: intencao.inicio,
+            fim: intencao.fim,
+          }
+        : {
+            acao: "marcar_periodo",
+            titulo: intencao.titulo,
+            primeiroDia: intencao.primeiroDia,
+            ultimoDia: intencao.ultimoDia,
+          };
+    return saidaDeConfirmacao(proposta, calendario);
   }
 
   return { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: null };

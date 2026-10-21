@@ -221,7 +221,7 @@ function duracaoEmMinutos(texto: string): number | null {
   return quantidade;
 }
 
-function tituloDoPontual(mensagemOriginal: string): string {
+function tituloDaMensagem(mensagemOriginal: string): string {
   let titulo = mensagemOriginal.normalize("NFC").trim();
   titulo = titulo.replace(/^\s*(?:marcar|marca|marque)\s+/iu, "");
   titulo = titulo.replace(
@@ -265,6 +265,7 @@ function tituloDoPontual(mensagemOriginal: string): string {
     ),
     " ",
   );
+  titulo = titulo.replace(new RegExp(RE_INTERVALO.source, "giu"), " ");
   titulo = titulo.replace(/[?.!,]+/g, " ").replace(/\s+/g, " ").trim();
   if (!titulo) return "Compromisso";
   return titulo.charAt(0).toLocaleUpperCase("pt-BR") + titulo.slice(1);
@@ -298,7 +299,7 @@ function montarPontual(mensagem: string, texto: string, agora: DateTime): Intenc
 
   return {
     tipo: "marcar_pontual",
-    titulo: tituloDoPontual(mensagem),
+    titulo: tituloDaMensagem(mensagem),
     inicio: inicio.toISO()!,
     fim: fim.toISO()!,
   };

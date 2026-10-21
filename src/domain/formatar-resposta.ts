@@ -1,5 +1,9 @@
 import type { Compromisso } from "./compromisso";
-import type { ConfirmacaoPeriodo, ConfirmacaoPontual } from "./confirmacao";
+import type {
+  ConfirmacaoPendente,
+  ConfirmacaoPeriodo,
+  ConfirmacaoPontual,
+} from "./confirmacao";
 import {
   FUSO_DONO,
   diaCivil,
@@ -30,20 +34,39 @@ function detalhePontual(titulo: string, inicio: string, fim: string): string {
   return `${titulo}, ${formatarDiaPorExtenso(dia)}, das ${formatarHora(inicio)} às ${formatarHora(fim)}`;
 }
 
-export function formatarConfirmacaoPontual(proposta: ConfirmacaoPontual): string {
-  return `Confirmação: ${detalhePontual(proposta.titulo, proposta.inicio, proposta.fim)}. Diga sim para marcar.`;
-}
-
-export function formatarPontualMarcado(proposta: ConfirmacaoPontual): string {
-  return `Marquei ${detalhePontual(proposta.titulo, proposta.inicio, proposta.fim)}.`;
-}
-
 function detalhePeriodo(proposta: ConfirmacaoPeriodo): string {
   return `${proposta.titulo}, de ${formatarDiaPorExtenso(proposta.primeiroDia)} a ${formatarDiaPorExtenso(proposta.ultimoDia)}, dia inteiro`;
 }
 
+function detalheProposta(proposta: ConfirmacaoPendente): string {
+  if (proposta.acao === "marcar_pontual") {
+    return detalhePontual(proposta.titulo, proposta.inicio, proposta.fim);
+  }
+  return detalhePeriodo(proposta);
+}
+
+export function formatarConfirmacao(
+  proposta: ConfirmacaoPendente,
+  conflitos: Compromisso[] = [],
+): string {
+  const base = `Confirmação: ${detalheProposta(proposta)}.`;
+  if (conflitos.length === 0) {
+    return `${base} Diga sim para marcar.`;
+  }
+  const avisos = conflitos.map((c) => formatarCompromissoNoIntervalo(c)).join("; ");
+  return `${base} Alerta de conflito: ${avisos}. Diga sim para marcar mesmo assim.`;
+}
+
+export function formatarConfirmacaoPontual(proposta: ConfirmacaoPontual): string {
+  return formatarConfirmacao(proposta);
+}
+
 export function formatarConfirmacaoPeriodo(proposta: ConfirmacaoPeriodo): string {
-  return `Confirmação: ${detalhePeriodo(proposta)}. Diga sim para marcar.`;
+  return formatarConfirmacao(proposta);
+}
+
+export function formatarPontualMarcado(proposta: ConfirmacaoPontual): string {
+  return `Marquei ${detalhePontual(proposta.titulo, proposta.inicio, proposta.fim)}.`;
 }
 
 export function formatarPeriodoMarcado(proposta: ConfirmacaoPeriodo): string {
