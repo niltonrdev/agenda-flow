@@ -1,6 +1,9 @@
 "use client";
 
+import { PLACEHOLDER_MENSAGEM, ROTULO_MICROFONE } from "@/app/conversa-campo";
 import type { ConfirmacaoPendente } from "@/domain/confirmacao";
+import { mensagemAPartirDoCampo } from "@/domain/transcritor";
+import { obterTranscritor } from "@/lib/transcritor-app";
 import {
   useEffect,
   useRef,
@@ -36,7 +39,10 @@ export default function ConversaPage() {
   }, [mensagens, carregando, erro]);
 
   async function enviar() {
-    const texto = rascunho.trim();
+    const texto = await mensagemAPartirDoCampo(
+      obterTranscritor(),
+      rascunho,
+    );
     if (!texto || carregando) return;
 
     setErro(null);
@@ -142,19 +148,43 @@ export default function ConversaPage() {
         <label className="sr-only" htmlFor="mensagem">
           Mensagem
         </label>
-        <textarea
-          id="mensagem"
-          ref={campoRef}
-          className="conversa-campo"
-          rows={1}
-          placeholder="Ex.: reunião com a Ana amanhã às 15h"
-          value={rascunho}
-          onChange={(e) => setRascunho(e.target.value)}
-          onKeyDown={aoTeclar}
-          disabled={carregando}
-          enterKeyHint="send"
-          autoComplete="off"
-        />
+        <div className="conversa-campo-com-ditado">
+          <textarea
+            id="mensagem"
+            ref={campoRef}
+            className="conversa-campo"
+            rows={1}
+            placeholder={PLACEHOLDER_MENSAGEM}
+            value={rascunho}
+            onChange={(e) => setRascunho(e.target.value)}
+            onKeyDown={aoTeclar}
+            disabled={carregando}
+            enterKeyHint="send"
+            autoComplete="off"
+            inputMode="text"
+            lang="pt-BR"
+          />
+          <span
+            className="conversa-ditado"
+            aria-hidden="true"
+            title={ROTULO_MICROFONE}
+          >
+            <svg
+              className="conversa-ditado-icone"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="9" y="3" width="6" height="11" rx="3" />
+              <path d="M6 11a6 6 0 0 0 12 0" />
+              <path d="M12 17v4" />
+            </svg>
+          </span>
+          <span className="sr-only">{ROTULO_MICROFONE}</span>
+        </div>
         <button
           type="submit"
           className="conversa-enviar"
