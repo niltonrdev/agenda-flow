@@ -4,12 +4,12 @@
 
 **Blocked by:** 03 (Marcação de Pontual com Confirmação)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] O não na Confirmação faz a Conversa perguntar o que mudar
-- [ ] Corrigir só a data reapresenta a Confirmação com título e horário preservados
-- [ ] Corrigir só o horário reapresenta a Confirmação com título e data preservados
-- [ ] Corrigir só o título reapresenta a Confirmação com data e horário preservados
-- [ ] Duas correções seguidas funcionam, cada uma partindo da proposta corrigida
-- [ ] Nada é gravado durante as correções; só o sim grava
-- [ ] O sim depois da correção grava o Compromisso corrigido, não o original
+- [x] O não na Confirmação faz a Conversa perguntar o que mudar
+- [x] Corrigir só a data reapresenta a Confirmação com título e horário preservados
+- [x] Corrigir só o horário reapresenta a Confirmação com título e data preservados
+- [x] Corrigir só o título reapresenta a Confirmação com data e horário preservados
+- [x] Duas correções seguidas funcionam, cada uma partindo da proposta corrigida
+- [x] Nada é gravado durante as correções; só o sim grava
+- [x] O sim depois da correção grava o Compromisso corrigido, não o original

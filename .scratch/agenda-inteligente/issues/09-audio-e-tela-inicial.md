@@ -4,12 +4,12 @@
 
 **Blocked by:** 01 (Consulta de um dia)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] O campo da Conversa deixa claro que dá para ditar, com dica ou affordance de microfone
-- [ ] Texto ditado segue exatamente o mesmo caminho do texto digitado
-- [ ] A porta Transcritor existe, com o ditado nativo como adaptador padrão, para um adaptador de servidor entrar depois sem tocar no núcleo
-- [ ] A Confirmação mostra o Compromisso entendido, nunca a transcrição crua
-- [ ] Transcrição errada aparece como Confirmação errada, e o não abre a correção
-- [ ] A aplicação é instalável na tela inicial do iPhone, com manifest, nome e ícone
-- [ ] Aberta pela tela inicial, ela cai direto na Conversa
+- [x] O campo da Conversa deixa claro que dá para ditar, com dica ou affordance de microfone
+- [x] Texto ditado segue exatamente o mesmo caminho do texto digitado
+- [x] A porta Transcritor existe, com o ditado nativo como adaptador padrão, para um adaptador de servidor entrar depois sem tocar no núcleo
+- [x] A Confirmação mostra o Compromisso entendido, nunca a transcrição crua
+- [x] Transcrição errada aparece como Confirmação errada, e o não abre a correção
+- [x] A aplicação é instalável na tela inicial do iPhone, com manifest, nome e ícone
+- [x] Aberta pela tela inicial, ela cai direto na Conversa

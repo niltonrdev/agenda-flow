@@ -4,13 +4,13 @@
 
 **Blocked by:** 07 (Alteração com desambiguação)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Pedido de cancelar produz Confirmação identificando o Compromisso, com dia e horário
-- [ ] O sim remove o Compromisso do Calendário e a Conversa avisa
-- [ ] O não deixa o Compromisso intacto
-- [ ] Pedido ambíguo lista os candidatos e o Dono escolhe pelo que a lista mostra
-- [ ] Pedido que não casa com nenhum Compromisso recebe resposta dizendo que não foi encontrado
-- [ ] Cancelar um Período remove o Compromisso inteiro
-- [ ] Pedido de tirar só um dia de um Período responde que isso é Alteração dos extremos, e não remove nada
-- [ ] Depois de cancelado, consultar o dia não mostra mais o Compromisso
+- [x] Pedido de cancelar produz Confirmação identificando o Compromisso, com dia e horário
+- [x] O sim remove o Compromisso do Calendário e a Conversa avisa
+- [x] O não deixa o Compromisso intacto
+- [x] Pedido ambíguo lista os candidatos e o Dono escolhe pelo que a lista mostra
+- [x] Pedido que não casa com nenhum Compromisso recebe resposta dizendo que não foi encontrado
+- [x] Cancelar um Período remove o Compromisso inteiro
+- [x] Pedido de tirar só um dia de um Período responde que isso é Alteração dos extremos, e não remove nada
+- [x] Depois de cancelado, consultar o dia não mostra mais o Compromisso

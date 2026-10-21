@@ -4,13 +4,13 @@
 
 **Blocked by:** 05 (Alerta de conflito na Marcação), 06 ("Não" na Confirmação e correção)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Pedido de alterar produz Confirmação mostrando o Compromisso atual e como ele fica
-- [ ] Alteração de Pontual muda data, horário ou os dois
-- [ ] Alteração de Período muda o primeiro dia, o último, ou os dois, seguindo dias inteiros
-- [ ] Pedido que casa com mais de um Compromisso faz a Conversa listar os candidatos
-- [ ] O Dono escolhe da lista pelo que ela mostra e recebe a Confirmação daquele Compromisso
-- [ ] Pedido que não casa com nenhum Compromisso recebe resposta dizendo que não foi encontrado
-- [ ] Se o destino da Alteração se sobrepõe a outro Compromisso, o Alerta de conflito aparece na Confirmação
-- [ ] Só o sim grava; o não segue o fluxo de correção
+- [x] Pedido de alterar produz Confirmação mostrando o Compromisso atual e como ele fica
+- [x] Alteração de Pontual muda data, horário ou os dois
+- [x] Alteração de Período muda o primeiro dia, o último, ou os dois, seguindo dias inteiros
+- [x] Pedido que casa com mais de um Compromisso faz a Conversa listar os candidatos
+- [x] O Dono escolhe da lista pelo que ela mostra e recebe a Confirmação daquele Compromisso
+- [x] Pedido que não casa com nenhum Compromisso recebe resposta dizendo que não foi encontrado
+- [x] Se o destino da Alteração se sobrepõe a outro Compromisso, o Alerta de conflito aparece na Confirmação
+- [x] Só o sim grava; o não segue o fluxo de correção

@@ -4,15 +4,15 @@
 
 **Blocked by:** 08 (Cancelamento com desambiguação)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] O Dono autoriza a conta Google uma vez e a sessão persiste entre visitas
-- [ ] A Consulta lê os Compromissos de todas as agendas visíveis da conta
-- [ ] Compromissos recorrentes já existentes no Google aparecem nas ocorrências que caem no recorte consultado
-- [ ] A Marcação grava na agenda principal
-- [ ] Alteração e Cancelamento agem no Compromisso certo do Google
-- [ ] Período é gravado como evento de dia inteiro, com a conversão da data final exclusiva contida no adaptador
-- [ ] O calendário de feriados nacionais da conta não vira Compromisso do Dono
-- [ ] Sem credencial configurada, a aplicação continua subindo com o adaptador em memória
-- [ ] Falha ou indisponibilidade do Google gera mensagem clara em português dizendo que não foi gravado
-- [ ] A suíte automática continua rodando com o adaptador em memória; a verificação contra a conta real é manual
+- [x] O Dono autoriza a conta Google uma vez e a sessão persiste entre visitas
+- [x] A Consulta lê os Compromissos de todas as agendas visíveis da conta
+- [x] Compromissos recorrentes já existentes no Google aparecem nas ocorrências que caem no recorte consultado
+- [x] A Marcação grava na agenda principal
+- [x] Alteração e Cancelamento agem no Compromisso certo do Google
+- [x] Período é gravado como evento de dia inteiro, com a conversão da data final exclusiva contida no adaptador
+- [x] O calendário de feriados nacionais da conta não vira Compromisso do Dono
+- [x] Sem credencial configurada, a aplicação continua subindo com o adaptador em memória
+- [x] Falha ou indisponibilidade do Google gera mensagem clara em português dizendo que não foi gravado
+- [x] A suíte automática continua rodando com o adaptador em memória; a verificação contra a conta real é manual
