@@ -2,7 +2,7 @@
 
 Ferramenta pessoal do **Dono**: uma Conversa em português do Brasil que consulta Disponibilidade no Calendário e, depois de Confirmação, cria, altera ou cancela um Compromisso.
 
-Na v1 a Conversa responde a **Consulta de um dia** e a **Consulta de intervalo** — “15 de novembro”, “pescaria do dia 4 ao 7”, “feriado de 7 de setembro”, “esse fim de semana” — usando um Calendário em memória semeado, sem nenhuma credencial do Google.
+Na v1 a Conversa responde a Consulta, Marcação, “não” na Confirmação e Alteração. O Dono escreve ou **dita no campo** (ditado nativo do iPhone, sem chave). O app é instalável na tela inicial e abre direto na Conversa. Sem credencial do Google, o Calendário em memória continua no lugar.
 
 ## Rodar localmente
 
@@ -38,6 +38,8 @@ Os testes passam um “agora” explícito em `America/Sao_Paulo` e exercitam a 
 
 - `src/domain/` — núcleo determinístico (interpretador, entrada de conversa, Compromisso)
 - `src/adapters/calendario-em-memoria.ts` — porta Calendário para testes e demo
+- `src/adapters/transcritor-ditado-nativo.ts` — porta Transcritor (ditado nativo)
+- `src/app/manifest.ts` — PWA: nome, ícones, `start_url` na Conversa
 - `src/app/api/conversa/route.ts` — única entrada HTTP da Conversa
 - `src/app/page.tsx` — tela da Conversa
 
