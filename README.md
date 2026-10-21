@@ -2,7 +2,7 @@
 
 Ferramenta pessoal do **Dono**: uma Conversa em português do Brasil que consulta Disponibilidade no Calendário e, depois de Confirmação, cria, altera ou cancela um Compromisso.
 
-Na v1 a Conversa responde a Consulta, Marcação, “não” na Confirmação e Alteração. O Dono escreve ou **dita no campo** (ditado nativo do iPhone, sem chave). O app é instalável na tela inicial e abre direto na Conversa. Sem credencial do Google, o Calendário em memória continua no lugar.
+Na v1 a Conversa responde a Consulta, Marcação, “não” na Confirmação, Alteração e Cancelamento. O Dono escreve ou **dita no campo** (ditado nativo do iPhone, sem chave). O app é instalável na tela inicial e abre direto na Conversa. Sem credencial do Google o Calendário em memória (demonstração) continua no ar. Com OAuth configurado, o Dono conecta a conta uma vez; a Consulta lê as agendas visíveis e a Marcação grava só na principal.
 
 ## Rodar localmente
 
@@ -16,6 +16,8 @@ npm run dev
 Abra [http://localhost:3000](http://localhost:3000). No iPhone, use o Safari na mesma rede ou o Tunel que preferir; a tela é pensada para viewport estreita.
 
 Não é preciso configurar Google OAuth para desenvolver: o adaptador em memória já vem com Compromissos de demonstração alinhados à data atual (Cirurgia no próximo 7 de setembro, reunião com a Ana no próximo 15 de novembro).
+
+Para o Calendário de verdade, copie `.env.example` para `.env.local`, preencha `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` (escopo `https://www.googleapis.com/auth/calendar`, URI de redirecionamento `/api/auth/google/callback`) e use **Conectar conta Google** na tela da Conversa. A sessão fica no cookie; a suíte automática não fala com a conta real.
 
 ## Testar
 
@@ -38,9 +40,11 @@ Os testes passam um “agora” explícito em `America/Sao_Paulo` e exercitam a 
 
 - `src/domain/` — núcleo determinístico (interpretador, entrada de conversa, Compromisso)
 - `src/adapters/calendario-em-memoria.ts` — porta Calendário para testes e demo
+- `src/adapters/calendario-google.ts` — adaptador Google (fora da suíte automática)
 - `src/adapters/transcritor-ditado-nativo.ts` — porta Transcritor (ditado nativo)
 - `src/app/manifest.ts` — PWA: nome, ícones, `start_url` na Conversa
 - `src/app/api/conversa/route.ts` — única entrada HTTP da Conversa
+- `src/app/api/auth/google/` — OAuth e status da sessão
 - `src/app/page.tsx` — tela da Conversa
 
 Vocabulário e ADRs: `CONTEXT.md` e `docs/adr/`.

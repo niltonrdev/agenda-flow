@@ -26,6 +26,7 @@ import {
   ehRecusaPura,
   temPrefixoDeRecusa,
 } from "./corrigir-confirmacao";
+import { FalhaDoCalendario, RESPOSTA_NAO_GRAVADO } from "./falha-calendario";
 import {
   formatarConfirmacao,
   formatarConfirmacaoAlterarPeriodo,
@@ -291,6 +292,26 @@ async function corrigirAlteracao(
  * A UI não decide domínio; só mostra o texto.
  */
 export async function processarTurno(
+  entrada: EntradaConversa,
+  calendario: Calendario,
+): Promise<SaidaConversa> {
+  const pendenteInicial = ehConfirmacaoPendente(entrada.confirmacaoPendente)
+    ? entrada.confirmacaoPendente
+    : null;
+  try {
+    return await processarTurnoInterno(entrada, calendario);
+  } catch (erro) {
+    if (erro instanceof FalhaDoCalendario) {
+      return {
+        texto: RESPOSTA_NAO_GRAVADO,
+        confirmacaoPendente: pendenteInicial,
+      };
+    }
+    throw erro;
+  }
+}
+
+async function processarTurnoInterno(
   entrada: EntradaConversa,
   calendario: Calendario,
 ): Promise<SaidaConversa> {

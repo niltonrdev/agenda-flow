@@ -3,6 +3,7 @@ import {
   criarCalendarioEmMemoria,
 } from "@/adapters/calendario-em-memoria";
 import { processarTurno } from "@/domain/entrada-conversa";
+import { FalhaDoCalendario } from "@/domain/falha-calendario";
 import { FUSO_DONO } from "@/domain/fuso";
 import { DateTime } from "luxon";
 import { describe, expect, it } from "vitest";
@@ -1548,6 +1549,35 @@ describe("entrada de conversa — Cancelamento", () => {
 
     expect(consulta.texto).toMatch(/livre/i);
     expect(consulta.texto).not.toMatch(/Ana/);
+  });
+});
+
+describe("entrada de conversa — Calendário indisponível", () => {
+  it("diz em português que não foi gravado quando o Calendário falha no sim", async () => {
+    const calendario = criarCalendarioEmMemoria([]);
+    const proposta = await processarTurno(
+      { mensagem: "reunião com a Ana amanhã às 15h", agora: AGORA },
+      calendario,
+    );
+
+    const falho: typeof calendario = {
+      ...calendario,
+      async criar() {
+        throw new FalhaDoCalendario();
+      },
+    };
+
+    const saida = await processarTurno(
+      {
+        mensagem: "sim",
+        agora: AGORA,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      falho,
+    );
+
+    expect(saida.texto).toMatch(/não foi gravado/i);
+    expect(saida.confirmacaoPendente).toEqual(proposta.confirmacaoPendente);
   });
 });
 
