@@ -186,6 +186,30 @@ body {
   backdrop-filter: blur(10px);
 }
 
+.conversa-campo-com-ditado {
+  position: relative;
+  display: grid;
+}
+
+.conversa-campo-com-ditado .conversa-campo {
+  padding-right: 2.6rem;
+}
+
+.conversa-ditado {
+  position: absolute;
+  right: 0.7rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--texto-suave);
+  pointer-events: none;
+}
+
+.conversa-ditado-icone {
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
 .conversa-campo {
   resize: none;
   min-height: 2.85rem;

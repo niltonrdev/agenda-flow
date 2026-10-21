@@ -54,6 +54,17 @@ export type IntencaoAlterar = {
   destino: DestinoAlteracao;
 };
 
+export type DiaRecorte = {
+  dia: number;
+  mes?: number;
+};
+
+export type IntencaoCancelar = {
+  tipo: "cancelar";
+  termo: string;
+  dia?: DiaRecorte;
+};
+
 export type IntencaoDesconhecida = {
   tipo: "desconhecida";
 };
@@ -66,6 +77,7 @@ export type Intencao =
   | IntencaoConfirmar
   | IntencaoRecusar
   | IntencaoAlterar
+  | IntencaoCancelar
   | IntencaoDesconhecida;
 
 const GRUPO_MES =
@@ -95,6 +107,9 @@ const RE_RECUSAR = /^(?:n[aã]o)\s*[.!]?\s*$/u;
 
 const RE_ALTERAR =
   /^(?:muda|mudar|altere|alterar|remarca|remarcar)(?:\s+(?:o|a))?\s+/u;
+
+const RE_CANCELAR =
+  /^(?:cancela|cancelar|cancele|desmarca|desmarcar|tira|tirar)(?:\s+(?:o|a|os|as))?\s+/u;
 
 const RE_TEM_HORA = /\b\d{1,2}\s*h(?:\d{2})?\b|\b\d{1,2}:\d{2}\b/u;
 
@@ -430,6 +445,42 @@ function termoDeAlteracao(trecho: string): string {
     .normalize("NFC");
 }
 
+function termoDeCancelamento(trecho: string): string {
+  return trecho
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^(?:o|a|os|as|da|do|de|na|no|em)\s+/iu, "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFC");
+}
+
+function montarCancelar(mensagem: string): Intencao {
+  const semVerbo = mensagem.trim().replace(RE_CANCELAR, "");
+  const texto = semVerbo.toLowerCase().normalize("NFC");
+  const matchData = RE_DATA.exec(texto);
+  const matchDia = /(?:^|\b)(?:o\s+)?dia\s+(\d{1,2})\b/u.exec(texto);
+
+  let dia: DiaRecorte | undefined;
+  let semDia = semVerbo;
+  const match = matchData ?? matchDia;
+  if (match && match.index != null) {
+    const numero = Number(match[1]);
+    if (numero >= 1 && numero <= 31) {
+      dia = matchData
+        ? { dia: numero, ...(mesDe(matchData[2]) != null ? { mes: mesDe(matchData[2]) } : {}) }
+        : { dia: numero };
+      semDia =
+        semVerbo.slice(0, match.index) +
+        semVerbo.slice(match.index + match[0].length);
+    }
+  }
+
+  const termo = termoDeCancelamento(semDia);
+  if (!termo) return { tipo: "desconhecida" };
+  return dia ? { tipo: "cancelar", termo, dia } : { tipo: "cancelar", termo };
+}
+
 function montarAlterar(mensagem: string, agora: DateTime): Intencao {
   const semVerbo = mensagem.trim().replace(RE_ALTERAR, "");
   let termoBruto = semVerbo;
@@ -488,7 +539,7 @@ function montarPontual(mensagem: string, texto: string, agora: DateTime): Intenc
 
 /**
  * Interpretador por regras (PT-BR).
- * Consulta de dia ou intervalo, e Marcação de Pontual. Sem LLM.
+ * Consulta, Marcação, Alteração e Cancelamento por regras (PT-BR). Sem LLM.
  */
 export function interpretarMensagem(
   mensagem: string,
@@ -506,6 +557,10 @@ export function interpretarMensagem(
 
   if (RE_ALTERAR.test(texto)) {
     return montarAlterar(mensagem.trim(), agora);
+  }
+
+  if (RE_CANCELAR.test(texto)) {
+    return montarCancelar(mensagem.trim());
   }
 
   if (RE_TEM_HORA.test(texto)) {

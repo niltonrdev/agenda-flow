@@ -2,6 +2,8 @@ import type { Compromisso } from "./compromisso";
 import type {
   ConfirmacaoAlterarPeriodo,
   ConfirmacaoAlterarPontual,
+  ConfirmacaoCancelarPeriodo,
+  ConfirmacaoCancelarPontual,
   ConfirmacaoMarcacao,
   ConfirmacaoPeriodo,
   ConfirmacaoPontual,
@@ -20,6 +22,9 @@ export const RESPOSTA_NAO_ENTENDI =
   "Não entendi o pedido. Pode reformular?";
 
 export const RESPOSTA_O_QUE_MUDAR = "O que mudar?";
+
+export const RESPOSTA_ALTERACAO_DOS_EXTREMOS =
+  "Para soltar um dia de um Período, isso é Alteração dos extremos, não Cancelamento. Nada foi removido.";
 
 function formatarCompromisso(compromisso: Compromisso): string {
   if (compromisso.tipo === "pontual") {
@@ -122,13 +127,54 @@ export function formatarPeriodoAlterado(proposta: ConfirmacaoAlterarPeriodo): st
   })}.`;
 }
 
+export function formatarConfirmacaoCancelarPontual(
+  proposta: ConfirmacaoCancelarPontual,
+): string {
+  return `Confirmação: cancelar ${detalhePontual(proposta.titulo, proposta.inicio, proposta.fim)}. Diga sim para cancelar.`;
+}
+
+export function formatarConfirmacaoCancelarPeriodo(
+  proposta: ConfirmacaoCancelarPeriodo,
+): string {
+  return `Confirmação: cancelar ${detalhePeriodo({
+    acao: "marcar_periodo",
+    titulo: proposta.titulo,
+    primeiroDia: proposta.primeiroDia,
+    ultimoDia: proposta.ultimoDia,
+  })}. Diga sim para cancelar.`;
+}
+
+export function formatarPontualCancelado(
+  proposta: ConfirmacaoCancelarPontual,
+): string {
+  return `Cancelei ${detalhePontual(proposta.titulo, proposta.inicio, proposta.fim)}.`;
+}
+
+export function formatarPeriodoCancelado(
+  proposta: ConfirmacaoCancelarPeriodo,
+): string {
+  return `Cancelei ${detalhePeriodo({
+    acao: "marcar_periodo",
+    titulo: proposta.titulo,
+    primeiroDia: proposta.primeiroDia,
+    ultimoDia: proposta.ultimoDia,
+  })}.`;
+}
+
 export function formatarNaoEncontrado(termo: string): string {
   return `Não encontrei um Compromisso chamado “${termo}”.`;
 }
 
-export function formatarListaCandidatos(rotulos: string[]): string {
+export function formatarListaCandidatos(
+  rotulos: string[],
+  acao: "alterar" | "cancelar" = "alterar",
+): string {
   const linhas = rotulos.map((r) => `• ${r}`);
-  return `Encontrei mais de um Compromisso. Qual você quer alterar?\n${linhas.join("\n")}`;
+  const pergunta =
+    acao === "cancelar"
+      ? "Qual você quer cancelar?"
+      : "Qual você quer alterar?";
+  return `Encontrei mais de um Compromisso. ${pergunta}\n${linhas.join("\n")}`;
 }
 
 export function rotuloCandidato(compromisso: Compromisso): string {

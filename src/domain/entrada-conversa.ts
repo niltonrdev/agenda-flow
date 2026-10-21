@@ -14,7 +14,10 @@ import {
   ehConfirmacaoPendente,
   type ConfirmacaoAlterarPeriodo,
   type ConfirmacaoAlterarPontual,
+  type ConfirmacaoCancelarPeriodo,
+  type ConfirmacaoCancelarPontual,
   type ConfirmacaoEscolherAlteracao,
+  type ConfirmacaoEscolherCancelamento,
   type ConfirmacaoMarcacao,
   type ConfirmacaoPendente,
 } from "./confirmacao";
@@ -28,14 +31,19 @@ import {
   formatarConfirmacao,
   formatarConfirmacaoAlterarPeriodo,
   formatarConfirmacaoAlterarPontual,
+  formatarConfirmacaoCancelarPeriodo,
+  formatarConfirmacaoCancelarPontual,
   formatarConsultaDia,
   formatarConsultaIntervalo,
   formatarListaCandidatos,
   formatarNaoEncontrado,
   formatarPeriodoAlterado,
+  formatarPeriodoCancelado,
   formatarPeriodoMarcado,
   formatarPontualAlterado,
+  formatarPontualCancelado,
   formatarPontualMarcado,
+  RESPOSTA_ALTERACAO_DOS_EXTREMOS,
   RESPOSTA_NAO_ENTENDI,
   RESPOSTA_O_QUE_MUDAR,
   rotuloCandidato,
@@ -83,7 +91,7 @@ function casaComTermo(titulo: string, termo: string): boolean {
 
 function casarEscolha(
   mensagem: string,
-  candidatos: ConfirmacaoEscolherAlteracao["candidatos"],
+  candidatos: ConfirmacaoEscolherAlteracao["candidatos"] | ConfirmacaoEscolherCancelamento["candidatos"],
 ): ConfirmacaoEscolherAlteracao["candidatos"] {
   const bruto = normalizar(mensagem).replace(
     /^(?:a|o|essa|esse|este|quero)\s+(?:de\s+)?/u,
@@ -96,6 +104,42 @@ function ehAlteracao(
   pendente: ConfirmacaoPendente,
 ): pendente is ConfirmacaoAlterarPontual | ConfirmacaoAlterarPeriodo {
   return pendente.acao === "alterar_pontual" || pendente.acao === "alterar_periodo";
+}
+
+function ehEscolha(
+  pendente: ConfirmacaoPendente,
+): pendente is ConfirmacaoEscolherAlteracao | ConfirmacaoEscolherCancelamento {
+  return (
+    pendente.acao === "escolher_alteracao" ||
+    pendente.acao === "escolher_cancelamento"
+  );
+}
+
+function confirmacaoDeCancelamento(compromisso: Compromisso): SaidaConversa {
+  if (compromisso.tipo === "pontual") {
+    const proposta: ConfirmacaoCancelarPontual = {
+      acao: "cancelar_pontual",
+      id: compromisso.id,
+      titulo: compromisso.titulo,
+      inicio: compromisso.inicio,
+      fim: compromisso.fim,
+    };
+    return {
+      texto: formatarConfirmacaoCancelarPontual(proposta),
+      confirmacaoPendente: proposta,
+    };
+  }
+  const proposta: ConfirmacaoCancelarPeriodo = {
+    acao: "cancelar_periodo",
+    id: compromisso.id,
+    titulo: compromisso.titulo,
+    primeiroDia: compromisso.primeiroDia,
+    ultimoDia: compromisso.ultimoDia,
+  };
+  return {
+    texto: formatarConfirmacaoCancelarPeriodo(proposta),
+    confirmacaoPendente: proposta,
+  };
 }
 
 async function conflitosDaProposta(
@@ -276,6 +320,30 @@ async function processarTurnoInterno(
     ? entrada.confirmacaoPendente
     : null;
 
+  if (pendente?.acao === "escolher_cancelamento" && intencao.tipo !== "cancelar") {
+    const escolhidos = casarEscolha(entrada.mensagem, pendente.candidatos);
+    if (escolhidos.length === 1) {
+      const todos = await calendario.listar(janelaDeBusca(entrada.agora));
+      const compromisso = todos.find((c) => c.id === escolhidos[0].id);
+      if (!compromisso) {
+        return {
+          texto: formatarNaoEncontrado(escolhidos[0].rotulo),
+          confirmacaoPendente: null,
+        };
+      }
+      return confirmacaoDeCancelamento(compromisso);
+    }
+    if (escolhidos.length > 1) {
+      return {
+        texto: formatarListaCandidatos(
+          escolhidos.map((c) => c.rotulo),
+          "cancelar",
+        ),
+        confirmacaoPendente: { ...pendente, candidatos: escolhidos },
+      };
+    }
+  }
+
   if (pendente?.acao === "escolher_alteracao" && intencao.tipo !== "alterar") {
     const escolhidos = casarEscolha(entrada.mensagem, pendente.candidatos);
     if (escolhidos.length === 1) {
@@ -298,7 +366,7 @@ async function processarTurnoInterno(
   }
 
   if (intencao.tipo === "confirmar") {
-    if (!pendente || pendente.acao === "escolher_alteracao") {
+    if (!pendente || ehEscolha(pendente)) {
       return { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: pendente };
     }
     if (pendente.acao === "marcar_periodo") {
@@ -337,19 +405,33 @@ async function processarTurnoInterno(
         confirmacaoPendente: null,
       };
     }
-    await calendario.alterar(pendente.id, {
-      tipo: "pontual",
-      titulo: pendente.titulo,
-      inicio: pendente.inicio,
-      fim: pendente.fim,
-    });
+    if (pendente.acao === "alterar_pontual") {
+      await calendario.alterar(pendente.id, {
+        tipo: "pontual",
+        titulo: pendente.titulo,
+        inicio: pendente.inicio,
+        fim: pendente.fim,
+      });
+      return {
+        texto: formatarPontualAlterado(pendente),
+        confirmacaoPendente: null,
+      };
+    }
+    if (pendente.acao === "cancelar_periodo") {
+      await calendario.cancelar(pendente.id);
+      return {
+        texto: formatarPeriodoCancelado(pendente),
+        confirmacaoPendente: null,
+      };
+    }
+    await calendario.cancelar(pendente.id);
     return {
-      texto: formatarPontualAlterado(pendente),
+      texto: formatarPontualCancelado(pendente),
       confirmacaoPendente: null,
     };
   }
 
-  if (pendente && pendente.acao !== "escolher_alteracao" && ehRecusaPura(entrada.mensagem)) {
+  if (pendente && !ehEscolha(pendente) && ehRecusaPura(entrada.mensagem)) {
     return {
       texto: RESPOSTA_O_QUE_MUDAR,
       confirmacaoPendente: { ...pendente, aguardandoCorrecao: true },
@@ -422,6 +504,40 @@ async function processarTurnoInterno(
       };
     }
     return montarAlteracao(candidatos[0], intencao.destino, calendario);
+  }
+
+  if (intencao.tipo === "cancelar") {
+    const existentes = await calendario.listar(janelaDeBusca(entrada.agora));
+    const candidatos = existentes.filter((c) =>
+      casaComTermo(c.titulo, intencao.termo),
+    );
+    if (candidatos.length === 0) {
+      return {
+        texto: formatarNaoEncontrado(intencao.termo),
+        confirmacaoPendente: null,
+      };
+    }
+    if (intencao.dia && candidatos.some((c) => c.tipo === "periodo")) {
+      return {
+        texto: RESPOSTA_ALTERACAO_DOS_EXTREMOS,
+        confirmacaoPendente: null,
+      };
+    }
+    if (candidatos.length > 1) {
+      const lista = candidatos.map((c) => ({
+        id: c.id,
+        rotulo: rotuloCandidato(c),
+      }));
+      const proposta: ConfirmacaoEscolherCancelamento = {
+        acao: "escolher_cancelamento",
+        candidatos: lista,
+      };
+      return {
+        texto: formatarListaCandidatos(lista.map((c) => c.rotulo), "cancelar"),
+        confirmacaoPendente: proposta,
+      };
+    }
+    return confirmacaoDeCancelamento(candidatos[0]);
   }
 
   if (intencao.tipo === "desconhecida" || intencao.tipo === "recusar") {

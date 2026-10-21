@@ -53,12 +53,38 @@ export type ConfirmacaoEscolherAlteracao = {
   destino: DestinoAlteracao;
 };
 
+export type ConfirmacaoCancelarPontual = {
+  acao: "cancelar_pontual";
+  id: string;
+  titulo: string;
+  inicio: string;
+  fim: string;
+  aguardandoCorrecao?: boolean;
+};
+
+export type ConfirmacaoCancelarPeriodo = {
+  acao: "cancelar_periodo";
+  id: string;
+  titulo: string;
+  primeiroDia: string;
+  ultimoDia: string;
+  aguardandoCorrecao?: boolean;
+};
+
+export type ConfirmacaoEscolherCancelamento = {
+  acao: "escolher_cancelamento";
+  candidatos: CandidatoAlteracao[];
+};
+
 export type ConfirmacaoPendente =
   | ConfirmacaoPontual
   | ConfirmacaoPeriodo
   | ConfirmacaoAlterarPontual
   | ConfirmacaoAlterarPeriodo
-  | ConfirmacaoEscolherAlteracao;
+  | ConfirmacaoEscolherAlteracao
+  | ConfirmacaoCancelarPontual
+  | ConfirmacaoCancelarPeriodo
+  | ConfirmacaoEscolherCancelamento;
 
 export type ConfirmacaoMarcacao = ConfirmacaoPontual | ConfirmacaoPeriodo;
 
@@ -148,6 +174,33 @@ export function ehConfirmacaoPendente(valor: unknown): valor is ConfirmacaoPende
           typeof c.rotulo === "string",
       ) &&
       destinoValido(proposta.destino)
+    );
+  }
+  if (proposta.acao === "cancelar_pontual") {
+    return (
+      tituloValido(proposta.titulo) &&
+      typeof proposta.id === "string" &&
+      typeof proposta.inicio === "string" &&
+      typeof proposta.fim === "string"
+    );
+  }
+  if (proposta.acao === "cancelar_periodo") {
+    return (
+      tituloValido(proposta.titulo) &&
+      typeof proposta.id === "string" &&
+      typeof proposta.primeiroDia === "string" &&
+      typeof proposta.ultimoDia === "string"
+    );
+  }
+  if (proposta.acao === "escolher_cancelamento") {
+    return (
+      Array.isArray(proposta.candidatos) &&
+      proposta.candidatos.every(
+        (c) =>
+          c &&
+          typeof c.id === "string" &&
+          typeof c.rotulo === "string",
+      )
     );
   }
   return false;
