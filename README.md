@@ -26,6 +26,21 @@ Não é preciso configurar Google OAuth para desenvolver: o adaptador em memóri
 
 Para o Calendário de verdade, copie `.env.example` para `.env.local`, preencha as variáveis (escopo `https://www.googleapis.com/auth/calendar`, URI de redirecionamento `https://<seu-dominio>/api/auth/google/callback` no Google Cloud Console) e use **Conectar conta Google** na Conversa. A sessão fica no cookie; a suíte automática não fala com a conta real.
 
+### Publicar na Vercel (testar no celular)
+
+1. Tenha o código no **GitHub** (se ainda não criou o repositório, use **Create repo** no Cursor e faça push da `main`).
+2. Em [vercel.com](https://vercel.com): **Add New Project** → importe o repositório → Framework **Next.js** → Deploy.
+3. Em **Settings → Environment Variables**, adicione (Production + Preview):
+   - `GOOGLE_CLIENT_ID`
+   - `GOOGLE_CLIENT_SECRET`  
+   (não defina `GOOGLE_REDIRECT_URI`, ou deixe vazio — o app usa `https://<seu-projeto>.vercel.app/api/auth/google/callback`.)
+4. **Redeploy** depois de salvar as variáveis.
+5. No Google Cloud → cliente OAuth → **URIs de redirecionamento autorizados**, adicione:
+   `https://<seu-projeto>.vercel.app/api/auth/google/callback`  
+   (pode manter o `http://localhost:3000/...` para desenvolvimento.)
+6. Em **Público-alvo**, confirme que o seu e-mail está em **Usuários de teste**.
+7. No iPhone, abra a URL da Vercel no Safari → **Conectar conta Google** → use a Conversa.
+
 **Datas na Conversa:** aceita `15/10`, `15 de outubro` e `15 de outubro de 2027`. Sem ano, usa a **próxima ocorrência futura** desse dia/mês (horário de Brasília).
 
 **Marcação:** diga o horário (`15h`, `5:30`, `5:30h`, `5 horas`, `5 da manhã`) ou só o dia (`marcar reunião dia 20 de dezembro`) — sem horário a Conversa pede; depois da Confirmação, diga **sim** para gravar. Intervalos numéricos (`29/11 a 01/12`) cobrem só esses dias. No modo demonstração a gravação fica no calendário de exemplo.
