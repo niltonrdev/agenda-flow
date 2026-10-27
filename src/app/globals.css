@@ -97,6 +97,11 @@ body {
   color: var(--enviar);
 }
 
+.conversa-demo {
+  color: var(--texto-suave);
+  font-style: italic;
+}
+
 .conversa-google-link {
   color: var(--enviar);
   font-weight: 600;

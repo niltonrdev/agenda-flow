@@ -550,7 +550,7 @@ async function processarTurnoInterno(
       fim: fimDoDia(intencao.dia).toISO()!,
     });
     return {
-      texto: formatarConsultaDia(intencao.dia, compromissos),
+      texto: formatarConsultaDia(intencao.dia, compromissos, entrada.agora),
       confirmacaoPendente: null,
     };
   }
@@ -565,6 +565,7 @@ async function processarTurnoInterno(
         intencao.primeiroDia,
         intencao.ultimoDia,
         compromissos,
+        entrada.agora,
       ),
       confirmacaoPendente: null,
     };

@@ -132,6 +132,39 @@ describe("interpretador — Consulta de intervalo", () => {
   });
 });
 
+describe("interpretador — Consulta de um dia (formatos)", () => {
+  it("15/10 sem ano usa a próxima ocorrência futura", () => {
+    const outubro = DateTime.fromObject(
+      { year: 2025, month: 10, day: 27, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+
+    expect(interpretarMensagem("15/10", outubro)).toEqual({
+      tipo: "consulta_dia",
+      dia: "2026-10-15",
+    });
+  });
+
+  it("dia 15/10 aceita prefixo dia", () => {
+    const outubro = DateTime.fromObject(
+      { year: 2025, month: 10, day: 27, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+
+    expect(interpretarMensagem("dia 15/10", outubro)).toEqual({
+      tipo: "consulta_dia",
+      dia: "2026-10-15",
+    });
+  });
+
+  it("15 de novembro de 2027 usa o ano dito", () => {
+    expect(interpretarMensagem("15 de novembro de 2027", AGORA)).toEqual({
+      tipo: "consulta_dia",
+      dia: "2027-11-15",
+    });
+  });
+});
+
 describe("interpretador — Alteração", () => {
   it("muda a pescaria para o dia 5 aponta o termo e o novo primeiro dia", () => {
     expect(interpretarMensagem("muda a pescaria para o dia 5", AGORA_SETEMBRO)).toEqual({

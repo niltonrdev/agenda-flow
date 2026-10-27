@@ -50,9 +50,29 @@ export const NOMES_MESES_PT = [
   "dezembro",
 ] as const;
 
-export function formatarDiaPorExtenso(dia: string): string {
+export function formatarDiaPorExtenso(
+  dia: string,
+  opcoes?: {
+    agoraReferencia?: DateTime;
+    /** Quando omitido, ano só entra se agoraReferencia for passado e o ano for diferente. */
+    incluirAno?: boolean;
+  },
+): string {
   const dt = DateTime.fromISO(dia, { zone: FUSO_DONO });
-  return `${dt.day} de ${NOMES_MESES_PT[dt.month]}`;
+  const base = `${dt.day} de ${NOMES_MESES_PT[dt.month]}`;
+  if (opcoes?.incluirAno === true) {
+    return `${base} de ${dt.year}`;
+  }
+  if (opcoes?.incluirAno === false) {
+    return base;
+  }
+  if (opcoes?.agoraReferencia) {
+    const ref = agoraEmBrasilia(opcoes.agoraReferencia);
+    if (dt.year !== ref.year) {
+      return `${base} de ${dt.year}`;
+    }
+  }
+  return base;
 }
 
 export function formatarHora(iso: string): string {
@@ -72,6 +92,48 @@ export function resolverAnoDaData(
   mes: number,
   agora: DateTime,
 ): string {
+  return resolverDiaMesConsulta(dia, mes, agora);
+}
+
+/** Anos de dois dígitos viram 20xx no século corrente. */
+export function normalizarAnoInformado(ano: number): number {
+  if (ano >= 100) return ano;
+  const base = agoraEmBrasilia(DateTime.now()).year;
+  const seculo = Math.floor(base / 100) * 100;
+  const candidato = seculo + ano;
+  if (candidato < base - 50) return candidato + 100;
+  return candidato;
+}
+
+/**
+ * Consulta ou mutação: com ano explícito usa a data dita; sem ano, a próxima
+ * ocorrência futura desse dia/mês (no máximo ~12 meses à frente).
+ */
+export function resolverDiaMesConsulta(
+  dia: number,
+  mes: number,
+  agora: DateTime,
+  anoInformado?: number,
+): string {
+  if (mes < 1 || mes > 12 || dia < 1 || dia > 31) {
+    throw new Error(`Data inválida: ${dia}/${mes}`);
+  }
+
+  if (anoInformado != null) {
+    const dt = DateTime.fromObject(
+      {
+        year: normalizarAnoInformado(anoInformado),
+        month: mes,
+        day: dia,
+      },
+      { zone: FUSO_DONO },
+    );
+    if (!dt.isValid) {
+      throw new Error(`Data inválida: ${dia}/${mes}/${anoInformado}`);
+    }
+    return dt.toISODate()!;
+  }
+
   const base = agoraEmBrasilia(agora);
   let candidato = DateTime.fromObject(
     { year: base.year, month: mes, day: dia },
@@ -84,6 +146,11 @@ export function resolverAnoDaData(
     candidato = candidato.plus({ years: 1 });
   }
   return candidato.toISODate()!;
+}
+
+export function diaCivilJaPassou(dia: string, agora: DateTime): boolean {
+  const dt = DateTime.fromISO(dia, { zone: FUSO_DONO }).startOf("day");
+  return dt < agoraEmBrasilia(agora).startOf("day");
 }
 
 export type RecorteDias = {

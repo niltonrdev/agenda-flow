@@ -4,6 +4,7 @@ import {
   recorteFeriado,
   recorteFimDeSemana,
   resolverAnoDaData,
+  resolverDiaMesConsulta,
 } from "./fuso";
 import { DateTime } from "luxon";
 
@@ -57,6 +58,7 @@ export type IntencaoAlterar = {
 export type DiaRecorte = {
   dia: number;
   mes?: number;
+  ano?: number;
 };
 
 export type IntencaoCancelar = {
@@ -97,7 +99,12 @@ const RE_FIM_DE_SEMANA =
   /\b(?:(?:esse|este|neste)\s+)?(?:fim|final)\s+de\s+semana\b/u;
 
 const RE_DATA = new RegExp(
-  String.raw`(?:^|\b)(?:dia\s+)?(\d{1,2})\s+de\s+(${GRUPO_MES})\b`,
+  String.raw`(?:^|\b)(?:dia\s+)?(\d{1,2})\s+de\s+(${GRUPO_MES})(?:\s+de\s+(\d{4}))?\b`,
+  "u",
+);
+
+const RE_DATA_NUM = new RegExp(
+  String.raw`(?:^|\b)(?:dia\s+)?(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b`,
   "u",
 );
 
@@ -140,6 +147,59 @@ function normalizarMes(nome: string): string {
 function mesDe(nome: string | undefined): number | undefined {
   if (!nome) return undefined;
   return MESES_PT[normalizarMes(nome)];
+}
+
+function isoDeMatchExtenso(
+  match: RegExpExecArray,
+  agora: DateTime,
+): string | null {
+  const dia = Number(match[1]);
+  const mes = mesDe(match[2]);
+  if (!mes || dia < 1 || dia > 31) return null;
+  const ano = match[3] ? Number(match[3]) : undefined;
+  try {
+    return resolverDiaMesConsulta(dia, mes, agora, ano);
+  } catch {
+    return null;
+  }
+}
+
+function isoDeMatchNumerico(
+  match: RegExpExecArray,
+  agora: DateTime,
+): string | null {
+  const dia = Number(match[1]);
+  const mes = Number(match[2]);
+  if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
+  const ano = match[3] ? Number(match[3]) : undefined;
+  try {
+    return resolverDiaMesConsulta(dia, mes, agora, ano);
+  } catch {
+    return null;
+  }
+}
+
+function interpretarConsultaDia(
+  texto: string,
+  agora: DateTime,
+): IntencaoConsultaDia | IntencaoDesconhecida | null {
+  if (RE_TEM_HORA.test(texto)) return null;
+
+  const matchNum = RE_DATA_NUM.exec(texto);
+  if (matchNum) {
+    const dia = isoDeMatchNumerico(matchNum, agora);
+    if (dia) return { tipo: "consulta_dia", dia };
+    return { tipo: "desconhecida" };
+  }
+
+  const matchData = RE_DATA.exec(texto);
+  if (matchData) {
+    const dia = isoDeMatchExtenso(matchData, agora);
+    if (dia) return { tipo: "consulta_dia", dia };
+    return { tipo: "desconhecida" };
+  }
+
+  return null;
 }
 
 function diaCivilValido(
@@ -237,14 +297,7 @@ function diaDoPontual(texto: string, agora: DateTime): string | null {
   }
   const matchData = RE_DATA.exec(texto);
   if (matchData) {
-    const dia = Number(matchData[1]);
-    const mes = mesDe(matchData[2]);
-    if (!mes || dia < 1 || dia > 31) return null;
-    try {
-      return resolverAnoDaData(dia, mes, agora);
-    } catch {
-      return null;
-    }
+    return isoDeMatchExtenso(matchData, agora);
   }
   return base.toISODate();
 }
@@ -334,7 +387,22 @@ function partesDoDia(
     const dia = Number(matchData[1]);
     const mes = mesDe(matchData[2]);
     if (!mes || dia < 1 || dia > 31) return null;
-    return { dia, mes };
+    return {
+      dia,
+      mes,
+      ...(matchData[3] ? { ano: Number(matchData[3]) } : {}),
+    };
+  }
+  const matchNum = RE_DATA_NUM.exec(texto);
+  if (matchNum) {
+    const dia = Number(matchNum[1]);
+    const mes = Number(matchNum[2]);
+    if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
+    return {
+      dia,
+      mes,
+      ...(matchNum[3] ? { ano: Number(matchNum[3]) } : {}),
+    };
   }
   const matchDia = /(?:^|\b)(?:o\s+)?dia\s+(\d{1,2})\b/u.exec(texto);
   if (matchDia) {
@@ -358,14 +426,11 @@ function diaIsoDeTexto(texto: string, agora: DateTime): string | null {
   }
   const matchData = RE_DATA.exec(texto);
   if (matchData) {
-    const dia = Number(matchData[1]);
-    const mes = mesDe(matchData[2]);
-    if (!mes || dia < 1 || dia > 31) return null;
-    try {
-      return resolverAnoDaData(dia, mes, agora);
-    } catch {
-      return null;
-    }
+    return isoDeMatchExtenso(matchData, agora);
+  }
+  const matchNum = RE_DATA_NUM.exec(texto);
+  if (matchNum) {
+    return isoDeMatchNumerico(matchNum, agora);
   }
   const matchDia = /(?:^|\b)(?:o\s+)?dia\s+(\d{1,2})\b/u.exec(texto);
   if (matchDia) {
@@ -626,23 +691,9 @@ export function interpretarMensagem(
     return { tipo: "consulta_intervalo", ...recorte };
   }
 
-  const matchData = RE_DATA.exec(texto);
-  if (matchData) {
-    const dia = Number(matchData[1]);
-    const mes = mesDe(matchData[2]);
-
-    if (!mes || dia < 1 || dia > 31) {
-      return { tipo: "desconhecida" };
-    }
-
-    try {
-      return {
-        tipo: "consulta_dia",
-        dia: resolverAnoDaData(dia, mes, agora),
-      };
-    } catch {
-      return { tipo: "desconhecida" };
-    }
+  const consultaDia = interpretarConsultaDia(texto, agora);
+  if (consultaDia) {
+    return consultaDia;
   }
 
   return { tipo: "desconhecida" };

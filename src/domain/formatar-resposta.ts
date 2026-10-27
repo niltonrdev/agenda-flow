@@ -10,7 +10,9 @@ import type {
 } from "./confirmacao";
 import {
   FUSO_DONO,
+  agoraEmBrasilia,
   diaCivil,
+  diaCivilJaPassou,
   formatarDiaPorExtenso,
   formatarHora,
   inicioDoDia,
@@ -60,7 +62,9 @@ export function formatarConfirmacao(
   if (conflitos.length === 0) {
     return `${base} Diga sim para marcar.`;
   }
-  const avisos = conflitos.map((c) => formatarCompromissoNoIntervalo(c)).join("; ");
+  const avisos = conflitos
+    .map((c) => formatarCompromissoNoIntervalo(c))
+    .join("; ");
   return `${base} Alerta de conflito: ${avisos}. Diga sim para marcar mesmo assim.`;
 }
 
@@ -177,16 +181,25 @@ export function formatarListaCandidatos(
   return `Encontrei mais de um Compromisso. ${pergunta}\n${linhas.join("\n")}`;
 }
 
-export function rotuloCandidato(compromisso: Compromisso): string {
-  return formatarCompromissoNoIntervalo(compromisso);
+export function rotuloCandidato(
+  compromisso: Compromisso,
+  agora?: DateTime,
+): string {
+  return formatarCompromissoNoIntervalo(compromisso, agora);
 }
 
 export function formatarConsultaDia(
   dia: string,
   compromissos: Compromisso[],
+  agora?: DateTime,
 ): string {
-  const rotulo = formatarDiaPorExtenso(dia);
+  const rotulo = formatarDiaPorExtenso(dia, { agoraReferencia: agora });
+  const passado = agora ? diaCivilJaPassou(dia, agora) : false;
+
   if (compromissos.length === 0) {
+    if (passado) {
+      return `${rotulo} já passou. Nada marcado nesse dia.`;
+    }
     return `${rotulo} está livre.`;
   }
 
@@ -201,17 +214,21 @@ function instanteDeOrdenacao(compromisso: Compromisso): string {
   return inicioDoDia(compromisso.primeiroDia).toISO()!;
 }
 
-function formatarCompromissoNoIntervalo(compromisso: Compromisso): string {
+function formatarCompromissoNoIntervalo(
+  compromisso: Compromisso,
+  agora?: DateTime,
+): string {
+  const opcoes = agora ? { agoraReferencia: agora, incluirAno: false as const } : undefined;
   if (compromisso.tipo === "pontual") {
     const dia = diaCivil(
       DateTime.fromISO(compromisso.inicio, { setZone: true }),
     );
-    return `${compromisso.titulo}, ${formatarHora(compromisso.inicio)}–${formatarHora(compromisso.fim)}, ${formatarDiaPorExtenso(dia)}`;
+    return `${compromisso.titulo}, ${formatarHora(compromisso.inicio)}–${formatarHora(compromisso.fim)}, ${formatarDiaPorExtenso(dia, opcoes)}`;
   }
   if (compromisso.primeiroDia === compromisso.ultimoDia) {
-    return `${compromisso.titulo}, ${formatarDiaPorExtenso(compromisso.primeiroDia)}`;
+    return `${compromisso.titulo}, ${formatarDiaPorExtenso(compromisso.primeiroDia, opcoes)}`;
   }
-  return `${compromisso.titulo}, de ${formatarDiaPorExtenso(compromisso.primeiroDia)} a ${formatarDiaPorExtenso(compromisso.ultimoDia)}`;
+  return `${compromisso.titulo}, de ${formatarDiaPorExtenso(compromisso.primeiroDia, opcoes)} a ${formatarDiaPorExtenso(compromisso.ultimoDia, opcoes)}`;
 }
 
 function rotuloIntervalo(primeiroDia: string, ultimoDia: string): string {
@@ -230,18 +247,26 @@ export function formatarConsultaIntervalo(
   primeiroDia: string,
   ultimoDia: string,
   compromissos: Compromisso[],
+  agora?: DateTime,
 ): string {
   if (primeiroDia === ultimoDia) {
-    return formatarConsultaDia(primeiroDia, compromissos);
+    return formatarConsultaDia(primeiroDia, compromissos, agora);
   }
 
   const rotulo = rotuloIntervalo(primeiroDia, ultimoDia);
+  const passado =
+    agora &&
+    DateTime.fromISO(ultimoDia, { zone: FUSO_DONO }).endOf("day") <
+      agoraEmBrasilia(agora).startOf("day");
   if (compromissos.length === 0) {
+    if (passado) {
+      return `${rotulo} já passou. Nada marcado nesse recorte.`;
+    }
     return `${rotulo} está livre.`;
   }
 
   const linhas = [...compromissos]
     .sort((a, b) => instanteDeOrdenacao(a).localeCompare(instanteDeOrdenacao(b)))
-    .map((c) => `• ${formatarCompromissoNoIntervalo(c)}`);
+    .map((c) => `• ${formatarCompromissoNoIntervalo(c, agora)}`);
   return `${rotulo}:\n${linhas.join("\n")}`;
 }

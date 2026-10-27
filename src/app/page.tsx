@@ -23,7 +23,7 @@ export default function ConversaPage() {
       id: "boas-vindas",
       papel: "agenda",
       texto:
-        "Olá. Pergunte por um dia ou um recorte, por exemplo “15 de novembro”, “pescaria do dia 4 ao 7” ou “esse fim de semana”.",
+        "Olá. Pergunte por um dia ou um recorte — por exemplo “15/10”, “15 de novembro”, “15 de novembro de 2027”, “pescaria do dia 4 ao 7” ou “esse fim de semana”. Sem ano, uso a próxima data futura desse dia/mês.",
     },
   ]);
   const [rascunho, setRascunho] = useState("");
@@ -136,6 +136,13 @@ export default function ConversaPage() {
           <p className="conversa-google conversa-google-ok">
             Conta Google conectada. A Consulta lê as agendas visíveis; a
             Marcação grava na principal.
+          </p>
+        ) : null}
+        {google && !google.credencialConfigurada ? (
+          <p className="conversa-google conversa-demo">
+            Modo demonstração: Calendário de exemplo (sem Google). Para gravar
+            no seu Calendário de verdade, configure OAuth no servidor e use
+            Conectar conta Google.
           </p>
         ) : null}
       </header>

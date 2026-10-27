@@ -41,6 +41,29 @@ describe("entrada de conversa — Consulta de um dia", () => {
     expect(saida.texto).toMatch(/15 de novembro/i);
   });
 
+  it("15/10 consulta a próxima data futura em formato numérico", async () => {
+    const calendario = criarCalendarioEmMemoria(compromissosDeDemonstracao(AGORA));
+
+    const saida = await processarTurno(
+      { mensagem: "15/10", agora: AGORA },
+      calendario,
+    );
+
+    expect(saida.texto).toBe("15 de outubro está livre.");
+  });
+
+  it("15 de novembro de 2027 não repete o Compromisso de demonstração de 2025", async () => {
+    const calendario = criarCalendarioEmMemoria(compromissosDeDemonstracao(AGORA));
+
+    const saida = await processarTurno(
+      { mensagem: "15 de novembro de 2027", agora: AGORA },
+      calendario,
+    );
+
+    expect(saida.texto).toBe("15 de novembro de 2027 está livre.");
+    expect(saida.texto).not.toContain("Ana");
+  });
+
   it("um Período que cobre o dia consultado aparece na resposta desse dia", async () => {
     const calendario = criarCalendarioEmMemoria(compromissosDeDemonstracao(AGORA));
 
@@ -79,7 +102,7 @@ describe("entrada de conversa — Consulta de um dia", () => {
     );
 
     // 15/11/2025 já passou → cai em 2026; sem Compromisso → livre
-    expect(saida.texto).toBe("15 de novembro está livre.");
+    expect(saida.texto).toBe("15 de novembro de 2026 está livre.");
   });
 
   it("depois que o feriado passou, a demonstração ainda mostra a Cirurgia no próximo 7 de setembro", async () => {
