@@ -28,7 +28,9 @@ Para o Calendário de verdade, copie `.env.example` para `.env.local`, preencha 
 
 **Datas na Conversa:** aceita `15/10`, `15 de outubro` e `15 de outubro de 2027`. Sem ano, usa a **próxima ocorrência futura** desse dia/mês (horário de Brasília).
 
-**Marcação:** diga o horário (`15h`, `5:30`, `5:30h`, `5 horas`, `5 da manhã`) ou só o dia (`marcar reunião dia 20 de dezembro`) — sem horário a Conversa pede; depois da Confirmação, diga **sim** para gravar. No modo demonstração a gravação fica no calendário de exemplo.
+**Marcação:** diga o horário (`15h`, `5:30`, `5:30h`, `5 horas`, `5 da manhã`) ou só o dia (`marcar reunião dia 20 de dezembro`) — sem horário a Conversa pede; depois da Confirmação, diga **sim** para gravar. Intervalos numéricos (`29/11 a 01/12`) cobrem só esses dias. No modo demonstração a gravação fica no calendário de exemplo.
+
+**Alterar / apagar:** `alterar viagem do dia 29/11` (a Conversa pede o novo dia/horário) ou `alterar a viagem para os dias 29 a 31 de novembro`; `apagar viagem 29/11` ou `cancela a reunião da Ana` pedem Confirmação antes de remover.
 
 ## Testar
 
