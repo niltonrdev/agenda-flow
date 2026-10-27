@@ -499,6 +499,37 @@ describe("entrada de conversa — Marcação de Pontual", () => {
     ]);
   });
 
+  it("aceita 5:30h e 5 da manhã na Marcação", async () => {
+    const calendario = criarCalendarioEmMemoria([]);
+
+    const colon = await processarTurno(
+      {
+        mensagem: "marcar viagem com Nilton 29 de novembro as 5:30h",
+        agora: AGORA,
+      },
+      calendario,
+    );
+    expect(colon.texto).toMatch(/Confirmação/i);
+    expect(colon.texto).toContain("5h30");
+    expect(colon.confirmacaoPendente).toMatchObject({
+      acao: "marcar_pontual",
+    });
+
+    const manha = await processarTurno(
+      {
+        mensagem: "marcar viagem com Nilton 29 de novembro as 5 da manhã",
+        agora: AGORA,
+      },
+      calendario,
+    );
+    expect(manha.texto).toMatch(/Confirmação/i);
+    expect(manha.texto).toMatch(/5h(?!\d)/);
+    if (manha.confirmacaoPendente?.acao !== "marcar_pontual") {
+      throw new Error("esperava Confirmação de Pontual");
+    }
+    expect(manha.confirmacaoPendente.inicio).toContain("T05:00");
+  });
+
   it("depois de consultar um dia, marcar então reusa o dia e pede horário", async () => {
     const calendario = criarCalendarioEmMemoria([]);
 

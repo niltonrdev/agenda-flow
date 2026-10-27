@@ -210,6 +210,26 @@ describe("interpretador — Marcação sem horário", () => {
     }
     expect(intencao.inicio).toContain("2025-12-20T15:00");
   });
+
+  it.each([
+    ["às 5:30", "T05:30"],
+    ["as 5:30h", "T05:30"],
+    ["às 5 horas", "T05:00"],
+    ["às 5 da manhã", "T05:00"],
+    ["às 5h", "T05:00"],
+  ])("aceita horário %s", (horario, trechoIso) => {
+    const intencao = interpretarMensagem(
+      `marcar viagem com Nilton 29 de novembro ${horario}`,
+      AGORA,
+    );
+    expect(intencao.tipo).toBe("marcar_pontual");
+    if (intencao.tipo !== "marcar_pontual") {
+      throw new Error("esperava marcar_pontual");
+    }
+    expect(intencao.titulo).toBe("Viagem com Nilton");
+    expect(intencao.inicio).toContain("2025-11-29");
+    expect(intencao.inicio).toContain(trechoIso);
+  });
 });
 
 describe("interpretador — Alteração", () => {

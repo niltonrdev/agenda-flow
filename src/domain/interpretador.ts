@@ -133,11 +133,20 @@ const RE_ALTERAR =
 const RE_CANCELAR =
   /^(?:cancela|cancelar|cancele|desmarca|desmarcar|tira|tirar)(?:\s+(?:o|a|os|as))?\s+/u;
 
-const RE_TEM_HORA = /\b\d{1,2}\s*h(?:\d{2})?\b|\b\d{1,2}:\d{2}\b/u;
-
 const PALAVRA = String.raw`(?<![\p{L}\p{N}])`;
 const FIM_PALAVRA = String.raw`(?![\p{L}\p{N}])`;
-const HORA = String.raw`(\d{1,2})(?:h(\d{2})?|:(\d{2}))`;
+/** 5h, 5h30, 5:30, 5:30h, 5 horas */
+const HORA = String.raw`(\d{1,2})(?:h(\d{2})?|:(\d{2})h?|\s*horas?)`;
+
+const RE_TEM_HORA = new RegExp(
+  [
+    `${PALAVRA}\\d{1,2}\\s*h(?:\\d{2})?${FIM_PALAVRA}`,
+    `${PALAVRA}\\d{1,2}:\\d{2}h?${FIM_PALAVRA}`,
+    `${PALAVRA}\\d{1,2}\\s+horas?${FIM_PALAVRA}`,
+    `${PALAVRA}\\d{1,2}(?:h\\d{0,2}|:\\d{2}h?)?\\s+da\\s+(?:manh[aã]|tarde|noite)${FIM_PALAVRA}`,
+  ].join("|"),
+  "u",
+);
 
 const RE_INTERVALO_HORAS = new RegExp(
   `${PALAVRA}das?\\s+${HORA}\\s+[aà]s\\s+${HORA}${FIM_PALAVRA}`,
@@ -146,6 +155,11 @@ const RE_INTERVALO_HORAS = new RegExp(
 
 const RE_HORA_INICIO = new RegExp(
   `${PALAVRA}(?:[aà]s\\s+)?${HORA}${FIM_PALAVRA}`,
+  "u",
+);
+
+const RE_HORA_PERIODO = new RegExp(
+  `${PALAVRA}(?:[aà]s\\s+)?(\\d{1,2})(?:h(\\d{2})?|:(\\d{2})h?)?\\s+da\\s+(manh[aã]|tarde|noite)${FIM_PALAVRA}`,
   "u",
 );
 
@@ -299,6 +313,46 @@ function horaMinuto(
   return { hour, minute };
 }
 
+/** "5 da manhã" → 05:00; "5 da tarde/noite" → 17:00. */
+function aplicarPeriodoDoDia(
+  base: { hour: number; minute: number },
+  periodo: string,
+): { hour: number; minute: number } | null {
+  const p = periodo
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase();
+  const { minute } = base;
+  let hour = base.hour;
+
+  if (p.startsWith("manh")) {
+    if (hour === 12) hour = 0;
+    if (hour > 11) return null;
+    return { hour, minute };
+  }
+  if (p === "tarde" || p === "noite") {
+    if (hour === 12) return { hour: p === "noite" ? 0 : 12, minute };
+    if (hour >= 1 && hour <= 11) return { hour: hour + 12, minute };
+    if (hour >= 13 && hour <= 23) return { hour, minute };
+    return null;
+  }
+  return null;
+}
+
+function extrairHoraInicio(
+  texto: string,
+): { hour: number; minute: number } | null {
+  const periodo = RE_HORA_PERIODO.exec(texto);
+  if (periodo) {
+    const base = horaMinuto(periodo[1], periodo[2], periodo[3]);
+    if (!base) return null;
+    return aplicarPeriodoDoDia(base, periodo[4]);
+  }
+  const hora = RE_HORA_INICIO.exec(texto);
+  if (!hora) return null;
+  return horaMinuto(hora[1], hora[2], hora[3]);
+}
+
 /** Dia dito na Mensagem; null se não houver data explícita. */
 export function diaExplicitoNaMensagem(
   texto: string,
@@ -372,7 +426,7 @@ function tituloDaMensagem(mensagemOriginal: string): string {
   titulo = titulo.replace(new RegExp(`${PALAVRA}hoje${FIM_PALAVRA}`, "giu"), " ");
   titulo = titulo.replace(
     new RegExp(
-      `${PALAVRA}(?:no\\s+)?dia\\s+\\d{1,2}\\s+de\\s+(?:${GRUPO_MES})(?:\\s+de\\s+\\d{4})?${FIM_PALAVRA}`,
+      `${PALAVRA}(?:no\\s+)?(?:dia\\s+)?\\d{1,2}\\s+de\\s+(?:${GRUPO_MES})(?:\\s+de\\s+\\d{4})?${FIM_PALAVRA}`,
       "giu",
     ),
     " ",
@@ -386,20 +440,30 @@ function tituloDaMensagem(mensagemOriginal: string): string {
   );
   titulo = titulo.replace(
     new RegExp(
-      `${PALAVRA}das?\\s+\\d{1,2}(?:h\\d{0,2}|:\\d{2})\\s+[aà]s\\s+\\d{1,2}(?:h\\d{0,2}|:\\d{2})${FIM_PALAVRA}`,
+      `${PALAVRA}das?\\s+\\d{1,2}(?:h\\d{0,2}|:\\d{2}h?|\\s*horas?)\\s+[aà]s\\s+\\d{1,2}(?:h\\d{0,2}|:\\d{2}h?|\\s*horas?)${FIM_PALAVRA}`,
       "giu",
     ),
     " ",
   );
   titulo = titulo.replace(
     new RegExp(
-      `${PALAVRA}[aà]s\\s+\\d{1,2}(?:h\\d{0,2}|:\\d{2})${FIM_PALAVRA}`,
+      `${PALAVRA}(?:[aà]s\\s+)?\\d{1,2}(?:h\\d{0,2}|:\\d{2}h?)?\\s+da\\s+(?:manh[aã]|tarde|noite)${FIM_PALAVRA}`,
       "giu",
     ),
     " ",
   );
   titulo = titulo.replace(
-    new RegExp(`${PALAVRA}\\d{1,2}h\\d{0,2}${FIM_PALAVRA}`, "giu"),
+    new RegExp(
+      `${PALAVRA}[aà]s\\s+\\d{1,2}(?:h\\d{0,2}|:\\d{2}h?|\\s*horas?)${FIM_PALAVRA}`,
+      "giu",
+    ),
+    " ",
+  );
+  titulo = titulo.replace(
+    new RegExp(
+      `${PALAVRA}\\d{1,2}(?:h\\d{0,2}|:\\d{2}h?|\\s+horas?)${FIM_PALAVRA}`,
+      "giu",
+    ),
     " ",
   );
   titulo = titulo.replace(
@@ -519,10 +583,7 @@ export function interpretarDestinoAlteracao(
 
   const diaIso = diaIsoDeTexto(texto, agora);
   const partes = partesDoDia(texto);
-  const horaMatch = RE_HORA_INICIO.exec(texto);
-  const hora = horaMatch
-    ? horaMinuto(horaMatch[1], horaMatch[2], horaMatch[3])
-    : null;
+  const hora = extrairHoraInicio(texto);
 
   if (aPartir && diaIso) {
     return { tipo: "primeiro_dia", primeiroDia: diaIso };
@@ -638,9 +699,7 @@ function horariosNoDia(
     fim = base.set(termino);
     if (fim <= inicio) fim = fim.plus({ days: 1 });
   } else {
-    const hora = RE_HORA_INICIO.exec(texto);
-    if (!hora) return null;
-    const começo = horaMinuto(hora[1], hora[2], hora[3]);
+    const começo = extrairHoraInicio(texto);
     if (!começo) return null;
     inicio = base.set(começo);
     const minutos = duracaoEmMinutos(texto) ?? 60;

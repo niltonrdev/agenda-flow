@@ -11,7 +11,7 @@ const GRUPO_MES =
 
 const PALAVRA = String.raw`(?<![\p{L}\p{N}])`;
 const FIM_PALAVRA = String.raw`(?![\p{L}\p{N}])`;
-const HORA = String.raw`(\d{1,2})(?:h(\d{2})?|:(\d{2}))`;
+const HORA = String.raw`(\d{1,2})(?:h(\d{2})?|:(\d{2})h?|\s*horas?)`;
 
 const RE_RECUSA_PURA = /^(?:n[aã]o)\s*[.!]?\s*$/iu;
 const RE_RECUSA_PREFIXO = /^(?:n[aã]o)\s*[,.]?\s*/iu;
@@ -33,6 +33,11 @@ const RE_INTERVALO_HORAS = new RegExp(
 
 const RE_HORA_INICIO = new RegExp(
   `${PALAVRA}(?:[aà]s\\s+)?${HORA}${FIM_PALAVRA}`,
+  "iu",
+);
+
+const RE_HORA_PERIODO = new RegExp(
+  `${PALAVRA}(?:[aà]s\\s+)?(\\d{1,2})(?:h(\\d{2})?|:(\\d{2})h?)?\\s+da\\s+(manh[aã]|tarde|noite)${FIM_PALAVRA}`,
   "iu",
 );
 
@@ -68,6 +73,45 @@ function horaMinuto(
   const minute = Number(minutoH ?? minutoColon ?? "0");
   if (hour > 23 || minute > 59) return null;
   return { hour, minute };
+}
+
+function aplicarPeriodoDoDia(
+  base: { hour: number; minute: number },
+  periodo: string,
+): { hour: number; minute: number } | null {
+  const p = periodo
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase();
+  const { minute } = base;
+  let hour = base.hour;
+
+  if (p.startsWith("manh")) {
+    if (hour === 12) hour = 0;
+    if (hour > 11) return null;
+    return { hour, minute };
+  }
+  if (p === "tarde" || p === "noite") {
+    if (hour === 12) return { hour: p === "noite" ? 0 : 12, minute };
+    if (hour >= 1 && hour <= 11) return { hour: hour + 12, minute };
+    if (hour >= 13 && hour <= 23) return { hour, minute };
+    return null;
+  }
+  return null;
+}
+
+function extrairHoraInicio(
+  texto: string,
+): { hour: number; minute: number } | null {
+  const periodo = RE_HORA_PERIODO.exec(texto);
+  if (periodo) {
+    const base = horaMinuto(periodo[1], periodo[2], periodo[3]);
+    if (!base) return null;
+    return aplicarPeriodoDoDia(base, periodo[4]);
+  }
+  const hora = RE_HORA_INICIO.exec(texto);
+  if (!hora) return null;
+  return horaMinuto(hora[1], hora[2], hora[3]);
 }
 
 function duracaoEmMinutos(texto: string): number | null {
@@ -152,20 +196,30 @@ function tituloDaCorrecao(mensagem: string): string | undefined {
   );
   titulo = titulo.replace(
     new RegExp(
-      `${PALAVRA}das?\\s+\\d{1,2}(?:h\\d{0,2}|:\\d{2})\\s+[aà]s\\s+\\d{1,2}(?:h\\d{0,2}|:\\d{2})${FIM_PALAVRA}`,
+      `${PALAVRA}das?\\s+\\d{1,2}(?:h\\d{0,2}|:\\d{2}h?|\\s*horas?)\\s+[aà]s\\s+\\d{1,2}(?:h\\d{0,2}|:\\d{2}h?|\\s*horas?)${FIM_PALAVRA}`,
       "giu",
     ),
     " ",
   );
   titulo = titulo.replace(
     new RegExp(
-      `${PALAVRA}[aà]s\\s+\\d{1,2}(?:h\\d{0,2}|:\\d{2})${FIM_PALAVRA}`,
+      `${PALAVRA}(?:[aà]s\\s+)?\\d{1,2}(?:h\\d{0,2}|:\\d{2}h?)?\\s+da\\s+(?:manh[aã]|tarde|noite)${FIM_PALAVRA}`,
       "giu",
     ),
     " ",
   );
   titulo = titulo.replace(
-    new RegExp(`${PALAVRA}\\d{1,2}h\\d{0,2}${FIM_PALAVRA}`, "giu"),
+    new RegExp(
+      `${PALAVRA}[aà]s\\s+\\d{1,2}(?:h\\d{0,2}|:\\d{2}h?|\\s*horas?)${FIM_PALAVRA}`,
+      "giu",
+    ),
+    " ",
+  );
+  titulo = titulo.replace(
+    new RegExp(
+      `${PALAVRA}\\d{1,2}(?:h\\d{0,2}|:\\d{2}h?|\\s+horas?)${FIM_PALAVRA}`,
+      "giu",
+    ),
     " ",
   );
   titulo = titulo.replace(
@@ -198,10 +252,7 @@ function aplicarPontual(
     horaInicio = horaMinuto(intervalo[1], intervalo[2], intervalo[3]);
     horaFim = horaMinuto(intervalo[4], intervalo[5], intervalo[6]);
   } else {
-    const hora = RE_HORA_INICIO.exec(texto);
-    if (hora) {
-      horaInicio = horaMinuto(hora[1], hora[2], hora[3]);
-    }
+    horaInicio = extrairHoraInicio(texto);
   }
   const titulo = tituloDaCorrecao(mensagem);
 
