@@ -65,7 +65,7 @@ export function formatarConfirmacao(
   const avisos = conflitos
     .map((c) => formatarCompromissoNoIntervalo(c))
     .join("; ");
-  return `${base} Alerta de conflito: ${avisos}. Diga sim para marcar mesmo assim.`;
+  return `${base}\n\nALERTA DE CONFLITO: ${avisos}.\nDiga sim para marcar mesmo assim.`;
 }
 
 export function formatarConfirmacaoPontual(proposta: ConfirmacaoPontual): string {
@@ -104,7 +104,7 @@ function avisoConflitos(conflitos: Compromisso[]): string {
   const detalhes = conflitos
     .map((c) => formatarCompromissoNoIntervalo(c))
     .join("; ");
-  return ` Alerta de conflito: ${detalhes}.`;
+  return `\n\nALERTA DE CONFLITO: ${detalhes}.`;
 }
 
 export function formatarConfirmacaoAlterarPontual(
