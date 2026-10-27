@@ -1,7 +1,7 @@
 import {
   cookiesOAuth,
   credencialGoogleConfigurada,
-  redirectUriPadrao,
+  resolverRedirectUri,
   segredoDaSessao,
   serializarSessao,
   trocarCodigoPorTokens,
@@ -35,8 +35,7 @@ export async function GET(request: Request) {
       code,
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      redirectUri:
-        process.env.GOOGLE_REDIRECT_URI ?? redirectUriPadrao(origem),
+      redirectUri: resolverRedirectUri(origem),
     });
     if (!tokens.refreshToken) {
       return NextResponse.redirect(new URL("/?google=falha", origem));

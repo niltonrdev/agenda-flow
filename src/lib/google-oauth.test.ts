@@ -2,6 +2,7 @@ import {
   assinarValor,
   desserializarSessao,
   lerValorAssinado,
+  resolverRedirectUri,
   serializarSessao,
   urlDeAutorizacao,
 } from "@/lib/google-oauth";
@@ -33,6 +34,15 @@ describe("sessão Google persistida", () => {
       state: "abc",
     });
     expect(url).toContain("access_type=offline");
+    expect(url).toContain("redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fapi%2Fauth%2Fgoogle%2Fcallback");
     expect(url).toContain("scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcalendar");
+  });
+
+  it("GOOGLE_REDIRECT_URI vazio cai no callback da origem", () => {
+    expect(
+      resolverRedirectUri("http://localhost:3000", {
+        GOOGLE_REDIRECT_URI: "",
+      }),
+    ).toBe("http://localhost:3000/api/auth/google/callback");
   });
 });

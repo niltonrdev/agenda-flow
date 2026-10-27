@@ -1,7 +1,7 @@
 import {
   cookiesOAuth,
   credencialGoogleConfigurada,
-  redirectUriPadrao,
+  resolverRedirectUri,
   urlDeAutorizacao,
 } from "@/lib/google-oauth";
 import { randomBytes } from "node:crypto";
@@ -19,8 +19,7 @@ export async function GET(request: Request) {
   const state = randomBytes(16).toString("hex");
   const url = urlDeAutorizacao({
     clientId: process.env.GOOGLE_CLIENT_ID!,
-    redirectUri:
-      process.env.GOOGLE_REDIRECT_URI ?? redirectUriPadrao(origem),
+    redirectUri: resolverRedirectUri(origem),
     state,
   });
 

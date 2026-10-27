@@ -210,3 +210,15 @@ export function segredoDaSessao(env: EnvOAuth = process.env as EnvOAuth): string
 export function redirectUriPadrao(origem: string): string {
   return `${origem.replace(/\/$/, "")}/api/auth/google/callback`;
 }
+
+/**
+ * Resolve o redirect_uri do OAuth. GOOGLE_REDIRECT_URI vazio (comum ao
+ * copiar .env.example) não vale: o Google exige o parâmetro preenchido.
+ */
+export function resolverRedirectUri(
+  origem: string,
+  env: EnvOAuth = process.env as EnvOAuth,
+): string {
+  const configurado = env.GOOGLE_REDIRECT_URI?.trim();
+  return configurado || redirectUriPadrao(origem);
+}
