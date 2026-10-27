@@ -211,6 +211,44 @@ describe("interpretador — Marcação sem horário", () => {
     expect(intencao.inicio).toContain("2025-12-20T15:00");
   });
 
+  it("29/11 a 01/12 não interpreta o 11 do meio como dia inicial", () => {
+    const outubro = DateTime.fromObject(
+      { year: 2026, month: 10, day: 27, hour: 16 },
+      { zone: FUSO_DONO },
+    );
+    expect(
+      interpretarMensagem(
+        "marcar viagem a praia para os dias 29/11 a 01/12",
+        outubro,
+      ),
+    ).toEqual({
+      tipo: "marcar_periodo",
+      titulo: "Viagem a praia",
+      primeiroDia: "2026-11-29",
+      ultimoDia: "2026-12-01",
+    });
+  });
+
+  it("alterar viagem do dia 29/11 sem destino pede completar", () => {
+    const outubro = DateTime.fromObject(
+      { year: 2026, month: 10, day: 27, hour: 16 },
+      { zone: FUSO_DONO },
+    );
+    expect(interpretarMensagem("alterar viagem do dia 29/11", outubro)).toEqual({
+      tipo: "alterar_sem_destino",
+      termo: "viagem",
+      dia: { dia: 29, mes: 11 },
+    });
+  });
+
+  it("apagar é Cancelamento", () => {
+    expect(interpretarMensagem("apagar viagem 29/11", AGORA)).toEqual({
+      tipo: "cancelar",
+      termo: "viagem",
+      dia: { dia: 29, mes: 11 },
+    });
+  });
+
   it.each([
     ["às 5:30", "T05:30"],
     ["as 5:30h", "T05:30"],

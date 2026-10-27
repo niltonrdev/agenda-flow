@@ -50,7 +50,8 @@ export type CandidatoAlteracao = {
 export type ConfirmacaoEscolherAlteracao = {
   acao: "escolher_alteracao";
   candidatos: CandidatoAlteracao[];
-  destino: DestinoAlteracao;
+  /** Ausente quando o Dono ainda não disse para quando alterar. */
+  destino?: DestinoAlteracao;
 };
 
 export type ConfirmacaoCancelarPontual = {
@@ -84,6 +85,13 @@ export type ConfirmacaoCompletarMarcacao = {
   dia?: string;
 };
 
+/** Alteração sem destino: a Conversa pede para quando mudar. */
+export type ConfirmacaoCompletarAlteracao = {
+  acao: "completar_alteracao";
+  id: string;
+  titulo: string;
+};
+
 export type ConfirmacaoPendente =
   | ConfirmacaoPontual
   | ConfirmacaoPeriodo
@@ -93,7 +101,8 @@ export type ConfirmacaoPendente =
   | ConfirmacaoCancelarPontual
   | ConfirmacaoCancelarPeriodo
   | ConfirmacaoEscolherCancelamento
-  | ConfirmacaoCompletarMarcacao;
+  | ConfirmacaoCompletarMarcacao
+  | ConfirmacaoCompletarAlteracao;
 
 export type ConfirmacaoMarcacao = ConfirmacaoPontual | ConfirmacaoPeriodo;
 
@@ -182,7 +191,7 @@ export function ehConfirmacaoPendente(valor: unknown): valor is ConfirmacaoPende
           typeof c.id === "string" &&
           typeof c.rotulo === "string",
       ) &&
-      destinoValido(proposta.destino)
+      (proposta.destino === undefined || destinoValido(proposta.destino))
     );
   }
   if (proposta.acao === "cancelar_pontual") {
@@ -217,6 +226,9 @@ export function ehConfirmacaoPendente(valor: unknown): valor is ConfirmacaoPende
       tituloValido(proposta.titulo) &&
       (proposta.dia === undefined || typeof proposta.dia === "string")
     );
+  }
+  if (proposta.acao === "completar_alteracao") {
+    return tituloValido(proposta.titulo) && typeof proposta.id === "string";
   }
   return false;
 }

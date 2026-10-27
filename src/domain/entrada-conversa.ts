@@ -37,6 +37,7 @@ import {
   formatarConsultaIntervalo,
   formatarListaCandidatos,
   formatarNaoEncontrado,
+  formatarPedirDestinoAlteracao,
   formatarPedirDiaEHorarioMarcacao,
   formatarPedirHorarioMarcacao,
   formatarPeriodoAlterado,
@@ -50,12 +51,13 @@ import {
   RESPOSTA_O_QUE_MUDAR,
   rotuloCandidato,
 } from "./formatar-resposta";
-import { fimDoDia, inicioDoDia } from "./fuso";
+import { FUSO_DONO, fimDoDia, inicioDoDia } from "./fuso";
 import {
   completarMarcacaoPontual,
   interpretarDestinoAlteracao,
   interpretarMensagem,
   type DestinoAlteracao,
+  type DiaRecorte,
 } from "./interpretador";
 import { DateTime } from "luxon";
 
@@ -89,10 +91,56 @@ function casaComTermo(titulo: string, termo: string): boolean {
   const palavras = normalizar(termo)
     .split(/\s+/u)
     .filter(
-      (p) => p.length > 1 && !["de", "da", "do", "com", "as", "os"].includes(p),
+      (p) => p.length > 1 && !["de", "da", "do", "com", "as", "os", "a"].includes(p),
     );
   if (palavras.length === 0) return tituloN.includes(normalizar(termo));
   return palavras.every((p) => tituloN.includes(p));
+}
+
+function casaComDiaRecorte(
+  compromisso: Compromisso,
+  recorte: DiaRecorte,
+): boolean {
+  if (compromisso.tipo === "pontual") {
+    const dt = DateTime.fromISO(compromisso.inicio, { setZone: true }).setZone(
+      FUSO_DONO,
+    );
+    if (dt.day !== recorte.dia) return false;
+    if (recorte.mes != null && dt.month !== recorte.mes) return false;
+    if (recorte.ano != null && dt.year !== recorte.ano) return false;
+    return true;
+  }
+  const primeiro = DateTime.fromISO(compromisso.primeiroDia, {
+    zone: FUSO_DONO,
+  }).startOf("day");
+  const ultimo = DateTime.fromISO(compromisso.ultimoDia, {
+    zone: FUSO_DONO,
+  }).startOf("day");
+  if (recorte.mes == null) {
+    return primeiro.day === recorte.dia || ultimo.day === recorte.dia;
+  }
+  let cursor = primeiro;
+  while (cursor <= ultimo) {
+    if (
+      cursor.day === recorte.dia &&
+      cursor.month === recorte.mes &&
+      (recorte.ano == null || cursor.year === recorte.ano)
+    ) {
+      return true;
+    }
+    cursor = cursor.plus({ days: 1 });
+  }
+  return false;
+}
+
+function filtrarCandidatos(
+  existentes: Compromisso[],
+  termo: string,
+  dia?: DiaRecorte,
+): Compromisso[] {
+  const porTermo = existentes.filter((c) => casaComTermo(c.titulo, termo));
+  if (!dia) return porTermo;
+  return porTermo.filter((c) => casaComDiaRecorte(c, dia));
 }
 
 function casarEscolha(
@@ -125,6 +173,12 @@ function ehCompletarMarcacao(
   pendente: ConfirmacaoPendente,
 ): pendente is Extract<ConfirmacaoPendente, { acao: "completar_marcacao" }> {
   return pendente.acao === "completar_marcacao";
+}
+
+function ehCompletarAlteracao(
+  pendente: ConfirmacaoPendente,
+): pendente is Extract<ConfirmacaoPendente, { acao: "completar_alteracao" }> {
+  return pendente.acao === "completar_alteracao";
 }
 
 function comDiaConsultado(
@@ -257,13 +311,30 @@ async function confirmarAlteracao(
       confirmacaoPendente: proposta,
     };
   }
-  if (compromisso.tipo === "periodo" && proposto.tipo === "periodo") {
+  if (proposto.tipo === "periodo") {
+    const diaAtual =
+      compromisso.tipo === "periodo"
+        ? {
+            primeiroDiaAtual: compromisso.primeiroDia,
+            ultimoDiaAtual: compromisso.ultimoDia,
+          }
+        : {
+            primeiroDiaAtual: DateTime.fromISO(compromisso.inicio, {
+              setZone: true,
+            })
+              .setZone(FUSO_DONO)
+              .toISODate()!,
+            ultimoDiaAtual: DateTime.fromISO(compromisso.inicio, {
+              setZone: true,
+            })
+              .setZone(FUSO_DONO)
+              .toISODate()!,
+          };
     const proposta: ConfirmacaoAlterarPeriodo = {
       acao: "alterar_periodo",
       id: compromisso.id,
       titulo: compromisso.titulo,
-      primeiroDiaAtual: compromisso.primeiroDia,
-      ultimoDiaAtual: compromisso.ultimoDia,
+      ...diaAtual,
       primeiroDia: proposto.primeiroDia,
       ultimoDia: proposto.ultimoDia,
     };
@@ -374,6 +445,58 @@ async function processarTurnoInterno(
     : null;
   const diaAnterior = entrada.ultimoDiaConsultado ?? null;
 
+  if (pendente && ehCompletarAlteracao(pendente)) {
+    if (intencao.tipo === "recusar") {
+      return comDiaConsultado(
+        { texto: "Ok, não altero.", confirmacaoPendente: null },
+        diaAnterior,
+      );
+    }
+    if (intencao.tipo === "confirmar") {
+      return comDiaConsultado(
+        {
+          texto: formatarPedirDestinoAlteracao(pendente.titulo),
+          confirmacaoPendente: pendente,
+        },
+        diaAnterior,
+      );
+    }
+    if (
+      intencao.tipo !== "alterar" &&
+      intencao.tipo !== "alterar_sem_destino" &&
+      intencao.tipo !== "cancelar"
+    ) {
+      const destino = interpretarDestinoAlteracao(
+        entrada.mensagem.replace(/^(?:para\s+)/iu, ""),
+        entrada.agora,
+      );
+      if (destino) {
+        const todos = await calendario.listar(janelaDeBusca(entrada.agora));
+        const compromisso = todos.find((c) => c.id === pendente.id);
+        if (!compromisso) {
+          return comDiaConsultado(
+            {
+              texto: formatarNaoEncontrado(pendente.titulo),
+              confirmacaoPendente: null,
+            },
+            diaAnterior,
+          );
+        }
+        return comDiaConsultado(
+          await montarAlteracao(compromisso, destino, calendario),
+          diaAnterior,
+        );
+      }
+      return comDiaConsultado(
+        {
+          texto: formatarPedirDestinoAlteracao(pendente.titulo),
+          confirmacaoPendente: pendente,
+        },
+        diaAnterior,
+      );
+    }
+  }
+
   if (pendente && ehCompletarMarcacao(pendente)) {
     if (intencao.tipo === "recusar") {
       return comDiaConsultado(
@@ -394,6 +517,7 @@ async function processarTurnoInterno(
     }
     if (
       intencao.tipo !== "alterar" &&
+      intencao.tipo !== "alterar_sem_destino" &&
       intencao.tipo !== "cancelar" &&
       intencao.tipo !== "marcar_periodo"
     ) {
@@ -460,7 +584,11 @@ async function processarTurnoInterno(
     }
   }
 
-  if (pendente?.acao === "escolher_alteracao" && intencao.tipo !== "alterar") {
+  if (
+    pendente?.acao === "escolher_alteracao" &&
+    intencao.tipo !== "alterar" &&
+    intencao.tipo !== "alterar_sem_destino"
+  ) {
     const escolhidos = casarEscolha(entrada.mensagem, pendente.candidatos);
     if (escolhidos.length === 1) {
       const todos = await calendario.listar(janelaDeBusca(entrada.agora));
@@ -469,6 +597,16 @@ async function processarTurnoInterno(
         return {
           texto: formatarNaoEncontrado(escolhidos[0].rotulo),
           confirmacaoPendente: null,
+        };
+      }
+      if (!pendente.destino) {
+        return {
+          texto: formatarPedirDestinoAlteracao(compromisso.titulo),
+          confirmacaoPendente: {
+            acao: "completar_alteracao",
+            id: compromisso.id,
+            titulo: compromisso.titulo,
+          },
         };
       }
       return montarAlteracao(compromisso, pendente.destino, calendario);
@@ -482,7 +620,12 @@ async function processarTurnoInterno(
   }
 
   if (intencao.tipo === "confirmar") {
-    if (!pendente || ehEscolha(pendente) || ehCompletarMarcacao(pendente)) {
+    if (
+      !pendente ||
+      ehEscolha(pendente) ||
+      ehCompletarMarcacao(pendente) ||
+      ehCompletarAlteracao(pendente)
+    ) {
       return comDiaConsultado(
         { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: pendente },
         diaAnterior,
@@ -596,15 +739,40 @@ async function processarTurnoInterno(
     );
   }
 
-  if (intencao.tipo === "alterar") {
+  if (intencao.tipo === "alterar" || intencao.tipo === "alterar_sem_destino") {
     const existentes = await calendario.listar(janelaDeBusca(entrada.agora));
-    const candidatos = existentes.filter((c) =>
-      casaComTermo(c.titulo, intencao.termo),
+    const candidatos = filtrarCandidatos(
+      existentes,
+      intencao.termo,
+      intencao.dia,
     );
     if (candidatos.length === 0) {
       return {
         texto: formatarNaoEncontrado(intencao.termo),
         confirmacaoPendente: null,
+      };
+    }
+    if (intencao.tipo === "alterar_sem_destino") {
+      if (candidatos.length > 1) {
+        const lista = candidatos.map((c) => ({
+          id: c.id,
+          rotulo: rotuloCandidato(c),
+        }));
+        return {
+          texto: formatarListaCandidatos(lista.map((c) => c.rotulo)),
+          confirmacaoPendente: {
+            acao: "escolher_alteracao",
+            candidatos: lista,
+          },
+        };
+      }
+      return {
+        texto: formatarPedirDestinoAlteracao(candidatos[0].titulo),
+        confirmacaoPendente: {
+          acao: "completar_alteracao",
+          id: candidatos[0].id,
+          titulo: candidatos[0].titulo,
+        },
       };
     }
     if (candidatos.length > 1) {
@@ -627,18 +795,21 @@ async function processarTurnoInterno(
 
   if (intencao.tipo === "cancelar") {
     const existentes = await calendario.listar(janelaDeBusca(entrada.agora));
-    const candidatos = existentes.filter((c) =>
+    const porTermo = existentes.filter((c) =>
       casaComTermo(c.titulo, intencao.termo),
     );
-    if (candidatos.length === 0) {
+    let candidatos = porTermo;
+    if (intencao.dia?.mes != null) {
+      candidatos = filtrarCandidatos(existentes, intencao.termo, intencao.dia);
+    } else if (intencao.dia && porTermo.some((c) => c.tipo === "periodo")) {
       return {
-        texto: formatarNaoEncontrado(intencao.termo),
+        texto: RESPOSTA_ALTERACAO_DOS_EXTREMOS,
         confirmacaoPendente: null,
       };
     }
-    if (intencao.dia && candidatos.some((c) => c.tipo === "periodo")) {
+    if (candidatos.length === 0) {
       return {
-        texto: RESPOSTA_ALTERACAO_DOS_EXTREMOS,
+        texto: formatarNaoEncontrado(intencao.termo),
         confirmacaoPendente: null,
       };
     }

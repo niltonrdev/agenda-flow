@@ -95,6 +95,10 @@ export function formatarPedirDiaEHorarioMarcacao(titulo: string): string {
   return `Para marcar ${titulo}, diga o dia e o horário — por exemplo “20 de dezembro às 15h”.`;
 }
 
+export function formatarPedirDestinoAlteracao(titulo: string): string {
+  return `Para alterar ${titulo}, diga o novo dia, horário ou intervalo — por exemplo “para o dia 30” ou “para os dias 29 a 31 de novembro”.`;
+}
+
 function avisoConflitos(conflitos: Compromisso[]): string {
   if (conflitos.length === 0) return "";
   const detalhes = conflitos

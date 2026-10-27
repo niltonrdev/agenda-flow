@@ -55,7 +55,41 @@ export function criarCalendarioEmMemoria(
       if (!atual) {
         throw new Error(`Compromisso não encontrado: ${id}`);
       }
-      const atualizado = { ...atual, ...mudancas, id, tipo: atual.tipo } as Compromisso;
+      const tipo = mudancas.tipo ?? atual.tipo;
+      let atualizado: Compromisso;
+      if (tipo === "periodo") {
+        const primeiroDia =
+          mudancas.primeiroDia ??
+          (atual.tipo === "periodo"
+            ? atual.primeiroDia
+            : DateTime.fromISO(atual.inicio, { setZone: true })
+                .setZone(FUSO_DONO)
+                .toISODate()!);
+        const ultimoDia =
+          mudancas.ultimoDia ??
+          (atual.tipo === "periodo" ? atual.ultimoDia : primeiroDia);
+        atualizado = {
+          id,
+          tipo: "periodo",
+          titulo: mudancas.titulo ?? atual.titulo,
+          primeiroDia,
+          ultimoDia,
+        };
+      } else {
+        const inicio =
+          mudancas.inicio ??
+          (atual.tipo === "pontual" ? atual.inicio : `${atual.primeiroDia}T09:00:00.000-03:00`);
+        const fim =
+          mudancas.fim ??
+          (atual.tipo === "pontual" ? atual.fim : `${atual.ultimoDia}T10:00:00.000-03:00`);
+        atualizado = {
+          id,
+          tipo: "pontual",
+          titulo: mudancas.titulo ?? atual.titulo,
+          inicio,
+          fim,
+        };
+      }
       itens.set(id, atualizado);
       return structuredClone(atualizado);
     },

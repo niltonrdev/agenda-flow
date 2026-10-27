@@ -92,6 +92,29 @@ export function aplicarDestino(
         destino.minuto,
       );
     }
+    if (destino.tipo === "periodo") {
+      return {
+        tipo: "periodo",
+        titulo: compromisso.titulo,
+        primeiroDia: destino.primeiroDia,
+        ultimoDia: destino.ultimoDia,
+      };
+    }
+    if (destino.tipo === "primeiro_dia" || destino.tipo === "ultimo_dia") {
+      const diaCivilPontual = DateTime.fromISO(compromisso.inicio, {
+        setZone: true,
+      })
+        .setZone(FUSO_DONO)
+        .toISODate()!;
+      return {
+        tipo: "periodo",
+        titulo: compromisso.titulo,
+        primeiroDia:
+          destino.tipo === "primeiro_dia" ? destino.primeiroDia : diaCivilPontual,
+        ultimoDia:
+          destino.tipo === "ultimo_dia" ? destino.ultimoDia : diaCivilPontual,
+      };
+    }
     return null;
   }
 
