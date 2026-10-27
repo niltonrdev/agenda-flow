@@ -427,6 +427,7 @@ describe("entrada de conversa — Marcação de Pontual", () => {
     );
 
     expect(saida.texto).toContain("Marquei");
+    expect(saida.texto).toContain("Compromisso gravado");
     expect(saida.texto).toContain("Reunião com a Ana");
     expect(saida.confirmacaoPendente).toBeNull();
     const pendente = proposta.confirmacaoPendente;
@@ -441,6 +442,89 @@ describe("entrada de conversa — Marcação de Pontual", () => {
         fim: pendente.fim,
       }),
     ]);
+  });
+
+  it("marcar sem horário pede o horário; às 15h e sim gravam", async () => {
+    const calendario = criarCalendarioEmMemoria([]);
+
+    const pedindo = await processarTurno(
+      {
+        mensagem: "marcar reunião dia 20 de dezembro com o nilton",
+        agora: AGORA,
+      },
+      calendario,
+    );
+
+    expect(pedindo.texto).toMatch(/horário/i);
+    expect(pedindo.texto).toMatch(/20 de dezembro/i);
+    expect(pedindo.confirmacaoPendente).toMatchObject({
+      acao: "completar_marcacao",
+      titulo: "Reunião com o nilton",
+      dia: "2025-12-20",
+    });
+    expect(calendario.listarTodos()).toHaveLength(0);
+
+    const proposta = await processarTurno(
+      {
+        mensagem: "às 15h",
+        agora: AGORA,
+        confirmacaoPendente: pedindo.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(proposta.texto).toMatch(/Confirmação/i);
+    expect(proposta.texto).toContain("Reunião com o nilton");
+    expect(proposta.texto).toContain("15h");
+    expect(proposta.confirmacaoPendente).toMatchObject({
+      acao: "marcar_pontual",
+    });
+
+    const saida = await processarTurno(
+      {
+        mensagem: "sim",
+        agora: AGORA,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(saida.texto).toContain("Marquei");
+    expect(saida.texto).toContain("Compromisso gravado");
+    expect(calendario.listarTodos()).toEqual([
+      expect.objectContaining({
+        tipo: "pontual",
+        titulo: "Reunião com o nilton",
+      }),
+    ]);
+  });
+
+  it("depois de consultar um dia, marcar então reusa o dia e pede horário", async () => {
+    const calendario = criarCalendarioEmMemoria([]);
+
+    const consulta = await processarTurno(
+      { mensagem: "20 de dezembro", agora: AGORA },
+      calendario,
+    );
+    expect(consulta.texto).toMatch(/livre/i);
+    expect(consulta.ultimoDiaConsultado).toBe("2025-12-20");
+
+    const pedindo = await processarTurno(
+      {
+        mensagem: "marcar reunião então",
+        agora: AGORA,
+        ultimoDiaConsultado: consulta.ultimoDiaConsultado,
+      },
+      calendario,
+    );
+
+    expect(pedindo.texto).toMatch(/horário/i);
+    expect(pedindo.texto).toMatch(/20 de dezembro/i);
+    expect(pedindo.confirmacaoPendente).toMatchObject({
+      acao: "completar_marcacao",
+      dia: "2025-12-20",
+      titulo: "Reunião",
+    });
   });
 
   it("a Confirmação pendente só vale se o turno a trouxer; sem ela o sim não grava", async () => {

@@ -76,6 +76,14 @@ export type ConfirmacaoEscolherCancelamento = {
   candidatos: CandidatoAlteracao[];
 };
 
+/** Marcação iniciada sem horário (e às vezes sem dia): a Conversa completa no próximo turno. */
+export type ConfirmacaoCompletarMarcacao = {
+  acao: "completar_marcacao";
+  titulo: string;
+  /** Dia civil YYYY-MM-DD quando já conhecido. */
+  dia?: string;
+};
+
 export type ConfirmacaoPendente =
   | ConfirmacaoPontual
   | ConfirmacaoPeriodo
@@ -84,7 +92,8 @@ export type ConfirmacaoPendente =
   | ConfirmacaoEscolherAlteracao
   | ConfirmacaoCancelarPontual
   | ConfirmacaoCancelarPeriodo
-  | ConfirmacaoEscolherCancelamento;
+  | ConfirmacaoEscolherCancelamento
+  | ConfirmacaoCompletarMarcacao;
 
 export type ConfirmacaoMarcacao = ConfirmacaoPontual | ConfirmacaoPeriodo;
 
@@ -201,6 +210,12 @@ export function ehConfirmacaoPendente(valor: unknown): valor is ConfirmacaoPende
           typeof c.id === "string" &&
           typeof c.rotulo === "string",
       )
+    );
+  }
+  if (proposta.acao === "completar_marcacao") {
+    return (
+      tituloValido(proposta.titulo) &&
+      (proposta.dia === undefined || typeof proposta.dia === "string")
     );
   }
   return false;

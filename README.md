@@ -15,9 +15,20 @@ npm run dev
 
 Abra [http://localhost:3000](http://localhost:3000). No iPhone, use o Safari na mesma rede ou o Tunel que preferir; a tela é pensada para viewport estreita.
 
-Não é preciso configurar Google OAuth para desenvolver: o adaptador em memória já vem com Compromissos de demonstração alinhados à data atual (Cirurgia no próximo 7 de setembro, reunião com a Ana no próximo 15 de novembro).
+Não é preciso configurar Google OAuth para desenvolver: o adaptador em memória já vem com Compromissos de demonstração alinhados à data atual (Cirurgia no próximo 7 de setembro, reunião com a Ana no próximo 15 de novembro). A tela avisa **modo demonstração** quando não há credencial Google.
 
-Para o Calendário de verdade, copie `.env.example` para `.env.local`, preencha `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` (escopo `https://www.googleapis.com/auth/calendar`, URI de redirecionamento `/api/auth/google/callback`) e use **Conectar conta Google** na tela da Conversa. A sessão fica no cookie; a suíte automática não fala com a conta real.
+### Calendário do celular (não é automático)
+
+- O app **não** lê o Calendário nativo do iPhone (Apple Calendar / EventKit). A v1 usa **Google Calendar** via OAuth.
+- No iPhone, se você já usa o Google Calendar (app ou conta sincronizada), conectar a conta Google aqui reflete no mesmo lugar.
+- **Local / Vercel:** nada grava no seu calendário real até você configurar `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` no servidor **e** tocar em **Conectar conta Google** (aparece só quando a credencial existe). Cada pessoa autoriza a própria conta; o deploy não ganha acesso sozinho.
+- **PWA na tela inicial** não muda isso: continua sendo web + Google OAuth, não vira app da App Store com permissão de Calendário da Apple.
+
+Para o Calendário de verdade, copie `.env.example` para `.env.local`, preencha as variáveis (escopo `https://www.googleapis.com/auth/calendar`, URI de redirecionamento `https://<seu-dominio>/api/auth/google/callback` no Google Cloud Console) e use **Conectar conta Google** na Conversa. A sessão fica no cookie; a suíte automática não fala com a conta real.
+
+**Datas na Conversa:** aceita `15/10`, `15 de outubro` e `15 de outubro de 2027`. Sem ano, usa a **próxima ocorrência futura** desse dia/mês (horário de Brasília).
+
+**Marcação:** diga o horário (`reunião com a Ana amanhã às 15h`) ou `marcar reunião dia 20 de dezembro` — sem horário a Conversa pede; depois da Confirmação, diga **sim** para gravar. No modo demonstração a gravação fica no calendário de exemplo.
 
 ## Testar
 

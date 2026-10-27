@@ -20,6 +20,7 @@ export async function POST(request: Request) {
     const corpo = (await request.json()) as {
       mensagem?: unknown;
       confirmacaoPendente?: unknown;
+      ultimoDiaConsultado?: unknown;
     };
 
     if (typeof corpo.mensagem !== "string" || corpo.mensagem.trim() === "") {
@@ -54,13 +55,30 @@ export async function POST(request: Request) {
         confirmacaoPendente: ehConfirmacaoPendente(corpo.confirmacaoPendente)
           ? corpo.confirmacaoPendente
           : null,
+        ultimoDiaConsultado:
+          typeof corpo.ultimoDiaConsultado === "string"
+            ? corpo.ultimoDiaConsultado
+            : null,
       },
       calendario,
     );
 
+    let texto = saida.texto;
+    if (
+      !tokens &&
+      /^Marquei\b/u.test(texto) &&
+      !/demonstra/iu.test(texto)
+    ) {
+      texto = texto.replace(
+        /\.\s*$/u,
+        " no calendário de demonstração.",
+      );
+    }
+
     const resposta = NextResponse.json({
-      texto: saida.texto,
+      texto,
       confirmacaoPendente: saida.confirmacaoPendente,
+      ultimoDiaConsultado: saida.ultimoDiaConsultado ?? null,
     });
 
     if (tokensAtualizados) {

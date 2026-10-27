@@ -26,6 +26,19 @@ export type IntencaoMarcarPontual = {
   fim: string;
 };
 
+/** Pedido de marcar com dia, mas sem horário — a Conversa pede o horário. */
+export type IntencaoMarcarPontualSemHora = {
+  tipo: "marcar_pontual_sem_hora";
+  titulo: string;
+  dia: string;
+};
+
+/** Pedido de marcar sem dia nem horário (ex.: "marcar reunião então"). */
+export type IntencaoMarcarIncompleta = {
+  tipo: "marcar_incompleta";
+  titulo: string;
+};
+
 export type IntencaoMarcarPeriodo = {
   tipo: "marcar_periodo";
   titulo: string;
@@ -75,6 +88,8 @@ export type Intencao =
   | IntencaoConsultaDia
   | IntencaoConsultaIntervalo
   | IntencaoMarcarPontual
+  | IntencaoMarcarPontualSemHora
+  | IntencaoMarcarIncompleta
   | IntencaoMarcarPeriodo
   | IntencaoConfirmar
   | IntencaoRecusar
@@ -284,22 +299,46 @@ function horaMinuto(
   return { hour, minute };
 }
 
-function diaDoPontual(texto: string, agora: DateTime): string | null {
+/** Dia dito na Mensagem; null se não houver data explícita. */
+export function diaExplicitoNaMensagem(
+  texto: string,
+  agora: DateTime,
+): string | null {
   const base = agora.setZone(FUSO_DONO);
-  if (new RegExp(`${PALAVRA}depois de amanh[aã]${FIM_PALAVRA}`, "u").test(texto)) {
+  const normalizado = texto.trim().toLowerCase().normalize("NFC");
+  if (
+    new RegExp(`${PALAVRA}depois de amanh[aã]${FIM_PALAVRA}`, "u").test(
+      normalizado,
+    )
+  ) {
     return base.plus({ days: 2 }).toISODate();
   }
-  if (new RegExp(`${PALAVRA}amanh[aã]${FIM_PALAVRA}`, "u").test(texto)) {
+  if (new RegExp(`${PALAVRA}amanh[aã]${FIM_PALAVRA}`, "u").test(normalizado)) {
     return base.plus({ days: 1 }).toISODate();
   }
-  if (new RegExp(`${PALAVRA}hoje${FIM_PALAVRA}`, "u").test(texto)) {
+  if (new RegExp(`${PALAVRA}hoje${FIM_PALAVRA}`, "u").test(normalizado)) {
     return base.toISODate();
   }
-  const matchData = RE_DATA.exec(texto);
+  const matchData = RE_DATA.exec(normalizado);
   if (matchData) {
     return isoDeMatchExtenso(matchData, agora);
   }
-  return base.toISODate();
+  const matchNum = RE_DATA_NUM.exec(normalizado);
+  if (matchNum) {
+    return isoDeMatchNumerico(matchNum, agora);
+  }
+  return null;
+}
+
+function diaDoPontual(texto: string, agora: DateTime): string | null {
+  return (
+    diaExplicitoNaMensagem(texto, agora) ??
+    agora.setZone(FUSO_DONO).toISODate()
+  );
+}
+
+export function mensagemTemHora(texto: string): boolean {
+  return RE_TEM_HORA.test(texto.trim().toLowerCase().normalize("NFC"));
 }
 
 function duracaoEmMinutos(texto: string): number | null {
@@ -317,6 +356,11 @@ function duracaoEmMinutos(texto: string): number | null {
 function tituloDaMensagem(mensagemOriginal: string): string {
   let titulo = mensagemOriginal.normalize("NFC").trim();
   titulo = titulo.replace(/^\s*(?:marcar|marca|marque)\s+/iu, "");
+  titulo = titulo.replace(/^\s*(?:uma|um|a|o)\s+/iu, "");
+  titulo = titulo.replace(
+    new RegExp(`${PALAVRA}ent[aã]o${FIM_PALAVRA}`, "giu"),
+    " ",
+  );
   titulo = titulo.replace(
     new RegExp(`${PALAVRA}depois de amanh[aã]${FIM_PALAVRA}`, "giu"),
     " ",
@@ -328,7 +372,14 @@ function tituloDaMensagem(mensagemOriginal: string): string {
   titulo = titulo.replace(new RegExp(`${PALAVRA}hoje${FIM_PALAVRA}`, "giu"), " ");
   titulo = titulo.replace(
     new RegExp(
-      `${PALAVRA}(?:no\\s+)?dia\\s+\\d{1,2}\\s+de\\s+(?:${GRUPO_MES})${FIM_PALAVRA}`,
+      `${PALAVRA}(?:no\\s+)?dia\\s+\\d{1,2}\\s+de\\s+(?:${GRUPO_MES})(?:\\s+de\\s+\\d{4})?${FIM_PALAVRA}`,
+      "giu",
+    ),
+    " ",
+  );
+  titulo = titulo.replace(
+    new RegExp(
+      `${PALAVRA}(?:dia\\s+)?\\d{1,2}\\/\\d{1,2}(?:\\/\\d{2,4})?${FIM_PALAVRA}`,
       "giu",
     ),
     " ",
@@ -568,11 +619,13 @@ function montarAlterar(mensagem: string, agora: DateTime): Intencao {
   return { tipo: "alterar", termo, destino };
 }
 
-function montarPontual(mensagem: string, texto: string, agora: DateTime): Intencao {
-  const dia = diaDoPontual(texto, agora);
-  if (!dia) return { tipo: "desconhecida" };
-
+function horariosNoDia(
+  dia: string,
+  texto: string,
+): { inicio: string; fim: string } | null {
   const base = DateTime.fromISO(dia, { zone: FUSO_DONO });
+  if (!base.isValid) return null;
+
   const intervalo = RE_INTERVALO_HORAS.exec(texto);
   let inicio: DateTime;
   let fim: DateTime;
@@ -580,25 +633,67 @@ function montarPontual(mensagem: string, texto: string, agora: DateTime): Intenc
   if (intervalo) {
     const começo = horaMinuto(intervalo[1], intervalo[2], intervalo[3]);
     const termino = horaMinuto(intervalo[4], intervalo[5], intervalo[6]);
-    if (!começo || !termino) return { tipo: "desconhecida" };
+    if (!começo || !termino) return null;
     inicio = base.set(começo);
     fim = base.set(termino);
     if (fim <= inicio) fim = fim.plus({ days: 1 });
   } else {
     const hora = RE_HORA_INICIO.exec(texto);
-    if (!hora) return { tipo: "desconhecida" };
+    if (!hora) return null;
     const começo = horaMinuto(hora[1], hora[2], hora[3]);
-    if (!começo) return { tipo: "desconhecida" };
+    if (!começo) return null;
     inicio = base.set(começo);
     const minutos = duracaoEmMinutos(texto) ?? 60;
     fim = inicio.plus({ minutes: minutos });
   }
 
+  return { inicio: inicio.toISO()!, fim: fim.toISO()! };
+}
+
+function montarPontual(mensagem: string, texto: string, agora: DateTime): Intencao {
+  const dia = diaDoPontual(texto, agora);
+  if (!dia) return { tipo: "desconhecida" };
+  const horarios = horariosNoDia(dia, texto);
+  if (!horarios) return { tipo: "desconhecida" };
+
   return {
     tipo: "marcar_pontual",
     titulo: tituloDaMensagem(mensagem),
-    inicio: inicio.toISO()!,
-    fim: fim.toISO()!,
+    inicio: horarios.inicio,
+    fim: horarios.fim,
+  };
+}
+
+/**
+ * Completa uma Marcação pendente de horário: título conhecido + dia + Mensagem
+ * com hora (ex.: "às 15h" ou "20 de dezembro às 15h").
+ */
+export function completarMarcacaoPontual(
+  titulo: string,
+  diaBase: string | undefined,
+  mensagem: string,
+  agora: DateTime,
+): IntencaoMarcarPontual | IntencaoMarcarPontualSemHora | IntencaoDesconhecida {
+  const texto = mensagem.trim().toLowerCase().normalize("NFC");
+  const dia = diaExplicitoNaMensagem(texto, agora) ?? diaBase;
+  if (!dia) return { tipo: "desconhecida" };
+
+  if (!mensagemTemHora(texto)) {
+    return {
+      tipo: "marcar_pontual_sem_hora",
+      titulo: titulo.trim() || "Compromisso",
+      dia,
+    };
+  }
+
+  const horarios = horariosNoDia(dia, texto);
+  if (!horarios) return { tipo: "desconhecida" };
+
+  return {
+    tipo: "marcar_pontual",
+    titulo: titulo.trim() || "Compromisso",
+    inicio: horarios.inicio,
+    fim: horarios.fim,
   };
 }
 
@@ -689,6 +784,21 @@ export function interpretarMensagem(
   if (RE_FIM_DE_SEMANA.test(texto) && !RE_DATA.test(texto)) {
     const recorte = recorteFimDeSemana(agora);
     return { tipo: "consulta_intervalo", ...recorte };
+  }
+
+  if (pedidoDeMarcacao) {
+    const dia = diaExplicitoNaMensagem(texto, agora);
+    if (dia) {
+      return {
+        tipo: "marcar_pontual_sem_hora",
+        titulo: tituloDaMensagem(mensagem.trim()),
+        dia,
+      };
+    }
+    return {
+      tipo: "marcar_incompleta",
+      titulo: tituloDaMensagem(mensagem.trim()),
+    };
   }
 
   const consultaDia = interpretarConsultaDia(texto, agora);

@@ -77,11 +77,22 @@ export function formatarConfirmacaoPeriodo(proposta: ConfirmacaoPeriodo): string
 }
 
 export function formatarPontualMarcado(proposta: ConfirmacaoPontual): string {
-  return `Marquei ${detalhePontual(proposta.titulo, proposta.inicio, proposta.fim)}.`;
+  return `Marquei ${detalhePontual(proposta.titulo, proposta.inicio, proposta.fim)}. Compromisso gravado.`;
 }
 
 export function formatarPeriodoMarcado(proposta: ConfirmacaoPeriodo): string {
-  return `Marquei ${detalhePeriodo(proposta)}.`;
+  return `Marquei ${detalhePeriodo(proposta)}. Compromisso gravado.`;
+}
+
+export function formatarPedirHorarioMarcacao(
+  titulo: string,
+  dia: string,
+): string {
+  return `Para marcar ${titulo} em ${formatarDiaPorExtenso(dia)}, diga o horário — por exemplo “às 15h”.`;
+}
+
+export function formatarPedirDiaEHorarioMarcacao(titulo: string): string {
+  return `Para marcar ${titulo}, diga o dia e o horário — por exemplo “20 de dezembro às 15h”.`;
 }
 
 function avisoConflitos(conflitos: Compromisso[]): string {

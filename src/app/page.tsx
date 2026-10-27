@@ -23,7 +23,7 @@ export default function ConversaPage() {
       id: "boas-vindas",
       papel: "agenda",
       texto:
-        "Olá. Pergunte por um dia ou um recorte — por exemplo “15/10”, “15 de novembro”, “15 de novembro de 2027”, “pescaria do dia 4 ao 7” ou “esse fim de semana”. Sem ano, uso a próxima data futura desse dia/mês.",
+        "Olá. Consulte um dia (“15/10”, “15 de novembro”) ou marque com horário (“reunião com a Ana amanhã às 15h”) e diga sim na Confirmação. Sem horário, eu peço. Sem ano, uso a próxima data futura.",
     },
   ]);
   const [rascunho, setRascunho] = useState("");
@@ -31,6 +31,9 @@ export default function ConversaPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [confirmacaoPendente, setConfirmacaoPendente] =
     useState<ConfirmacaoPendente | null>(null);
+  const [ultimoDiaConsultado, setUltimoDiaConsultado] = useState<string | null>(
+    null,
+  );
   const [google, setGoogle] = useState<{
     credencialConfigurada: boolean;
     conectado: boolean;
@@ -79,12 +82,14 @@ export default function ConversaPage() {
         body: JSON.stringify({
           mensagem: texto,
           confirmacaoPendente,
+          ultimoDiaConsultado,
         }),
       });
       const dados = (await resposta.json()) as {
         texto?: string;
         erro?: string;
         confirmacaoPendente?: ConfirmacaoPendente | null;
+        ultimoDiaConsultado?: string | null;
       };
 
       if (!resposta.ok) {
@@ -92,6 +97,7 @@ export default function ConversaPage() {
       }
 
       setConfirmacaoPendente(dados.confirmacaoPendente ?? null);
+      setUltimoDiaConsultado(dados.ultimoDiaConsultado ?? null);
       setMensagens((atual) => [
         ...atual,
         {
@@ -140,9 +146,9 @@ export default function ConversaPage() {
         ) : null}
         {google && !google.credencialConfigurada ? (
           <p className="conversa-google conversa-demo">
-            Modo demonstração: Calendário de exemplo (sem Google). Para gravar
-            no seu Calendário de verdade, configure OAuth no servidor e use
-            Conectar conta Google.
+            Modo demonstração: a Marcação grava neste calendário de exemplo
+            (diga o horário, confira a Confirmação e responda sim). Para o
+            Google de verdade, configure OAuth e use Conectar conta Google.
           </p>
         ) : null}
       </header>

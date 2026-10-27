@@ -37,6 +37,8 @@ import {
   formatarConsultaIntervalo,
   formatarListaCandidatos,
   formatarNaoEncontrado,
+  formatarPedirDiaEHorarioMarcacao,
+  formatarPedirHorarioMarcacao,
   formatarPeriodoAlterado,
   formatarPeriodoCancelado,
   formatarPeriodoMarcado,
@@ -50,6 +52,7 @@ import {
 } from "./formatar-resposta";
 import { fimDoDia, inicioDoDia } from "./fuso";
 import {
+  completarMarcacaoPontual,
   interpretarDestinoAlteracao,
   interpretarMensagem,
   type DestinoAlteracao,
@@ -64,11 +67,14 @@ export type EntradaConversa = {
    * Proposta do turno anterior. O chamador devolve; o servidor não a guarda.
    */
   confirmacaoPendente?: ConfirmacaoPendente | null;
+  /** Último dia de Consulta; serve para "marcar … então". */
+  ultimoDiaConsultado?: string | null;
 };
 
 export type SaidaConversa = {
   texto: string;
   confirmacaoPendente: ConfirmacaoPendente | null;
+  ultimoDiaConsultado?: string | null;
 };
 
 function normalizar(texto: string): string {
@@ -112,6 +118,45 @@ function ehEscolha(
   return (
     pendente.acao === "escolher_alteracao" ||
     pendente.acao === "escolher_cancelamento"
+  );
+}
+
+function ehCompletarMarcacao(
+  pendente: ConfirmacaoPendente,
+): pendente is Extract<ConfirmacaoPendente, { acao: "completar_marcacao" }> {
+  return pendente.acao === "completar_marcacao";
+}
+
+function comDiaConsultado(
+  saida: Omit<SaidaConversa, "ultimoDiaConsultado"> & {
+    ultimoDiaConsultado?: string | null;
+  },
+  diaAnterior: string | null,
+): SaidaConversa {
+  return {
+    ...saida,
+    ultimoDiaConsultado:
+      saida.ultimoDiaConsultado !== undefined
+        ? saida.ultimoDiaConsultado
+        : diaAnterior,
+  };
+}
+
+function pedirHorarioMarcacao(
+  titulo: string,
+  dia: string,
+  diaAnterior: string | null,
+): SaidaConversa {
+  return comDiaConsultado(
+    {
+      texto: formatarPedirHorarioMarcacao(titulo, dia),
+      confirmacaoPendente: {
+        acao: "completar_marcacao",
+        titulo,
+        dia,
+      },
+    },
+    diaAnterior,
   );
 }
 
@@ -299,12 +344,20 @@ export async function processarTurno(
     ? entrada.confirmacaoPendente
     : null;
   try {
-    return await processarTurnoInterno(entrada, calendario);
+    const saida = await processarTurnoInterno(entrada, calendario);
+    return {
+      ...saida,
+      ultimoDiaConsultado:
+        saida.ultimoDiaConsultado !== undefined
+          ? saida.ultimoDiaConsultado
+          : (entrada.ultimoDiaConsultado ?? null),
+    };
   } catch (erro) {
     if (erro instanceof FalhaDoCalendario) {
       return {
         texto: RESPOSTA_NAO_GRAVADO,
         confirmacaoPendente: pendenteInicial,
+        ultimoDiaConsultado: entrada.ultimoDiaConsultado ?? null,
       };
     }
     throw erro;
@@ -319,6 +372,69 @@ async function processarTurnoInterno(
   const pendente = ehConfirmacaoPendente(entrada.confirmacaoPendente)
     ? entrada.confirmacaoPendente
     : null;
+  const diaAnterior = entrada.ultimoDiaConsultado ?? null;
+
+  if (pendente && ehCompletarMarcacao(pendente)) {
+    if (intencao.tipo === "recusar") {
+      return comDiaConsultado(
+        { texto: "Ok, não marco.", confirmacaoPendente: null },
+        diaAnterior,
+      );
+    }
+    if (intencao.tipo === "confirmar") {
+      return comDiaConsultado(
+        {
+          texto: pendente.dia
+            ? formatarPedirHorarioMarcacao(pendente.titulo, pendente.dia)
+            : formatarPedirDiaEHorarioMarcacao(pendente.titulo),
+          confirmacaoPendente: pendente,
+        },
+        diaAnterior,
+      );
+    }
+    if (
+      intencao.tipo !== "alterar" &&
+      intencao.tipo !== "cancelar" &&
+      intencao.tipo !== "marcar_periodo"
+    ) {
+      const completa = completarMarcacaoPontual(
+        pendente.titulo,
+        pendente.dia,
+        entrada.mensagem,
+        entrada.agora,
+      );
+      if (completa.tipo === "marcar_pontual") {
+        return comDiaConsultado(
+          await saidaDeConfirmacao(
+            {
+              acao: "marcar_pontual",
+              titulo: completa.titulo,
+              inicio: completa.inicio,
+              fim: completa.fim,
+            },
+            calendario,
+          ),
+          diaAnterior,
+        );
+      }
+      if (completa.tipo === "marcar_pontual_sem_hora") {
+        return pedirHorarioMarcacao(
+          completa.titulo,
+          completa.dia,
+          diaAnterior,
+        );
+      }
+      return comDiaConsultado(
+        {
+          texto: pendente.dia
+            ? formatarPedirHorarioMarcacao(pendente.titulo, pendente.dia)
+            : formatarPedirDiaEHorarioMarcacao(pendente.titulo),
+          confirmacaoPendente: pendente,
+        },
+        diaAnterior,
+      );
+    }
+  }
 
   if (pendente?.acao === "escolher_cancelamento" && intencao.tipo !== "cancelar") {
     const escolhidos = casarEscolha(entrada.mensagem, pendente.candidatos);
@@ -366,8 +482,11 @@ async function processarTurnoInterno(
   }
 
   if (intencao.tipo === "confirmar") {
-    if (!pendente || ehEscolha(pendente)) {
-      return { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: pendente };
+    if (!pendente || ehEscolha(pendente) || ehCompletarMarcacao(pendente)) {
+      return comDiaConsultado(
+        { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: pendente },
+        diaAnterior,
+      );
     }
     if (pendente.acao === "marcar_periodo") {
       await calendario.criar({
@@ -552,6 +671,7 @@ async function processarTurnoInterno(
     return {
       texto: formatarConsultaDia(intencao.dia, compromissos, entrada.agora),
       confirmacaoPendente: null,
+      ultimoDiaConsultado: intencao.dia,
     };
   }
 
@@ -568,7 +688,32 @@ async function processarTurnoInterno(
         entrada.agora,
       ),
       confirmacaoPendente: null,
+      ultimoDiaConsultado: intencao.primeiroDia,
     };
+  }
+
+  if (intencao.tipo === "marcar_pontual_sem_hora") {
+    return pedirHorarioMarcacao(intencao.titulo, intencao.dia, diaAnterior);
+  }
+
+  if (intencao.tipo === "marcar_incompleta") {
+    if (diaAnterior) {
+      return pedirHorarioMarcacao(
+        intencao.titulo,
+        diaAnterior,
+        diaAnterior,
+      );
+    }
+    return comDiaConsultado(
+      {
+        texto: formatarPedirDiaEHorarioMarcacao(intencao.titulo),
+        confirmacaoPendente: {
+          acao: "completar_marcacao",
+          titulo: intencao.titulo,
+        },
+      },
+      diaAnterior,
+    );
   }
 
   if (intencao.tipo === "marcar_pontual" || intencao.tipo === "marcar_periodo") {

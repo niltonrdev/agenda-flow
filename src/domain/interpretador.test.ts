@@ -165,6 +165,53 @@ describe("interpretador — Consulta de um dia (formatos)", () => {
   });
 });
 
+describe("interpretador — Marcação sem horário", () => {
+  it("marcar com dia e sem horário pede completar, não consulta", () => {
+    expect(
+      interpretarMensagem(
+        "marcar reunião dia 20 de dezembro com o nilton",
+        AGORA,
+      ),
+    ).toEqual({
+      tipo: "marcar_pontual_sem_hora",
+      titulo: "Reunião com o nilton",
+      dia: "2025-12-20",
+    });
+  });
+
+  it("Marque com maiúscula também inicia Marcação", () => {
+    expect(
+      interpretarMensagem("Marque uma reunião dia 20 de dezembro", AGORA),
+    ).toEqual({
+      tipo: "marcar_pontual_sem_hora",
+      titulo: "Reunião",
+      dia: "2025-12-20",
+    });
+  });
+
+  it("marcar sem dia fica incompleta", () => {
+    expect(interpretarMensagem("marcar reunião então", AGORA)).toEqual({
+      tipo: "marcar_incompleta",
+      titulo: "Reunião",
+    });
+  });
+
+  it("marcar com dia e horário produz Pontual direto", () => {
+    const intencao = interpretarMensagem(
+      "marcar reunião dia 20 de dezembro às 15h",
+      AGORA,
+    );
+    expect(intencao).toMatchObject({
+      tipo: "marcar_pontual",
+      titulo: "Reunião",
+    });
+    if (intencao.tipo !== "marcar_pontual") {
+      throw new Error("esperava marcar_pontual");
+    }
+    expect(intencao.inicio).toContain("2025-12-20T15:00");
+  });
+});
+
 describe("interpretador — Alteração", () => {
   it("muda a pescaria para o dia 5 aponta o termo e o novo primeiro dia", () => {
     expect(interpretarMensagem("muda a pescaria para o dia 5", AGORA_SETEMBRO)).toEqual({
