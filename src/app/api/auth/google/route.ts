@@ -1,6 +1,7 @@
 import {
   cookiesOAuth,
   credencialGoogleConfigurada,
+  opcoesCookieStateAgora,
   resolverRedirectUri,
   urlDeAutorizacao,
 } from "@/lib/google-oauth";
@@ -15,15 +16,17 @@ export async function GET(request: Request) {
     );
   }
 
-  const origem = new URL(request.url).origin;
+  const pedido = new URL(request.url);
+  const origem = pedido.origin;
   const state = randomBytes(16).toString("hex");
   const url = urlDeAutorizacao({
     clientId: process.env.GOOGLE_CLIENT_ID!,
     redirectUri: resolverRedirectUri(origem),
     state,
+    forcarConsentimento: pedido.searchParams.get("consent") === "1",
   });
 
   const resposta = NextResponse.redirect(url);
-  resposta.cookies.set(cookiesOAuth.state, state, cookiesOAuth.opcoesState);
+  resposta.cookies.set(cookiesOAuth.state, state, opcoesCookieStateAgora());
   return resposta;
 }

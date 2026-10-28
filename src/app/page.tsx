@@ -179,7 +179,8 @@ export default function ConversaPage() {
           <h1 className="entrada-titulo">Conecte para usar o seu calendário</h1>
           <p className="entrada-texto">
             Continue com o Google para consultar e marcar compromissos no seu
-            Google Calendar. A sessão fica salva neste aparelho.
+            Google Calendar. A conexão fica salva neste aparelho (até ~6 meses),
+            fora de aba anônima. O histórico da conversa ainda não é guardado.
           </p>
         </header>
 

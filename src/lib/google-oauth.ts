@@ -80,6 +80,8 @@ export function urlDeAutorizacao(opcoes: {
   clientId: string;
   redirectUri: string;
   state: string;
+  /** Só força a tela de permissões quando ainda não temos refresh_token. */
+  forcarConsentimento?: boolean;
 }): string {
   const params = new URLSearchParams({
     client_id: opcoes.clientId,
@@ -87,9 +89,11 @@ export function urlDeAutorizacao(opcoes: {
     response_type: "code",
     scope: ESCOPO,
     access_type: "offline",
-    prompt: "consent",
     state: opcoes.state,
   });
+  if (opcoes.forcarConsentimento) {
+    params.set("prompt", "consent");
+  }
   return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
 }
 
@@ -184,24 +188,47 @@ export function criarObterAccessToken(opcoes: {
   };
 }
 
+const MAX_AGE_SESSAO_S = 60 * 60 * 24 * 180;
+const MAX_AGE_STATE_S = 60 * 10;
+
 export const cookiesOAuth = {
   sessao: COOKIE_SESSAO,
   state: COOKIE_STATE,
+  maxAgeSessao: MAX_AGE_SESSAO_S,
   opcoesSessao: {
     httpOnly: true,
     sameSite: "lax" as const,
     path: "/",
-    maxAge: 60 * 60 * 24 * 180,
+    maxAge: MAX_AGE_SESSAO_S,
     secure: process.env.NODE_ENV === "production",
   },
   opcoesState: {
     httpOnly: true,
     sameSite: "lax" as const,
     path: "/",
-    maxAge: 60 * 10,
+    maxAge: MAX_AGE_STATE_S,
     secure: process.env.NODE_ENV === "production",
   },
 };
+
+/** Max-Age + Expires no momento do set (Safari não trata só Max-Age como persistente). */
+export function opcoesCookieSessaoAgora(): typeof cookiesOAuth.opcoesSessao & {
+  expires: Date;
+} {
+  return {
+    ...cookiesOAuth.opcoesSessao,
+    expires: new Date(Date.now() + MAX_AGE_SESSAO_S * 1000),
+  };
+}
+
+export function opcoesCookieStateAgora(): typeof cookiesOAuth.opcoesState & {
+  expires: Date;
+} {
+  return {
+    ...cookiesOAuth.opcoesState,
+    expires: new Date(Date.now() + MAX_AGE_STATE_S * 1000),
+  };
+}
 
 export function segredoDaSessao(env: EnvOAuth = process.env as EnvOAuth): string {
   return segredo(env);

@@ -7,6 +7,7 @@ import {
   cookiesOAuth,
   credencialGoogleConfigurada,
   desserializarSessao,
+  opcoesCookieSessaoAgora,
   segredoDaSessao,
   serializarSessao,
   type TokensGoogle,
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
       resposta.cookies.set(
         cookiesOAuth.sessao,
         serializarSessao(tokensAtualizados, segredoDaSessao()),
-        cookiesOAuth.opcoesSessao,
+        opcoesCookieSessaoAgora(),
       );
     }
 

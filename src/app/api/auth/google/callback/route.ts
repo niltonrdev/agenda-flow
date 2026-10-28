@@ -1,6 +1,7 @@
 import {
   cookiesOAuth,
   credencialGoogleConfigurada,
+  opcoesCookieSessaoAgora,
   resolverRedirectUri,
   segredoDaSessao,
   serializarSessao,
@@ -38,18 +39,20 @@ export async function GET(request: Request) {
       redirectUri: resolverRedirectUri(origem),
     });
     if (!tokens.refreshToken) {
-      return NextResponse.redirect(new URL("/?google=falha", origem));
+      // Sem refresh_token a sessão não dura; pede consentimento uma vez.
+      return NextResponse.redirect(new URL("/api/auth/google?consent=1", origem));
     }
 
     const resposta = NextResponse.redirect(new URL("/?google=ok", origem));
     resposta.cookies.set(
       cookiesOAuth.sessao,
       serializarSessao(tokens, segredoDaSessao()),
-      cookiesOAuth.opcoesSessao,
+      opcoesCookieSessaoAgora(),
     );
     resposta.cookies.set(cookiesOAuth.state, "", {
       ...cookiesOAuth.opcoesState,
       maxAge: 0,
+      expires: new Date(0),
     });
     return resposta;
   } catch {
