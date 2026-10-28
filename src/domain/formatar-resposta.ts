@@ -25,6 +25,8 @@ export const RESPOSTA_NAO_ENTENDI =
 
 export const RESPOSTA_O_QUE_MUDAR = "O que mudar?";
 
+export const RESPOSTA_DEIXO_PRA_LA = "Ok, deixo pra lá.";
+
 export const RESPOSTA_ALTERACAO_DOS_EXTREMOS =
   "Para soltar um dia de um Período, isso é Alteração dos extremos, não Cancelamento. Nada foi removido.";
 

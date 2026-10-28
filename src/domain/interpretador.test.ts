@@ -279,6 +279,38 @@ describe("interpretador — Alteração", () => {
     });
   });
 
+  it("Remarcar com R maiúsculo remove o verbo e lê DD/MM no destino", () => {
+    const outubro = DateTime.fromObject(
+      { year: 2026, month: 10, day: 28, hour: 16 },
+      { zone: FUSO_DONO },
+    );
+    expect(
+      interpretarMensagem("Remarcar a reunião para dia 03/11", outubro),
+    ).toEqual({
+      tipo: "alterar",
+      termo: "reunião",
+      destino: { tipo: "dia", dia: 3, mes: 11 },
+    });
+  });
+
+  it("Remarcar reunião do dia 02/11 para o dia 03/11 recorta origem e destino", () => {
+    const outubro = DateTime.fromObject(
+      { year: 2026, month: 10, day: 28, hour: 16 },
+      { zone: FUSO_DONO },
+    );
+    expect(
+      interpretarMensagem(
+        "Remarcar reunião do dia 02/11 para o dia 03/11",
+        outubro,
+      ),
+    ).toEqual({
+      tipo: "alterar",
+      termo: "reunião",
+      destino: { tipo: "dia", dia: 3, mes: 11 },
+      dia: { dia: 2, mes: 11 },
+    });
+  });
+
   it("muda um Pontual para outro horário", () => {
     expect(
       interpretarMensagem("muda a reunião com a Ana para as 10h", AGORA),

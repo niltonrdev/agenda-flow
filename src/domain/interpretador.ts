@@ -144,11 +144,12 @@ const RE_CONFIRMAR = /^(?:sim|confirmo|pode gravar)\s*[.!]?\s*$/u;
 
 const RE_RECUSAR = /^(?:n[aã]o)\s*[.!]?\s*$/u;
 
+/** Formas longas antes das curtas (senão "remarca" engole "remarcar"). `i` para Remarcar/Cancela. */
 const RE_ALTERAR =
-  /^(?:muda|mudar|altere|alterar|remarca|remarcar)(?:\s+(?:o|a))?\s+/u;
+  /^(?:mudar|muda|alterar|altere|remarcar|remarca)(?:\s+(?:o|a))?\s+/iu;
 
 const RE_CANCELAR =
-  /^(?:cancela|cancelar|cancele|desmarca|desmarcar|tira|tirar|apaga|apagar|apague|exclui|excluir|delete)(?:\s+(?:o|a|os|as))?\s+/u;
+  /^(?:cancelar|cancela|cancele|desmarcar|desmarca|tirar|tira|apagar|apaga|apague|excluir|exclui|delete)(?:\s+(?:o|a|os|as))?\s+/iu;
 
 const PALAVRA = String.raw`(?<![\p{L}\p{N}])`;
 const FIM_PALAVRA = String.raw`(?![\p{L}\p{N}])`;

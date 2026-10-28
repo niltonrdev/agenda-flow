@@ -15,11 +15,16 @@ const HORA = String.raw`(\d{1,2})(?:h(\d{2})?|:(\d{2})h?|\s*horas?)`;
 
 const RE_RECUSA_PURA = /^(?:n[aã]o)\s*[.!]?\s*$/iu;
 const RE_RECUSA_PREFIXO = /^(?:n[aã]o)\s*[,.]?\s*/iu;
+const RE_ABORTAR_CONFIRMACAO =
+  /^(?:cancelar|cancela|cancele|nada|deixa(?:\s+pra\s+l[aá])?|esquece|desiste)\s*[.!]?\s*$/iu;
 
 const RE_DATA = new RegExp(
   String.raw`(?:^|\b)(?:dia\s+)?(\d{1,2})\s+de\s+(${GRUPO_MES})\b`,
   "iu",
 );
+
+const RE_DATA_NUM =
+  /(?:^|\b)(?:dia\s+)?(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/iu;
 
 const RE_DIA_SOLTO = new RegExp(
   `${PALAVRA}(?:dia\\s+)?(\\d{1,2})${FIM_PALAVRA}`,
@@ -50,6 +55,11 @@ export function ehRecusaPura(mensagem: string): boolean {
 
 export function temPrefixoDeRecusa(mensagem: string): boolean {
   return RE_RECUSA_PREFIXO.test(mensagem.trim());
+}
+
+/** Abandona a Confirmação pendente (cancela / nada / deixa pra lá). */
+export function ehAbortarConfirmacao(mensagem: string): boolean {
+  return RE_ABORTAR_CONFIRMACAO.test(mensagem.trim());
 }
 
 function normalizarMes(nome: string): string {
@@ -141,6 +151,17 @@ function diaDaCorrecao(
   if (new RegExp(`${PALAVRA}hoje${FIM_PALAVRA}`, "u").test(texto)) {
     return base.toISODate();
   }
+  const numerica = RE_DATA_NUM.exec(texto);
+  if (numerica) {
+    const dia = Number(numerica[1]);
+    const mes = Number(numerica[2]);
+    if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
+    try {
+      return resolverAnoDaData(dia, mes, agora);
+    } catch {
+      return null;
+    }
+  }
   const comMes = RE_DATA.exec(texto);
   if (comMes) {
     const dia = Number(comMes[1]);
@@ -153,7 +174,10 @@ function diaDaCorrecao(
     }
   }
   const solto = RE_DIA_SOLTO.exec(texto);
-  if (solto) {
+  if (solto && solto.index != null) {
+    const depois = texto.slice(solto.index + solto[0].length);
+    // Não tratar "03" de "03/11" como dia solto no mês da proposta.
+    if (/^\s*\//u.test(depois)) return null;
     const dia = Number(solto[1]);
     if (dia < 1 || dia > 31) return null;
     const ancora = DateTime.fromISO(diaBase, { zone: FUSO_DONO });
@@ -183,6 +207,13 @@ function tituloDaCorrecao(mensagem: string): string | undefined {
   titulo = titulo.replace(
     new RegExp(
       `${PALAVRA}(?:no\\s+)?dia\\s+\\d{1,2}(?:\\s+de\\s+(?:${GRUPO_MES}))?${FIM_PALAVRA}`,
+      "giu",
+    ),
+    " ",
+  );
+  titulo = titulo.replace(
+    new RegExp(
+      `${PALAVRA}(?:dia\\s+)?\\d{1,2}\\/\\d{1,2}(?:\\/\\d{2,4})?${FIM_PALAVRA}`,
       "giu",
     ),
     " ",

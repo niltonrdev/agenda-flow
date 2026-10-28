@@ -1788,6 +1788,99 @@ describe("entrada de conversa — Cancelamento", () => {
   });
 });
 
+describe("entrada de conversa — Não + pedido novo / abortar", () => {
+  const AGORA_OUTUBRO = DateTime.fromObject(
+    { year: 2026, month: 10, day: 28, hour: 16 },
+    { zone: FUSO_DONO },
+  );
+
+  async function proporViagemComConflito() {
+    const reuniaoInicio = DateTime.fromObject(
+      { year: 2026, month: 11, day: 2, hour: 8 },
+      { zone: FUSO_DONO },
+    );
+    const calendario = criarCalendarioEmMemoria([
+      {
+        id: "reuniao",
+        titulo: "Reunião com representante",
+        tipo: "pontual",
+        inicio: reuniaoInicio.toISO()!,
+        fim: reuniaoInicio.plus({ hours: 1 }).toISO()!,
+      },
+    ]);
+    const proposta = await processarTurno(
+      {
+        mensagem: "Marcar viagem em família do dia 31/10 a 02/11",
+        agora: AGORA_OUTUBRO,
+      },
+      calendario,
+    );
+    const recusa = await processarTurno(
+      {
+        mensagem: "Nao",
+        agora: AGORA_OUTUBRO,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      calendario,
+    );
+    return { calendario, recusa };
+  }
+
+  it("depois do não, Remarcar reunião 02/11 → 03/11 vira Alteração, não corrige a viagem", async () => {
+    const { calendario, recusa } = await proporViagemComConflito();
+
+    const saida = await processarTurno(
+      {
+        mensagem: "Remarcar reunião do dia 02/11 para o dia 03/11",
+        agora: AGORA_OUTUBRO,
+        confirmacaoPendente: recusa.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(saida.texto).toMatch(/Confirmação/i);
+    expect(saida.texto).toMatch(/Reunião com representante/i);
+    expect(saida.texto).toMatch(/3 de novembro/i);
+    expect(saida.texto).not.toMatch(/dia inteiro/i);
+    expect(saida.texto).not.toMatch(/outubro/i);
+    expect(saida.confirmacaoPendente?.acao).toBe("alterar_pontual");
+    expect(calendario.listarTodos()).toHaveLength(1);
+  });
+
+  it("depois do não, Cancela abandona a proposta sem inventar marcação", async () => {
+    const { calendario, recusa } = await proporViagemComConflito();
+
+    const saida = await processarTurno(
+      {
+        mensagem: "Cancela",
+        agora: AGORA_OUTUBRO,
+        confirmacaoPendente: recusa.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(saida.texto).toMatch(/deixo pra lá/i);
+    expect(saida.confirmacaoPendente).toBeNull();
+    expect(calendario.listarTodos()).toHaveLength(1);
+  });
+
+  it("depois do não, Nada abandona a proposta", async () => {
+    const { calendario, recusa } = await proporViagemComConflito();
+
+    const saida = await processarTurno(
+      {
+        mensagem: "Nada",
+        agora: AGORA_OUTUBRO,
+        confirmacaoPendente: recusa.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(saida.texto).toMatch(/deixo pra lá/i);
+    expect(saida.confirmacaoPendente).toBeNull();
+  });
+});
+
 describe("entrada de conversa — Calendário indisponível", () => {
   it("diz em português que não foi gravado quando o Calendário falha no sim", async () => {
     const calendario = criarCalendarioEmMemoria([]);

@@ -23,6 +23,7 @@ import {
 } from "./confirmacao";
 import {
   aplicarCorrecao,
+  ehAbortarConfirmacao,
   ehRecusaPura,
   temPrefixoDeRecusa,
 } from "./corrigir-confirmacao";
@@ -47,6 +48,7 @@ import {
   formatarPontualCancelado,
   formatarPontualMarcado,
   RESPOSTA_ALTERACAO_DOS_EXTREMOS,
+  RESPOSTA_DEIXO_PRA_LA,
   RESPOSTA_NAO_ENTENDI,
   RESPOSTA_O_QUE_MUDAR,
   rotuloCandidato,
@@ -58,8 +60,33 @@ import {
   interpretarMensagem,
   type DestinoAlteracao,
   type DiaRecorte,
+  type Intencao,
 } from "./interpretador";
 import { DateTime } from "luxon";
+
+/**
+ * Pedido novo: não tratar como correção da Confirmação pendente.
+ * "às 16h" parece Marcação, mas na correção é só o horário — exige verbo marcar.
+ */
+function ehPedidoNovo(intencao: Intencao, mensagem: string): boolean {
+  if (
+    intencao.tipo === "alterar" ||
+    intencao.tipo === "alterar_sem_destino" ||
+    intencao.tipo === "cancelar" ||
+    intencao.tipo === "consulta_dia" ||
+    intencao.tipo === "consulta_intervalo" ||
+    intencao.tipo === "marcar_periodo"
+  ) {
+    return true;
+  }
+  if (
+    intencao.tipo === "marcar_pontual" ||
+    intencao.tipo === "marcar_pontual_sem_hora"
+  ) {
+    return /^(?:marcar|marca|marque)\b/iu.test(mensagem.trim());
+  }
+  return false;
+}
 
 export type EntradaConversa = {
   mensagem: string;
@@ -718,11 +745,18 @@ async function processarTurnoInterno(
     };
   }
 
+  if (pendente && ehConfirmacaoCorrigivel(pendente) && ehAbortarConfirmacao(entrada.mensagem)) {
+    return {
+      texto: RESPOSTA_DEIXO_PRA_LA,
+      confirmacaoPendente: null,
+    };
+  }
+
   if (
     pendente &&
     ehAlteracao(pendente) &&
     (pendente.aguardandoCorrecao || temPrefixoDeRecusa(entrada.mensagem)) &&
-    intencao.tipo !== "alterar"
+    !ehPedidoNovo(intencao, entrada.mensagem)
   ) {
     const destino = interpretarDestinoAlteracao(entrada.mensagem, entrada.agora);
     if (destino) {
@@ -738,7 +772,8 @@ async function processarTurnoInterno(
   if (
     pendente &&
     ehConfirmacaoMarcacao(pendente) &&
-    (pendente.aguardandoCorrecao || temPrefixoDeRecusa(entrada.mensagem))
+    (pendente.aguardandoCorrecao || temPrefixoDeRecusa(entrada.mensagem)) &&
+    !ehPedidoNovo(intencao, entrada.mensagem)
   ) {
     const corrigida = aplicarCorrecao(
       pendente,
