@@ -58,15 +58,19 @@ export function criarCalendarioEmMemoria(
       const tipo = mudancas.tipo ?? atual.tipo;
       let atualizado: Compromisso;
       if (tipo === "periodo") {
+        const periodo =
+          mudancas.tipo === "periodo"
+            ? mudancas
+            : (mudancas as Partial<Extract<NovoCompromisso, { tipo: "periodo" }>>);
         const primeiroDia =
-          mudancas.primeiroDia ??
+          periodo.primeiroDia ??
           (atual.tipo === "periodo"
             ? atual.primeiroDia
             : DateTime.fromISO(atual.inicio, { setZone: true })
                 .setZone(FUSO_DONO)
                 .toISODate()!);
         const ultimoDia =
-          mudancas.ultimoDia ??
+          periodo.ultimoDia ??
           (atual.tipo === "periodo" ? atual.ultimoDia : primeiroDia);
         atualizado = {
           id,
@@ -76,12 +80,20 @@ export function criarCalendarioEmMemoria(
           ultimoDia,
         };
       } else {
+        const pontual =
+          mudancas.tipo === "pontual"
+            ? mudancas
+            : (mudancas as Partial<Extract<NovoCompromisso, { tipo: "pontual" }>>);
         const inicio =
-          mudancas.inicio ??
-          (atual.tipo === "pontual" ? atual.inicio : `${atual.primeiroDia}T09:00:00.000-03:00`);
+          pontual.inicio ??
+          (atual.tipo === "pontual"
+            ? atual.inicio
+            : `${atual.primeiroDia}T09:00:00.000-03:00`);
         const fim =
-          mudancas.fim ??
-          (atual.tipo === "pontual" ? atual.fim : `${atual.ultimoDia}T10:00:00.000-03:00`);
+          pontual.fim ??
+          (atual.tipo === "pontual"
+            ? atual.fim
+            : `${atual.ultimoDia}T10:00:00.000-03:00`);
         atualizado = {
           id,
           tipo: "pontual",

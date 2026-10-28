@@ -181,6 +181,24 @@ function ehCompletarAlteracao(
   return pendente.acao === "completar_alteracao";
 }
 
+type ConfirmacaoCorrigivel = Extract<
+  ConfirmacaoPendente,
+  { aguardandoCorrecao?: boolean }
+>;
+
+function ehConfirmacaoCorrigivel(
+  pendente: ConfirmacaoPendente,
+): pendente is ConfirmacaoCorrigivel {
+  return (
+    pendente.acao === "marcar_pontual" ||
+    pendente.acao === "marcar_periodo" ||
+    pendente.acao === "alterar_pontual" ||
+    pendente.acao === "alterar_periodo" ||
+    pendente.acao === "cancelar_pontual" ||
+    pendente.acao === "cancelar_periodo"
+  );
+}
+
 function comDiaConsultado(
   saida: Omit<SaidaConversa, "ultimoDiaConsultado"> & {
     ultimoDiaConsultado?: string | null;
@@ -693,7 +711,7 @@ async function processarTurnoInterno(
     };
   }
 
-  if (pendente && !ehEscolha(pendente) && ehRecusaPura(entrada.mensagem)) {
+  if (pendente && ehConfirmacaoCorrigivel(pendente) && ehRecusaPura(entrada.mensagem)) {
     return {
       texto: RESPOSTA_O_QUE_MUDAR,
       confirmacaoPendente: { ...pendente, aguardandoCorrecao: true },
