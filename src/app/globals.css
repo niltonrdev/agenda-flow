@@ -200,13 +200,36 @@ body {
   padding-right: 2.6rem;
 }
 
+.conversa-dica-ditado {
+  margin: 0 0 0.45rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.7rem;
+  background: color-mix(in oklab, var(--enviar) 12%, white);
+  color: var(--texto);
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
 .conversa-ditado {
   position: absolute;
-  right: 0.7rem;
+  right: 0.35rem;
   top: 50%;
   transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
   color: var(--texto-suave);
-  pointer-events: none;
+  cursor: pointer;
+}
+
+.conversa-ditado:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .conversa-ditado-icone {

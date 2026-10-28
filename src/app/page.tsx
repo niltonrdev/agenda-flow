@@ -1,6 +1,10 @@
 "use client";
 
-import { PLACEHOLDER_MENSAGEM, ROTULO_MICROFONE } from "@/app/conversa-campo";
+import {
+  DICA_DITADO,
+  PLACEHOLDER_MENSAGEM,
+  ROTULO_MICROFONE,
+} from "@/app/conversa-campo";
 import type { ConfirmacaoPendente } from "@/domain/confirmacao";
 import { mensagemAPartirDoCampo } from "@/domain/transcritor";
 import { obterTranscritor } from "@/lib/transcritor-app";
@@ -44,6 +48,7 @@ export default function ConversaPage() {
   const [google, setGoogle] = useState<StatusGoogle | null>(null);
   const [demoLocal, setDemoLocal] = useState(false);
   const [avisoAuth, setAvisoAuth] = useState<string | null>(null);
+  const [dicaDitado, setDicaDitado] = useState(false);
   const fimRef = useRef<HTMLDivElement>(null);
   const campoRef = useRef<HTMLTextAreaElement>(null);
 
@@ -279,6 +284,11 @@ export default function ConversaPage() {
         <label className="sr-only" htmlFor="mensagem">
           Mensagem
         </label>
+        {dicaDitado ? (
+          <p className="conversa-dica-ditado" role="status">
+            {DICA_DITADO}
+          </p>
+        ) : null}
         <div className="conversa-campo-com-ditado">
           <textarea
             id="mensagem"
@@ -295,10 +305,16 @@ export default function ConversaPage() {
             inputMode="text"
             lang="pt-BR"
           />
-          <span
+          <button
+            type="button"
             className="conversa-ditado"
-            aria-hidden="true"
             title={ROTULO_MICROFONE}
+            aria-label={ROTULO_MICROFONE}
+            disabled={carregando}
+            onClick={() => {
+              setDicaDitado(true);
+              campoRef.current?.focus();
+            }}
           >
             <svg
               className="conversa-ditado-icone"
@@ -308,13 +324,13 @@ export default function ConversaPage() {
               strokeWidth="1.8"
               strokeLinecap="round"
               strokeLinejoin="round"
+              aria-hidden="true"
             >
               <rect x="9" y="3" width="6" height="11" rx="3" />
               <path d="M6 11a6 6 0 0 0 12 0" />
               <path d="M12 17v4" />
             </svg>
-          </span>
-          <span className="sr-only">{ROTULO_MICROFONE}</span>
+          </button>
         </div>
         <button
           type="submit"

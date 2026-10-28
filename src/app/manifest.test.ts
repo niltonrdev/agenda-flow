@@ -1,4 +1,8 @@
-import { PLACEHOLDER_MENSAGEM, ROTULO_MICROFONE } from "@/app/conversa-campo";
+import {
+  DICA_DITADO,
+  PLACEHOLDER_MENSAGEM,
+  ROTULO_MICROFONE,
+} from "@/app/conversa-campo";
 import manifest from "@/app/manifest";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -23,6 +27,7 @@ describe("app na tela inicial", () => {
 
   it("o campo da Conversa deixa claro que dá para ditar", () => {
     expect(PLACEHOLDER_MENSAGEM).toMatch(/fale/i);
-    expect(ROTULO_MICROFONE).toMatch(/ditado|microfone/i);
+    expect(ROTULO_MICROFONE).toMatch(/ditado|microfone|teclado/i);
+    expect(DICA_DITADO).toMatch(/teclado do iPhone/i);
   });
 });
