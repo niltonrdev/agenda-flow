@@ -17,6 +17,13 @@ type MensagemNaTela = {
   texto: string;
 };
 
+type StatusGoogle = {
+  credencialConfigurada: boolean;
+  conectado: boolean;
+};
+
+const CHAVE_DEMO = "agenda-demo";
+
 export default function ConversaPage() {
   const [mensagens, setMensagens] = useState<MensagemNaTela[]>([
     {
@@ -34,10 +41,9 @@ export default function ConversaPage() {
   const [ultimoDiaConsultado, setUltimoDiaConsultado] = useState<string | null>(
     null,
   );
-  const [google, setGoogle] = useState<{
-    credencialConfigurada: boolean;
-    conectado: boolean;
-  } | null>(null);
+  const [google, setGoogle] = useState<StatusGoogle | null>(null);
+  const [demoLocal, setDemoLocal] = useState(false);
+  const [avisoAuth, setAvisoAuth] = useState<string | null>(null);
   const fimRef = useRef<HTMLDivElement>(null);
   const campoRef = useRef<HTMLTextAreaElement>(null);
 
@@ -46,6 +52,25 @@ export default function ConversaPage() {
   }, [mensagens, carregando, erro]);
 
   useEffect(() => {
+    try {
+      setDemoLocal(sessionStorage.getItem(CHAVE_DEMO) === "1");
+    } catch {
+      setDemoLocal(false);
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const googleParam = params.get("google");
+    if (googleParam === "falha" || googleParam === "negado") {
+      setAvisoAuth(
+        googleParam === "negado"
+          ? "A conexão com o Google foi cancelada. Tente de novo quando quiser."
+          : "Não foi possível conectar ao Google. Confira o redirect URI no Console e tente de novo.",
+      );
+    }
+    if (googleParam) {
+      window.history.replaceState({}, "", "/");
+    }
+
     void fetch("/api/auth/google/status")
       .then((r) => r.json())
       .then((dados: { credencialConfigurada?: boolean; conectado?: boolean }) => {
@@ -58,6 +83,18 @@ export default function ConversaPage() {
         setGoogle({ credencialConfigurada: false, conectado: false });
       });
   }, []);
+
+  function entrarEmDemonstracao() {
+    try {
+      sessionStorage.setItem(CHAVE_DEMO, "1");
+    } catch {
+      /* ignore */
+    }
+    setDemoLocal(true);
+    setAvisoAuth(null);
+  }
+
+  const naConversa = google != null && (google.conectado || demoLocal);
 
   async function enviar() {
     const texto = await mensagemAPartirDoCampo(
@@ -125,30 +162,78 @@ export default function ConversaPage() {
     }
   }
 
+  if (google == null) {
+    return (
+      <div className="entrada-shell">
+        <p className="entrada-marca">Agenda Inteligente</p>
+        <p className="entrada-aguarde">Preparando…</p>
+      </div>
+    );
+  }
+
+  if (!naConversa) {
+    return (
+      <div className="entrada-shell">
+        <header className="entrada-hero">
+          <p className="entrada-marca">Agenda Inteligente</p>
+          <h1 className="entrada-titulo">Conecte para usar o seu calendário</h1>
+          <p className="entrada-texto">
+            Continue com o Google para consultar e marcar compromissos no seu
+            Google Calendar. A sessão fica salva neste aparelho.
+          </p>
+        </header>
+
+        {avisoAuth ? (
+          <p className="entrada-aviso" role="alert">
+            {avisoAuth}
+          </p>
+        ) : null}
+
+        <div className="entrada-acoes">
+          {google.credencialConfigurada ? (
+            <a className="entrada-botao-google" href="/api/auth/google">
+              Continuar com Google
+            </a>
+          ) : (
+            <p className="entrada-sem-oauth">
+              OAuth do Google ainda não está configurado neste servidor. Você
+              pode entrar em demonstração com um calendário de exemplo.
+            </p>
+          )}
+          <button
+            type="button"
+            className="entrada-botao-demo"
+            onClick={entrarEmDemonstracao}
+          >
+            Continuar em demonstração
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="conversa-shell">
       <header className="conversa-topo">
         <p className="conversa-marca">Agenda Inteligente</p>
         <p className="conversa-sub">Conversa com o seu Calendário</p>
-        {google?.credencialConfigurada && !google.conectado ? (
-          <p className="conversa-google">
-            <a className="conversa-google-link" href="/api/auth/google">
-              Conectar conta Google
-            </a>
-            <span> — a sessão fica salva neste aparelho.</span>
-          </p>
-        ) : null}
-        {google?.conectado ? (
+        {google.conectado ? (
           <p className="conversa-google conversa-google-ok">
             Conta Google conectada. A Consulta lê as agendas visíveis; a
             Marcação grava na principal.
           </p>
         ) : null}
-        {google && !google.credencialConfigurada ? (
+        {!google.conectado ? (
           <p className="conversa-google conversa-demo">
-            Modo demonstração: a Marcação grava neste calendário de exemplo
-            (diga o horário, confira a Confirmação e responda sim). Para o
-            Google de verdade, configure OAuth e use Conectar conta Google.
+            Modo demonstração: calendário de exemplo neste aparelho.
+            {google.credencialConfigurada ? (
+              <>
+                {" "}
+                <a className="conversa-google-link" href="/api/auth/google">
+                  Conectar Google
+                </a>
+              </>
+            ) : null}
           </p>
         ) : null}
       </header>

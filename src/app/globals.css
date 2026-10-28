@@ -292,6 +292,118 @@ body {
   }
 }
 
+.entrada-shell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1.5rem;
+  min-height: 100dvh;
+  max-width: 28rem;
+  margin: 0 auto;
+  padding:
+    calc(1.5rem + env(safe-area-inset-top)) 1.35rem
+    calc(1.75rem + env(safe-area-inset-bottom));
+}
+
+.entrada-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.entrada-marca {
+  margin: 0;
+  font-family: var(--font-marca), Georgia, serif;
+  font-size: clamp(2rem, 7vw, 2.45rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--marca);
+  line-height: 1.05;
+  animation: surgir 480ms ease-out both;
+}
+
+.entrada-titulo {
+  margin: 0;
+  font-family: var(--font-marca), Georgia, serif;
+  font-size: clamp(1.35rem, 4.5vw, 1.65rem);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--texto);
+  animation: surgir 560ms ease-out 40ms both;
+}
+
+.entrada-texto {
+  margin: 0;
+  color: var(--texto-suave);
+  font-size: 1.02rem;
+  line-height: 1.5;
+  animation: surgir 600ms ease-out 80ms both;
+}
+
+.entrada-aguarde {
+  margin: 0;
+  color: var(--texto-suave);
+}
+
+.entrada-aviso {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border-radius: 0.85rem;
+  background: var(--erro-fundo);
+  color: var(--erro);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.entrada-acoes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  animation: surgir 640ms ease-out 120ms both;
+}
+
+.entrada-sem-oauth {
+  margin: 0;
+  color: var(--texto-suave);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.entrada-botao-google {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3rem;
+  padding: 0.85rem 1.15rem;
+  border-radius: 0.9rem;
+  background: var(--enviar);
+  color: var(--enviar-texto);
+  font-weight: 600;
+  font-size: 1.02rem;
+  text-decoration: none;
+  box-shadow: var(--sombra);
+}
+
+.entrada-botao-google:hover {
+  filter: brightness(1.05);
+}
+
+.entrada-botao-demo {
+  min-height: 2.75rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid color-mix(in oklab, var(--borda) 80%, white);
+  border-radius: 0.9rem;
+  background: color-mix(in oklab, #f7faf8 88%, transparent);
+  color: var(--texto);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.entrada-botao-demo:hover {
+  background: #fff;
+}
+
 @media (min-width: 640px) {
   .conversa-shell {
     margin-top: 1.5rem;
