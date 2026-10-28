@@ -232,6 +232,25 @@ body {
   cursor: default;
 }
 
+.conversa-ditado-ativo {
+  color: #fff;
+  background: #b42318;
+  box-shadow: 0 0 0 0 color-mix(in oklab, #b42318 45%, transparent);
+  animation: conversa-ditado-pulso 1.4s ease-out infinite;
+}
+
+@keyframes conversa-ditado-pulso {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, #b42318 45%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
 .conversa-ditado-icone {
   display: block;
   width: 1.25rem;

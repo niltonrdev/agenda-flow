@@ -1,5 +1,5 @@
 import {
-  DICA_DITADO,
+  DICA_DITADO_TECLADO,
   PLACEHOLDER_MENSAGEM,
   ROTULO_MICROFONE,
 } from "@/app/conversa-campo";
@@ -27,7 +27,7 @@ describe("app na tela inicial", () => {
 
   it("o campo da Conversa deixa claro que dá para ditar", () => {
     expect(PLACEHOLDER_MENSAGEM).toMatch(/fale/i);
-    expect(ROTULO_MICROFONE).toMatch(/ditado|microfone|teclado/i);
-    expect(DICA_DITADO).toMatch(/teclado do iPhone/i);
+    expect(ROTULO_MICROFONE).toMatch(/falar|mensagem/i);
+    expect(DICA_DITADO_TECLADO).toMatch(/teclado do iPhone/i);
   });
 });

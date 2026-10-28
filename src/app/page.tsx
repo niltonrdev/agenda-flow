@@ -1,12 +1,19 @@
 "use client";
 
 import {
-  DICA_DITADO,
+  DICA_DITADO_TECLADO,
+  DICA_OUVINDO,
   PLACEHOLDER_MENSAGEM,
   ROTULO_MICROFONE,
+  ROTULO_PARAR_MICROFONE,
 } from "@/app/conversa-campo";
 import type { ConfirmacaoPendente } from "@/domain/confirmacao";
 import { mensagemAPartirDoCampo } from "@/domain/transcritor";
+import {
+  criarSessaoReconhecimento,
+  suportaReconhecimentoVoz,
+  type SessaoReconhecimento,
+} from "@/lib/reconhecimento-voz";
 import { obterTranscritor } from "@/lib/transcritor-app";
 import {
   useEffect,
@@ -48,13 +55,22 @@ export default function ConversaPage() {
   const [google, setGoogle] = useState<StatusGoogle | null>(null);
   const [demoLocal, setDemoLocal] = useState(false);
   const [avisoAuth, setAvisoAuth] = useState<string | null>(null);
-  const [dicaDitado, setDicaDitado] = useState(false);
+  const [dicaVoz, setDicaVoz] = useState<string | null>(null);
+  const [ouvindo, setOuvindo] = useState(false);
   const fimRef = useRef<HTMLDivElement>(null);
   const campoRef = useRef<HTMLTextAreaElement>(null);
+  const sessaoVozRef = useRef<SessaoReconhecimento | null>(null);
+  const baseAntesDoParcialRef = useRef("");
 
   useEffect(() => {
     fimRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [mensagens, carregando, erro]);
+
+  useEffect(() => {
+    return () => {
+      sessaoVozRef.current?.parar();
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -108,8 +124,12 @@ export default function ConversaPage() {
     );
     if (!texto || carregando) return;
 
+    sessaoVozRef.current?.parar();
+    setOuvindo(false);
+    setDicaVoz(null);
     setErro(null);
     setRascunho("");
+    baseAntesDoParcialRef.current = "";
     const idDono = `dono-${Date.now()}`;
     setMensagens((atual) => [
       ...atual,
@@ -165,6 +185,61 @@ export default function ConversaPage() {
       evento.preventDefault();
       void enviar();
     }
+  }
+
+  function juntarFala(base: string, falado: string): string {
+    const a = base.trim();
+    const b = falado.trim();
+    if (!a) return b;
+    if (!b) return a;
+    return `${a} ${b}`;
+  }
+
+  function garantirSessaoVoz(): SessaoReconhecimento | null {
+    if (sessaoVozRef.current) return sessaoVozRef.current;
+    if (!suportaReconhecimentoVoz()) return null;
+
+    sessaoVozRef.current = criarSessaoReconhecimento({
+      lang: "pt-BR",
+      aoMudarEstado: (ativo) => {
+        setOuvindo(ativo);
+        setDicaVoz(ativo ? DICA_OUVINDO : null);
+      },
+      aoParcial: (parcial) => {
+        setRascunho(juntarFala(baseAntesDoParcialRef.current, parcial));
+      },
+      aoFinal: (final) => {
+        const junto = juntarFala(baseAntesDoParcialRef.current, final);
+        baseAntesDoParcialRef.current = junto;
+        setRascunho(junto);
+      },
+      aoErro: (mensagem) => {
+        setErro(mensagem);
+        setDicaVoz(null);
+      },
+    });
+    return sessaoVozRef.current;
+  }
+
+  function alternarMicrofone() {
+    setErro(null);
+    if (ouvindo) {
+      sessaoVozRef.current?.parar();
+      setOuvindo(false);
+      setDicaVoz(null);
+      return;
+    }
+
+    const sessao = garantirSessaoVoz();
+    if (!sessao) {
+      setDicaVoz(DICA_DITADO_TECLADO);
+      campoRef.current?.focus();
+      return;
+    }
+
+    baseAntesDoParcialRef.current = rascunho.trim();
+    setDicaVoz(DICA_OUVINDO);
+    sessao.iniciar();
   }
 
   if (google == null) {
@@ -284,9 +359,9 @@ export default function ConversaPage() {
         <label className="sr-only" htmlFor="mensagem">
           Mensagem
         </label>
-        {dicaDitado ? (
+        {dicaVoz ? (
           <p className="conversa-dica-ditado" role="status">
-            {DICA_DITADO}
+            {dicaVoz}
           </p>
         ) : null}
         <div className="conversa-campo-com-ditado">
@@ -297,7 +372,12 @@ export default function ConversaPage() {
             rows={1}
             placeholder={PLACEHOLDER_MENSAGEM}
             value={rascunho}
-            onChange={(e) => setRascunho(e.target.value)}
+            onChange={(e) => {
+              setRascunho(e.target.value);
+              if (!ouvindo) {
+                baseAntesDoParcialRef.current = e.target.value.trim();
+              }
+            }}
             onKeyDown={aoTeclar}
             disabled={carregando}
             enterKeyHint="send"
@@ -307,14 +387,14 @@ export default function ConversaPage() {
           />
           <button
             type="button"
-            className="conversa-ditado"
-            title={ROTULO_MICROFONE}
-            aria-label={ROTULO_MICROFONE}
+            className={
+              ouvindo ? "conversa-ditado conversa-ditado-ativo" : "conversa-ditado"
+            }
+            title={ouvindo ? ROTULO_PARAR_MICROFONE : ROTULO_MICROFONE}
+            aria-label={ouvindo ? ROTULO_PARAR_MICROFONE : ROTULO_MICROFONE}
+            aria-pressed={ouvindo}
             disabled={carregando}
-            onClick={() => {
-              setDicaDitado(true);
-              campoRef.current?.focus();
-            }}
+            onClick={alternarMicrofone}
           >
             <svg
               className="conversa-ditado-icone"
