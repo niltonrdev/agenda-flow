@@ -9,7 +9,10 @@ import {
   ROTULO_VER_NO_CALENDARIO,
 } from "@/app/conversa-campo";
 import { ehAparelhoIos, urlAbrirCalendario } from "@/lib/link-calendario";
-import type { ConfirmacaoPendente } from "@/domain/confirmacao";
+import {
+  pedeSimOuNao,
+  type ConfirmacaoPendente,
+} from "@/domain/confirmacao";
 import { mensagemAPartirDoCampo } from "@/domain/transcritor";
 import {
   criarSessaoReconhecimento,
@@ -17,7 +20,9 @@ import {
   type SessaoReconhecimento,
 } from "@/lib/reconhecimento-voz";
 import { obterTranscritor } from "@/lib/transcritor-app";
+import { MarcaCartao, MarcaCompacta } from "@/app/marca";
 import {
+  Fragment,
   useEffect,
   useRef,
   useState,
@@ -44,7 +49,7 @@ export default function ConversaPage() {
       id: "boas-vindas",
       papel: "agenda",
       texto:
-        "Olá. Consulte um dia (“15/10”, “15 de novembro”) ou marque com horário (“reunião com a Ana amanhã às 15h”) e diga sim na Confirmação. Sem horário, eu peço. Sem ano, uso a próxima data futura.",
+        "Olá. Consulte um dia (“15/10”, “15 de novembro”) ou marque com horário (“reunião com a Ana amanhã às 15h”) e toque em Sim na Confirmação. Sem horário, eu peço. Sem ano, uso a próxima data futura.",
     },
   ]);
   const [rascunho, setRascunho] = useState("");
@@ -67,7 +72,7 @@ export default function ConversaPage() {
 
   useEffect(() => {
     fimRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [mensagens, carregando, erro]);
+  }, [mensagens, carregando, erro, confirmacaoPendente]);
 
   useEffect(() => {
     return () => {
@@ -119,12 +124,14 @@ export default function ConversaPage() {
   }
 
   const naConversa = google != null && (google.conectado || demoLocal);
+  const indiceUltimaAgenda = mensagens.findLastIndex(
+    (item) => item.papel === "agenda",
+  );
 
-  async function enviar() {
-    const texto = await mensagemAPartirDoCampo(
-      obterTranscritor(),
-      rascunho,
-    );
+  async function enviar(textoPronto?: string) {
+    const texto =
+      textoPronto ??
+      (await mensagemAPartirDoCampo(obterTranscritor(), rascunho));
     if (!texto || carregando) return;
 
     sessaoVozRef.current?.parar();
@@ -250,7 +257,7 @@ export default function ConversaPage() {
   if (google == null) {
     return (
       <div className="entrada-shell">
-        <p className="entrada-marca">Agenda Inteligente</p>
+        <MarcaCartao />
         <p className="entrada-aguarde">Preparando…</p>
       </div>
     );
@@ -259,8 +266,8 @@ export default function ConversaPage() {
   if (!naConversa) {
     return (
       <div className="entrada-shell">
+        <MarcaCartao />
         <header className="entrada-hero">
-          <p className="entrada-marca">Agenda Inteligente</p>
           <h1 className="entrada-titulo">Conecte para usar o seu calendário</h1>
           <p className="entrada-texto">
             Continue com o Google para consultar e marcar compromissos no seu
@@ -301,7 +308,7 @@ export default function ConversaPage() {
   return (
     <div className="conversa-shell">
       <header className="conversa-topo">
-        <p className="conversa-marca">Agenda Inteligente</p>
+        <MarcaCompacta />
         <p className="conversa-sub">Conversa com o seu Calendário</p>
         {google.conectado ? (
           <p className="conversa-google conversa-google-ok">
@@ -325,9 +332,12 @@ export default function ConversaPage() {
       </header>
 
       <main className="conversa-fio" aria-live="polite">
-        {mensagens.map((m) => (
+        {mensagens.map((m, indice) => {
+          const ultimaAgenda =
+            m.papel === "agenda" && indice === indiceUltimaAgenda;
+          return (
+            <Fragment key={m.id}>
           <div
-            key={m.id}
             className={
               m.papel === "dono" ? "balao balao-dono" : "balao balao-agenda"
             }
@@ -368,7 +378,31 @@ export default function ConversaPage() {
               </a>
             ) : null}
           </div>
-        ))}
+            {ultimaAgenda && pedeSimOuNao(confirmacaoPendente) && !carregando ? (
+              <div
+                className="conversa-sim-nao"
+                role="group"
+                aria-label="Confirmação"
+              >
+                <button
+                  type="button"
+                  className="conversa-sim"
+                  onClick={() => void enviar("sim")}
+                >
+                  Sim
+                </button>
+                <button
+                  type="button"
+                  className="conversa-nao"
+                  onClick={() => void enviar("não")}
+                >
+                  Não
+                </button>
+              </div>
+            ) : null}
+            </Fragment>
+          );
+        })}
 
         {carregando ? (
           <div className="balao balao-agenda balao-carregando" role="status">

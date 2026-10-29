@@ -5,7 +5,7 @@ import "./globals.css";
 const semTexto = DM_Sans({
   variable: "--font-texto",
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["400", "500", "600", "700"],
 });
 
 const semMarca = Fraunces({
