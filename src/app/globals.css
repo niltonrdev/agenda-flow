@@ -148,6 +148,16 @@ body {
   font-size: 1rem;
 }
 
+.balao-calendario {
+  display: inline-block;
+  margin-top: 0.7rem;
+  color: var(--enviar);
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
 .balao-carregando {
   display: inline-flex;
   gap: 0.35rem;

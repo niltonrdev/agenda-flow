@@ -2,6 +2,7 @@ import {
   DICA_DITADO_TECLADO,
   PLACEHOLDER_MENSAGEM,
   ROTULO_MICROFONE,
+  ROTULO_VER_NO_CALENDARIO,
 } from "@/app/conversa-campo";
 import manifest from "@/app/manifest";
 import { existsSync } from "node:fs";
@@ -29,5 +30,6 @@ describe("app na tela inicial", () => {
     expect(PLACEHOLDER_MENSAGEM).toMatch(/fale/i);
     expect(ROTULO_MICROFONE).toMatch(/falar|mensagem/i);
     expect(DICA_DITADO_TECLADO).toMatch(/teclado do iPhone/i);
+    expect(ROTULO_VER_NO_CALENDARIO).toBe("Ver no calendário");
   });
 });
