@@ -145,6 +145,22 @@ export function ehConfirmacaoMarcacao(
   return valor.acao === "marcar_pontual" || valor.acao === "marcar_periodo";
 }
 
+/** A resposta espera sim ou não, não um complemento nem uma escolha na lista. */
+export function pedeSimOuNao(proposta: ConfirmacaoPendente | null): boolean {
+  if (!proposta) return false;
+  if ("aguardandoCorrecao" in proposta && proposta.aguardandoCorrecao) {
+    return false;
+  }
+  return (
+    proposta.acao === "marcar_pontual" ||
+    proposta.acao === "marcar_periodo" ||
+    proposta.acao === "alterar_pontual" ||
+    proposta.acao === "alterar_periodo" ||
+    proposta.acao === "cancelar_pontual" ||
+    proposta.acao === "cancelar_periodo"
+  );
+}
+
 export function ehConfirmacaoPendente(valor: unknown): valor is ConfirmacaoPendente {
   if (!valor || typeof valor !== "object") return false;
   const proposta = valor as Partial<ConfirmacaoPendente> & { acao?: string };
