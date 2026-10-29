@@ -80,6 +80,7 @@ export async function POST(request: Request) {
       texto,
       confirmacaoPendente: saida.confirmacaoPendente,
       ultimoDiaConsultado: saida.ultimoDiaConsultado ?? null,
+      diaParaCalendario: saida.diaParaCalendario ?? null,
     });
 
     if (tokensAtualizados) {

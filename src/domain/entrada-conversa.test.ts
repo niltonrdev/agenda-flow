@@ -24,6 +24,7 @@ describe("entrada de conversa — Consulta de um dia", () => {
     );
 
     expect(saida.texto).toBe("15 de outubro está livre.");
+    expect(saida.diaParaCalendario).toBe("2025-10-15");
     expect(calendario.listarTodos()).toHaveLength(3);
   });
 
@@ -287,6 +288,7 @@ describe("entrada de conversa — Consulta de intervalo", () => {
     );
 
     expect(saida.texto).toBe("De 20 a 22 de outubro está livre.");
+    expect(saida.diaParaCalendario).toBe("2025-10-20");
     expect(calendario.listarTodos()).toEqual(antes);
   });
 
@@ -430,6 +432,7 @@ describe("entrada de conversa — Marcação de Pontual", () => {
     expect(saida.texto).toContain("Compromisso gravado");
     expect(saida.texto).toContain("Reunião com a Ana");
     expect(saida.confirmacaoPendente).toBeNull();
+    expect(saida.diaParaCalendario).toBe("2025-08-02");
     const pendente = proposta.confirmacaoPendente;
     if (pendente?.acao !== "marcar_pontual") {
       throw new Error("esperava Confirmação de Pontual");
@@ -742,6 +745,7 @@ describe("entrada de conversa — Marcação de Período", () => {
       primeiroDia: "2025-08-04",
       ultimoDia: "2025-08-07",
     });
+    expect(saida.diaParaCalendario).toBeNull();
     expect(calendario.listarTodos()).toEqual(antes);
   });
 
@@ -763,6 +767,7 @@ describe("entrada de conversa — Marcação de Período", () => {
 
     expect(gravado.texto).toMatch(/marquei/i);
     expect(gravado.confirmacaoPendente).toBeNull();
+    expect(gravado.diaParaCalendario).toBe("2025-09-04");
 
     const novos = calendario.listarTodos().filter((c) => c.titulo === "Pescaria");
     expect(novos).toHaveLength(1);

@@ -6,7 +6,9 @@ import {
   PLACEHOLDER_MENSAGEM,
   ROTULO_MICROFONE,
   ROTULO_PARAR_MICROFONE,
+  ROTULO_VER_NO_CALENDARIO,
 } from "@/app/conversa-campo";
+import { urlVisaoDoDiaNoCalendario } from "@/lib/link-calendario";
 import type { ConfirmacaoPendente } from "@/domain/confirmacao";
 import { mensagemAPartirDoCampo } from "@/domain/transcritor";
 import {
@@ -26,6 +28,7 @@ type MensagemNaTela = {
   id: string;
   papel: "dono" | "agenda";
   texto: string;
+  diaParaCalendario?: string | null;
 };
 
 type StatusGoogle = {
@@ -152,6 +155,7 @@ export default function ConversaPage() {
         erro?: string;
         confirmacaoPendente?: ConfirmacaoPendente | null;
         ultimoDiaConsultado?: string | null;
+        diaParaCalendario?: string | null;
       };
 
       if (!resposta.ok) {
@@ -166,6 +170,7 @@ export default function ConversaPage() {
           id: `agenda-${Date.now()}`,
           papel: "agenda",
           texto: dados.texto ?? "",
+          diaParaCalendario: dados.diaParaCalendario ?? null,
         },
       ]);
     } catch (e) {
@@ -328,6 +333,16 @@ export default function ConversaPage() {
             }
           >
             <p className="balao-texto">{m.texto}</p>
+            {google.conectado && m.diaParaCalendario ? (
+              <a
+                className="balao-calendario"
+                href={urlVisaoDoDiaNoCalendario(m.diaParaCalendario)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {ROTULO_VER_NO_CALENDARIO}
+              </a>
+            ) : null}
           </div>
         ))}
 

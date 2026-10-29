@@ -53,7 +53,7 @@ import {
   RESPOSTA_O_QUE_MUDAR,
   rotuloCandidato,
 } from "./formatar-resposta";
-import { FUSO_DONO, fimDoDia, inicioDoDia } from "./fuso";
+import { FUSO_DONO, diaCivil, fimDoDia, inicioDoDia } from "./fuso";
 import {
   completarMarcacaoPontual,
   interpretarDestinoAlteracao,
@@ -104,6 +104,8 @@ export type SaidaConversa = {
   texto: string;
   confirmacaoPendente: ConfirmacaoPendente | null;
   ultimoDiaConsultado?: string | null;
+  /** Dia civil (YYYY-MM-DD) para abrir a visão do dia no Calendário. */
+  diaParaCalendario?: string | null;
 };
 
 function normalizar(texto: string): string {
@@ -467,6 +469,7 @@ export async function processarTurno(
         saida.ultimoDiaConsultado !== undefined
           ? saida.ultimoDiaConsultado
           : (entrada.ultimoDiaConsultado ?? null),
+      diaParaCalendario: saida.diaParaCalendario ?? null,
     };
   } catch (erro) {
     if (erro instanceof FalhaDoCalendario) {
@@ -474,6 +477,7 @@ export async function processarTurno(
         texto: RESPOSTA_NAO_GRAVADO,
         confirmacaoPendente: pendenteInicial,
         ultimoDiaConsultado: entrada.ultimoDiaConsultado ?? null,
+        diaParaCalendario: null,
       };
     }
     throw erro;
@@ -686,6 +690,7 @@ async function processarTurnoInterno(
       return {
         texto: formatarPeriodoMarcado(pendente),
         confirmacaoPendente: null,
+        diaParaCalendario: pendente.primeiroDia,
       };
     }
     if (pendente.acao === "marcar_pontual") {
@@ -698,6 +703,9 @@ async function processarTurnoInterno(
       return {
         texto: formatarPontualMarcado(pendente),
         confirmacaoPendente: null,
+        diaParaCalendario: diaCivil(
+          DateTime.fromISO(pendente.inicio, { setZone: true }),
+        ),
       };
     }
     if (pendente.acao === "alterar_periodo") {
@@ -896,6 +904,7 @@ async function processarTurnoInterno(
       texto: formatarConsultaDia(intencao.dia, compromissos, entrada.agora),
       confirmacaoPendente: null,
       ultimoDiaConsultado: intencao.dia,
+      diaParaCalendario: intencao.dia,
     };
   }
 
@@ -913,6 +922,7 @@ async function processarTurnoInterno(
       ),
       confirmacaoPendente: null,
       ultimoDiaConsultado: intencao.primeiroDia,
+      diaParaCalendario: intencao.primeiroDia,
     };
   }
 
