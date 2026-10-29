@@ -8,7 +8,7 @@ import {
   ROTULO_PARAR_MICROFONE,
   ROTULO_VER_NO_CALENDARIO,
 } from "@/app/conversa-campo";
-import { urlVisaoDoDiaNoCalendario } from "@/lib/link-calendario";
+import { ehAparelhoIos, urlAbrirCalendario } from "@/lib/link-calendario";
 import type { ConfirmacaoPendente } from "@/domain/confirmacao";
 import { mensagemAPartirDoCampo } from "@/domain/transcritor";
 import {
@@ -336,11 +336,35 @@ export default function ConversaPage() {
             {google.conectado && m.diaParaCalendario ? (
               <a
                 className="balao-calendario"
-                href={urlVisaoDoDiaNoCalendario(m.diaParaCalendario)}
-                target="_blank"
+                href={urlAbrirCalendario(
+                  m.diaParaCalendario,
+                  typeof navigator === "undefined" ? "" : navigator.userAgent,
+                )}
+                target={
+                  typeof navigator !== "undefined" &&
+                  ehAparelhoIos(navigator.userAgent)
+                    ? undefined
+                    : "_blank"
+                }
                 rel="noopener noreferrer"
+                aria-label={ROTULO_VER_NO_CALENDARIO}
+                title={ROTULO_VER_NO_CALENDARIO}
               >
-                {ROTULO_VER_NO_CALENDARIO}
+                <svg
+                  className="balao-calendario-icone"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="3" y="5" width="18" height="16" rx="2" />
+                  <path d="M3 10h18" />
+                  <path d="M8 3v4" />
+                  <path d="M16 3v4" />
+                </svg>
               </a>
             ) : null}
           </div>
