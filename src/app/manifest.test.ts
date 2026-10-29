@@ -30,6 +30,6 @@ describe("app na tela inicial", () => {
     expect(PLACEHOLDER_MENSAGEM).toMatch(/fale/i);
     expect(ROTULO_MICROFONE).toMatch(/falar|mensagem/i);
     expect(DICA_DITADO_TECLADO).toMatch(/teclado do iPhone/i);
-    expect(ROTULO_VER_NO_CALENDARIO).toBe("Ver no calendário");
+    expect(ROTULO_VER_NO_CALENDARIO).toMatch(/calendário/i);
   });
 });

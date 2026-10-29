@@ -149,13 +149,24 @@ body {
 }
 
 .balao-calendario {
-  display: inline-block;
-  margin-top: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.55rem;
+  width: 2.75rem;
+  height: 2.75rem;
   color: var(--enviar);
-  font-weight: 600;
-  font-size: 0.95rem;
-  text-decoration: underline;
-  text-underline-offset: 0.15em;
+  text-decoration: none;
+  border-radius: 0.65rem;
+}
+
+.balao-calendario:hover {
+  background: color-mix(in oklab, var(--enviar) 12%, transparent);
+}
+
+.balao-calendario-icone {
+  width: 1.35rem;
+  height: 1.35rem;
 }
 
 .balao-carregando {
