@@ -1913,6 +1913,33 @@ describe("entrada de conversa — Calendário indisponível", () => {
     expect(saida.texto).toMatch(/não foi gravado/i);
     expect(saida.confirmacaoPendente).toEqual(proposta.confirmacaoPendente);
   });
+
+  it("repassa a falha de reconexão em vez da mensagem genérica", async () => {
+    const falho = {
+      async listar() {
+        throw new FalhaDoCalendario(
+          "A conexão com o Google expirou ou não vale mais. Toque em Desconectar e entre de novo.",
+          "reconectar",
+        );
+      },
+      async criar() {
+        throw new Error("não criar");
+      },
+      async alterar() {
+        throw new Error("não alterar");
+      },
+      async cancelar() {
+        throw new Error("não cancelar");
+      },
+    };
+    const saida = await processarTurno(
+      { mensagem: "dia 10/11", agora: AGORA },
+      falho,
+    );
+    expect(saida.texto).toMatch(/entre de novo/i);
+    expect(saida.texto).not.toMatch(/não foi gravado/i);
+    expect(saida.falha).toBe("reconectar");
+  });
 });
 
 describe("entrada de conversa — data certa e viagem informal", () => {

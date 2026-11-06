@@ -26,6 +26,7 @@ describe("cliente HTTP do Calendário Google", () => {
     });
 
     expect(urls.some((u) => u.includes("singleEvents=true"))).toBe(true);
+    expect(urls.some((u) => u.includes("maxResults=500"))).toBe(true);
   });
 
   it("grava na agenda primary", async () => {
@@ -47,11 +48,46 @@ describe("cliente HTTP do Calendário Google", () => {
     expect(urls[0]).toContain("/calendars/primary/events");
   });
 
+  it("relê o evento com o id na URL", async () => {
+    const urls: string[] = [];
+    const cliente = criarClienteCalendarioGoogle({
+      obterAccessToken: async () => "token",
+      fetch: async (input) => {
+        urls.push(String(input));
+        return new Response(JSON.stringify({ id: "evt-1", summary: "X" }), {
+          status: 200,
+        });
+      },
+    });
+    await cliente.obterEvento("trabalho/equipe", "evt/1");
+    expect(urls[0]).toContain("/calendars/trabalho%2Fequipe/events/evt%2F1");
+  });
+
   it("transforma HTTP de erro em FalhaDoCalendario", async () => {
     const cliente = criarClienteCalendarioGoogle({
       obterAccessToken: async () => "token",
       fetch: async () => new Response("fail", { status: 503 }),
     });
     await expect(cliente.listarAgendas()).rejects.toBeInstanceOf(FalhaDoCalendario);
+  });
+
+  it("distingue 401 (reconectar) de 503 (temporária) sem vazar o corpo", async () => {
+    const cliente401 = criarClienteCalendarioGoogle({
+      obterAccessToken: async () => "token",
+      fetch: async () => new Response("invalid_token Bearer xyz", { status: 401 }),
+    });
+    const cliente403 = criarClienteCalendarioGoogle({
+      obterAccessToken: async () => "token",
+      fetch: async () => new Response("forbidden", { status: 403 }),
+    });
+    await expect(cliente401.listarAgendas()).rejects.toMatchObject({
+      codigo: "reconectar",
+    });
+    await expect(cliente403.listarAgendas()).rejects.toMatchObject({
+      codigo: "permissao",
+    });
+    await expect(cliente401.listarAgendas()).rejects.not.toMatchObject({
+      message: expect.stringMatching(/Bearer|xyz/i),
+    });
   });
 });

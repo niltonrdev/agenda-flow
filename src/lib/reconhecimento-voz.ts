@@ -1,6 +1,8 @@
 /**
- * Reconhecimento de voz no aparelho via Web Speech API
- * (webkitSpeechRecognition no Safari/iPhone).
+ * Ditado via Web Speech API (webkitSpeechRecognition no Safari/iPhone).
+ * O processamento pode ocorrer no aparelho ou em serviço do navegador/SO;
+ * em alguns navegadores o áudio sai do dispositivo. A Agenda não envia o
+ * áudio a um LLM próprio e não guarda a transcrição em log.
  */
 
 export type SpeechRecognitionLike = {

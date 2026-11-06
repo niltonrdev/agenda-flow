@@ -1,6 +1,6 @@
 import type { DestinoAlteracao } from "./interpretador";
 
-/** Proposta ainda não gravada. Viaja no turno; o servidor não a guarda. */
+/** Proposta ainda não gravada. A rota guarda uma cópia cifrada no cookie. */
 export type ConfirmacaoPontual = {
   acao: "marcar_pontual";
   titulo: string;

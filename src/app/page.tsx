@@ -13,7 +13,9 @@ import {
 } from "@/domain/confirmacao";
 import { mensagemAPartirDoCampo } from "@/domain/transcritor";
 import { obterTranscritor } from "@/lib/transcritor-app";
+import { AvisoRascunho, RodapeLegal } from "@/app/legal";
 import { MarcaCartao, MarcaCompacta } from "@/app/marca";
+import Link from "next/link";
 import {
   Fragment,
   useEffect,
@@ -32,6 +34,8 @@ type MensagemNaTela = {
 type StatusGoogle = {
   credencialConfigurada: boolean;
   conectado: boolean;
+  email: string | null;
+  motivo: string | null;
 };
 
 const CHAVE_DEMO = "agenda-demo";
@@ -57,6 +61,7 @@ export default function ConversaPage() {
   const [demoLocal, setDemoLocal] = useState(false);
   const [avisoAuth, setAvisoAuth] = useState<string | null>(null);
   const [dicaVoz, setDicaVoz] = useState<string | null>(null);
+  const [desconectando, setDesconectando] = useState(false);
   const fimRef = useRef<HTMLDivElement>(null);
   const campoRef = useRef<HTMLTextAreaElement>(null);
 
@@ -73,11 +78,13 @@ export default function ConversaPage() {
 
     const params = new URLSearchParams(window.location.search);
     const googleParam = params.get("google");
-    if (googleParam === "falha" || googleParam === "negado") {
+    if (googleParam === "falha" || googleParam === "negado" || googleParam === "host") {
       setAvisoAuth(
         googleParam === "negado"
           ? "A conexão com o Google foi cancelada. Tente de novo quando quiser."
-          : "Não foi possível conectar ao Google. Confira o redirect URI no Console e tente de novo.",
+          : googleParam === "host"
+            ? "Este endereço não pode usar o redirect configurado no servidor (aponta para outro host). No Preview, deixe GOOGLE_REDIRECT_URI vazio e cadastre no Google Cloud a URI exata deste host."
+            : "Não foi possível conectar ao Google. Confira o redirect URI no Console e tente de novo.",
       );
     }
     if (googleParam) {
@@ -86,14 +93,39 @@ export default function ConversaPage() {
 
     void fetch("/api/auth/google/status")
       .then((r) => r.json())
-      .then((dados: { credencialConfigurada?: boolean; conectado?: boolean }) => {
-        setGoogle({
-          credencialConfigurada: Boolean(dados.credencialConfigurada),
-          conectado: Boolean(dados.conectado),
-        });
-      })
+      .then(
+        (dados: {
+          credencialConfigurada?: boolean;
+          conectado?: boolean;
+          email?: string | null;
+          motivo?: string | null;
+        }) => {
+          setGoogle({
+            credencialConfigurada: Boolean(dados.credencialConfigurada),
+            conectado: Boolean(dados.conectado),
+            email: typeof dados.email === "string" ? dados.email : null,
+            motivo: typeof dados.motivo === "string" ? dados.motivo : null,
+          });
+          if (dados.motivo === "reconectar" || dados.motivo === "permissao") {
+            setAvisoAuth(
+              dados.motivo === "permissao"
+                ? "Esta conta não autorizou o Calendário com as permissões necessárias. Entre de novo e aceite o acesso à agenda."
+                : "A conexão com o Google expirou ou não vale mais. Entre de novo.",
+            );
+          } else if (dados.motivo === "temporaria" && !dados.conectado) {
+            setAvisoAuth(
+              "Não foi possível confirmar a conexão com o Google agora. Tente de novo em instantes.",
+            );
+          }
+        },
+      )
       .catch(() => {
-        setGoogle({ credencialConfigurada: false, conectado: false });
+        setGoogle({
+          credencialConfigurada: false,
+          conectado: false,
+          email: null,
+          motivo: "configuracao",
+        });
       });
   }, []);
 
@@ -105,6 +137,21 @@ export default function ConversaPage() {
     }
     setDemoLocal(true);
     setAvisoAuth(null);
+  }
+
+  async function desconectarGoogle() {
+    if (desconectando) return;
+    setDesconectando(true);
+    try {
+      await fetch("/api/auth/google/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+    } catch {
+      /* o recarregamento limpa o estado local */
+    }
+    window.location.assign("/");
   }
 
   const naConversa = google != null && (google.conectado || demoLocal);
@@ -141,10 +188,19 @@ export default function ConversaPage() {
       const dados = (await resposta.json()) as {
         texto?: string;
         erro?: string;
+        falha?: string | null;
         confirmacaoPendente?: ConfirmacaoPendente | null;
         ultimoDiaConsultado?: string | null;
         diaParaCalendario?: string | null;
       };
+
+      if (dados.falha === "reconectar" || resposta.status === 401) {
+        setGoogle((atual) =>
+          atual
+            ? { ...atual, conectado: false, email: null, motivo: "reconectar" }
+            : atual,
+        );
+      }
 
       if (!resposta.ok) {
         throw new Error(dados.erro ?? "Falha ao falar com a agenda.");
@@ -191,14 +247,27 @@ export default function ConversaPage() {
 
   if (!naConversa) {
     return (
-      <div className="entrada-shell">
+      <div className="entrada-shell entrada-shell-home">
+        <AvisoRascunho />
         <MarcaCartao />
         <header className="entrada-hero">
-          <h1 className="entrada-titulo">Conecte para usar o seu calendário</h1>
+          <h1 className="entrada-titulo">Agenda Inteligente</h1>
           <p className="entrada-texto">
-            Continue com o Google para consultar e marcar compromissos no seu
-            Google Calendar. A conexão fica salva neste aparelho (até ~6 meses),
-            fora de aba anônima. O histórico da conversa ainda não é guardado.
+            Conversa pessoal para consultar a disponibilidade no seu Google
+            Calendar e, depois de uma Confirmação, marcar, alterar ou cancelar
+            um compromisso. Não há outras contas no produto: só o calendário
+            do Dono.
+          </p>
+          <p className="entrada-texto">
+            A Consulta lê as agendas visíveis. A Marcação grava só na agenda
+            principal. O histórico da conversa não é guardado. A sessão Google
+            fica num cookie cifrado neste aparelho por até 7 dias (ou 24 horas
+            sem uso), fora de aba anônima.
+          </p>
+          <p className="entrada-texto entrada-texto-voz">
+            O ditado usa o reconhecimento de voz do navegador. Em alguns
+            aparelhos o áudio pode ser processado fora do dispositivo. A
+            Agenda não envia o áudio a um modelo de linguagem próprio.
           </p>
         </header>
 
@@ -216,7 +285,8 @@ export default function ConversaPage() {
           ) : (
             <p className="entrada-sem-oauth">
               OAuth do Google ainda não está configurado neste servidor. Você
-              pode entrar em demonstração com um calendário de exemplo.
+              pode entrar em demonstração com um calendário de exemplo
+              somente leitura.
             </p>
           )}
           <button
@@ -224,9 +294,10 @@ export default function ConversaPage() {
             className="entrada-botao-demo"
             onClick={entrarEmDemonstracao}
           >
-            Continuar em demonstração
+            Continuar em demonstração (só consulta)
           </button>
         </div>
+        <RodapeLegal />
       </div>
     );
   }
@@ -237,14 +308,31 @@ export default function ConversaPage() {
         <MarcaCompacta />
         <p className="conversa-sub">Conversa com o seu Calendário</p>
         {google.conectado ? (
-          <p className="conversa-google conversa-google-ok">
-            Conta Google conectada. A Consulta lê as agendas visíveis; a
-            Marcação grava na principal.
-          </p>
+          <div className="conversa-conta">
+            <p className="conversa-google conversa-google-ok">
+              {google.email
+                ? `Conectado como ${google.email}`
+                : "Conta Google conectada. Reconecte para ver o e-mail desta conta."}{" "}
+              A Consulta lê as agendas visíveis; a Marcação grava na principal.{" "}
+              <button
+                type="button"
+                className="conversa-sair"
+                onClick={() => void desconectarGoogle()}
+                disabled={desconectando}
+              >
+                {desconectando ? "Saindo…" : "Desconectar"}
+              </button>
+              {" · "}
+              <Link className="conversa-google-link" href="/privacidade">
+                Privacidade
+              </Link>
+            </p>
+          </div>
         ) : null}
         {!google.conectado ? (
           <p className="conversa-google conversa-demo">
-            Modo demonstração: calendário de exemplo neste aparelho.
+            Demonstração somente leitura: calendário de exemplo no servidor,
+            sem gravar. Não é um calendário deste aparelho.
             {google.credencialConfigurada ? (
               <>
                 {" "}
@@ -253,6 +341,10 @@ export default function ConversaPage() {
                 </a>
               </>
             ) : null}
+            {" · "}
+            <Link className="conversa-google-link" href="/privacidade">
+              Privacidade
+            </Link>
           </p>
         ) : null}
       </header>
@@ -390,6 +482,10 @@ export default function ConversaPage() {
         <label className="sr-only" htmlFor="mensagem">
           Mensagem
         </label>
+        <p className="conversa-aviso-voz">
+          O ditado usa o reconhecimento de voz do navegador; o áudio pode ser
+          processado fora deste aparelho.
+        </p>
         {dicaVoz ? (
           <p className="conversa-dica-ditado" role="status">
             {dicaVoz}

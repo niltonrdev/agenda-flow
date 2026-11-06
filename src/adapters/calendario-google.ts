@@ -2,6 +2,7 @@ import type { Calendario, IntervaloCalendario } from "@/domain/calendario";
 import type { Compromisso, NovoCompromisso } from "@/domain/compromisso";
 import { FalhaDoCalendario } from "@/domain/falha-calendario";
 import { FUSO_DONO } from "@/domain/fuso";
+import { LIMITE_AGENDAS_VISIVEIS } from "@/lib/limites";
 import { DateTime } from "luxon";
 
 export type AgendaGoogle = {
@@ -33,6 +34,7 @@ export type ClienteCalendarioGoogle = {
     calendarId: string,
     intervalo: IntervaloCalendario,
   ): Promise<EventoGoogle[]>;
+  obterEvento(calendarId: string, eventId: string): Promise<EventoGoogle>;
   criarEvento(calendarId: string, evento: EventoParaGravar): Promise<EventoGoogle>;
   alterarEvento(
     calendarId: string,
@@ -152,15 +154,36 @@ export function eventoGoogleParaCompromisso(
   return null;
 }
 
+export async function autorizarAgendaEEvento(
+  cliente: ClienteCalendarioGoogle,
+  calendarId: string,
+  eventId: string,
+): Promise<EventoGoogle> {
+  const agendas = await cliente.listarAgendas();
+  const visiveis = agendas.filter(
+    (a) => agendaVisivel(a) && !ehCalendarioDeFeriado(a),
+  );
+  const autorizada = visiveis.some(
+    (agenda) =>
+      agenda.id === calendarId || (calendarId === "primary" && agenda.primary),
+  );
+  if (!autorizada) throw new FalhaDoCalendario();
+  const evento = await cliente.obterEvento(calendarId, eventId);
+  if (!evento.id || evento.status === "cancelled") {
+    throw new FalhaDoCalendario();
+  }
+  return evento;
+}
+
 export function criarCalendarioGoogle(
   cliente: ClienteCalendarioGoogle,
 ): Calendario {
   return {
     async listar(intervalo) {
       const agendas = await cliente.listarAgendas();
-      const visiveis = agendas.filter(
-        (a) => agendaVisivel(a) && !ehCalendarioDeFeriado(a),
-      );
+      const visiveis = agendas
+        .filter((a) => agendaVisivel(a) && !ehCalendarioDeFeriado(a))
+        .slice(0, LIMITE_AGENDAS_VISIVEIS);
       const listas = await Promise.all(
         visiveis.map(async (agenda) => {
           const eventos = await cliente.listarEventos(agenda.id, intervalo);
@@ -181,6 +204,7 @@ export function criarCalendarioGoogle(
 
     async alterar(id, mudancas) {
       const { calendarId, eventId } = partirIdDoCompromisso(id);
+      await autorizarAgendaEEvento(cliente, calendarId, eventId);
       const atualizado = { ...mudancas } as NovoCompromisso;
       if (!atualizado.tipo || !atualizado.titulo) {
         throw new FalhaDoCalendario();
@@ -197,6 +221,7 @@ export function criarCalendarioGoogle(
 
     async cancelar(id) {
       const { calendarId, eventId } = partirIdDoCompromisso(id);
+      await autorizarAgendaEEvento(cliente, calendarId, eventId);
       await cliente.cancelarEvento(calendarId, eventId);
     },
   };
