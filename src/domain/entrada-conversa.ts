@@ -40,6 +40,8 @@ import {
   formatarNaoEncontrado,
   formatarPedirDestinoAlteracao,
   formatarPedirDiaEHorarioMarcacao,
+  formatarPedirDiasPeriodo,
+  formatarPedirDuracaoPeriodo,
   formatarPedirHorarioMarcacao,
   formatarPeriodoAlterado,
   formatarPeriodoCancelado,
@@ -58,6 +60,8 @@ import {
   completarMarcacaoPontual,
   interpretarDestinoAlteracao,
   interpretarMensagem,
+  interpretarRespostaDuracao,
+  periodoAPartirDaDuracao,
   type DestinoAlteracao,
   type DiaRecorte,
   type Intencao,
@@ -75,7 +79,8 @@ function ehPedidoNovo(intencao: Intencao, mensagem: string): boolean {
     intencao.tipo === "cancelar" ||
     intencao.tipo === "consulta_dia" ||
     intencao.tipo === "consulta_intervalo" ||
-    intencao.tipo === "marcar_periodo"
+    intencao.tipo === "marcar_periodo" ||
+    intencao.tipo === "marcar_periodo_sem_duracao"
   ) {
     return true;
   }
@@ -210,6 +215,18 @@ function ehCompletarAlteracao(
   return pendente.acao === "completar_alteracao";
 }
 
+function ehCompletarDuracaoPeriodo(
+  pendente: ConfirmacaoPendente,
+): pendente is Extract<ConfirmacaoPendente, { acao: "completar_duracao_periodo" }> {
+  return pendente.acao === "completar_duracao_periodo";
+}
+
+function ehCompletarDiasPeriodo(
+  pendente: ConfirmacaoPendente,
+): pendente is Extract<ConfirmacaoPendente, { acao: "completar_dias_periodo" }> {
+  return pendente.acao === "completar_dias_periodo";
+}
+
 type ConfirmacaoCorrigivel = Extract<
   ConfirmacaoPendente,
   { aguardandoCorrecao?: boolean }
@@ -241,6 +258,42 @@ function comDiaConsultado(
         ? saida.ultimoDiaConsultado
         : diaAnterior,
   };
+}
+
+function pedirDuracaoPeriodo(
+  titulo: string,
+  dia: string | undefined,
+  diaAnterior: string | null,
+): SaidaConversa {
+  return comDiaConsultado(
+    {
+      texto: formatarPedirDuracaoPeriodo(titulo, dia),
+      confirmacaoPendente: {
+        acao: "completar_duracao_periodo",
+        titulo,
+        ...(dia ? { dia } : {}),
+      },
+    },
+    diaAnterior,
+  );
+}
+
+function pedirDiasPeriodo(
+  titulo: string,
+  dia: string | undefined,
+  diaAnterior: string | null,
+): SaidaConversa {
+  return comDiaConsultado(
+    {
+      texto: formatarPedirDiasPeriodo(titulo),
+      confirmacaoPendente: {
+        acao: "completar_dias_periodo",
+        titulo,
+        ...(dia ? { dia } : {}),
+      },
+    },
+    diaAnterior,
+  );
 }
 
 function pedirHorarioMarcacao(
@@ -546,6 +599,61 @@ async function processarTurnoInterno(
     }
   }
 
+  if (
+    pendente &&
+    (ehCompletarDuracaoPeriodo(pendente) || ehCompletarDiasPeriodo(pendente))
+  ) {
+    if (intencao.tipo === "recusar") {
+      return comDiaConsultado(
+        { texto: "Ok, não marco.", confirmacaoPendente: null },
+        diaAnterior,
+      );
+    }
+    const pedidoNovo =
+      (intencao.tipo === "alterar" ||
+        intencao.tipo === "alterar_sem_destino" ||
+        intencao.tipo === "cancelar" ||
+        intencao.tipo === "marcar_pontual" ||
+        intencao.tipo === "marcar_pontual_sem_hora" ||
+        intencao.tipo === "marcar_incompleta" ||
+        intencao.tipo === "marcar_periodo" ||
+        intencao.tipo === "marcar_periodo_sem_duracao") &&
+      ehPedidoNovo(intencao, entrada.mensagem);
+    if (!pedidoNovo) {
+      const resposta = interpretarRespostaDuracao(
+        entrada.mensagem,
+        entrada.agora,
+        pendente.dia,
+      );
+      if (resposta?.tipo === "mais_dias") {
+        return pedirDiasPeriodo(pendente.titulo, pendente.dia, diaAnterior);
+      }
+      const periodo = resposta
+        ? periodoAPartirDaDuracao(resposta, pendente.dia)
+        : null;
+      if (periodo) {
+        return comDiaConsultado(
+          await saidaDeConfirmacao(
+            {
+              acao: "marcar_periodo",
+              titulo: pendente.titulo,
+              primeiroDia: periodo.primeiroDia,
+              ultimoDia: periodo.ultimoDia,
+            },
+            calendario,
+          ),
+          diaAnterior,
+        );
+      }
+      if (ehCompletarDiasPeriodo(pendente)) {
+        return pedirDiasPeriodo(pendente.titulo, pendente.dia, diaAnterior);
+      }
+      if (!pedidoNovo && intencao.tipo !== "confirmar") {
+        return pedirDuracaoPeriodo(pendente.titulo, pendente.dia, diaAnterior);
+      }
+    }
+  }
+
   if (pendente && ehCompletarMarcacao(pendente)) {
     if (intencao.tipo === "recusar") {
       return comDiaConsultado(
@@ -673,7 +781,9 @@ async function processarTurnoInterno(
       !pendente ||
       ehEscolha(pendente) ||
       ehCompletarMarcacao(pendente) ||
-      ehCompletarAlteracao(pendente)
+      ehCompletarAlteracao(pendente) ||
+      ehCompletarDuracaoPeriodo(pendente) ||
+      ehCompletarDiasPeriodo(pendente)
     ) {
       return comDiaConsultado(
         { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: pendente },
@@ -924,6 +1034,10 @@ async function processarTurnoInterno(
       ultimoDiaConsultado: intencao.primeiroDia,
       diaParaCalendario: intencao.primeiroDia,
     };
+  }
+
+  if (intencao.tipo === "marcar_periodo_sem_duracao") {
+    return pedirDuracaoPeriodo(intencao.titulo, intencao.dia, diaAnterior);
   }
 
   if (intencao.tipo === "marcar_pontual_sem_hora") {

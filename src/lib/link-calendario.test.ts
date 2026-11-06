@@ -1,6 +1,8 @@
 import { FUSO_DONO } from "@/domain/fuso";
 import {
   ehAparelhoIos,
+  EPOCA_APPLE_SEGUNDOS,
+  instanteDoCalshow,
   urlAbrirCalendario,
   urlCalendarioNativoIos,
   urlVisaoDaSemanaNoCalendario,
@@ -20,11 +22,29 @@ describe("url da visão da semana no Calendário", () => {
 });
 
 describe("url do Calendário nativo no iPhone", () => {
-  it("abre o app Calendário no início daquele dia em Brasília", () => {
-    const esperado = Math.floor(
-      DateTime.fromISO("2025-10-15", { zone: FUSO_DONO }).startOf("day").toSeconds(),
+  it("abre o app Calendário no início daquele dia em Brasília, na epoch da Apple", () => {
+    const inicio = DateTime.fromISO("2025-10-15", { zone: FUSO_DONO }).startOf(
+      "day",
     );
+    const esperado = Math.floor(inicio.toSeconds()) - EPOCA_APPLE_SEGUNDOS;
     expect(urlCalendarioNativoIos("2025-10-15")).toBe(`calshow:${esperado}`);
+    expect(instanteDoCalshow(`calshow:${esperado}`).toUTC().toISO()).toBe(
+      inicio.toUTC().toISO(),
+    );
+  });
+
+  it("10/11/2026 não abre novembro de 2057 (regressão do Unix no calshow)", () => {
+    const url = urlCalendarioNativoIos("2026-11-10");
+    const instante = instanteDoCalshow(url).setZone(FUSO_DONO);
+    expect(instante.toISODate()).toBe("2026-11-10");
+    expect(instante.year).toBe(2026);
+    expect(instante.year).not.toBe(2057);
+
+    const unixComoSeFosseApple = DateTime.fromSeconds(
+      DateTime.fromISO("2026-11-10", { zone: FUSO_DONO }).startOf("day").toSeconds(),
+      { zone: "utc" },
+    ).plus({ seconds: EPOCA_APPLE_SEGUNDOS });
+    expect(unixComoSeFosseApple.year).toBe(2057);
   });
 
   it("no iPhone usa calshow; no restante usa a visão da semana no Google", () => {

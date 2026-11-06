@@ -2,6 +2,9 @@ import { FUSO_DONO } from "@/domain/fuso";
 import {
   interpretarDestinoAlteracao,
   interpretarMensagem,
+  interpretarRespostaDuracao,
+  mensagemFalaDeViagem,
+  periodoAPartirDaDuracao,
 } from "@/domain/interpretador";
 import { DateTime } from "luxon";
 import { describe, expect, it } from "vitest";
@@ -196,6 +199,76 @@ describe("interpretador — Marcação sem horário", () => {
     });
   });
 
+  it("ordem informal e 19hs ainda produzem Pontual no ano corrente", () => {
+    const novembro = DateTime.fromObject(
+      { year: 2026, month: 11, day: 6, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+    const intencao = interpretarMensagem(
+      "Marcar reunião com Luiza dia 10/11 às 19h",
+      novembro,
+    );
+    expect(intencao).toMatchObject({
+      tipo: "marcar_pontual",
+      titulo: "Reunião com Luiza",
+    });
+    if (intencao.tipo !== "marcar_pontual") {
+      throw new Error("esperava marcar_pontual");
+    }
+    expect(intencao.inicio).toContain("2026-11-10T19:00");
+  });
+
+  it.each([
+    ["Marcar BH viagem dia 7/11", "Viagem BH"],
+    ["Marcar viagem para BH dia 7/11", "Viagem para BH"],
+    ["Marcar viagem BH dia 7/11", "Viagem BH"],
+    ["marca viagem bh 07/11", "Viagem bh"],
+    ["agendar BH viagem dia 7/11", "Viagem BH"],
+  ])("%s reconhece a viagem sem exigir 'para'", (frase, titulo) => {
+    const novembro = DateTime.fromObject(
+      { year: 2026, month: 11, day: 6, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+    expect(interpretarMensagem(frase, novembro)).toEqual({
+      tipo: "marcar_periodo_sem_duracao",
+      titulo,
+      dia: "2026-11-07",
+    });
+  });
+
+  it("aceita horário informal 19hs e às 19 sem h", () => {
+    const novembro = DateTime.fromObject(
+      { year: 2026, month: 11, day: 6, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+    for (const frase of [
+      "marcar reunião luiza 10/11 19hs",
+      "marcar reunião luiza dia 10/11 às 19",
+    ]) {
+      const intencao = interpretarMensagem(frase, novembro);
+      expect(intencao.tipo).toBe("marcar_pontual");
+      if (intencao.tipo !== "marcar_pontual") {
+        throw new Error("esperava marcar_pontual");
+      }
+      expect(intencao.inicio).toContain("2026-11-10T19:00");
+    }
+  });
+
+  it("data já passada sem ano usa o próximo ano", () => {
+    const depois = DateTime.fromObject(
+      { year: 2026, month: 11, day: 11, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+    const intencao = interpretarMensagem(
+      "marcar reunião com Luiza dia 10/11 às 19h",
+      depois,
+    );
+    if (intencao.tipo !== "marcar_pontual") {
+      throw new Error("esperava marcar_pontual");
+    }
+    expect(intencao.inicio).toContain("2027-11-10T19:00");
+  });
+
   it("marcar com dia e horário produz Pontual direto", () => {
     const intencao = interpretarMensagem(
       "marcar reunião dia 20 de dezembro às 15h",
@@ -348,6 +421,56 @@ describe("interpretador — Cancelamento", () => {
       tipo: "cancelar",
       termo: "pescaria",
       dia: { dia: 5 },
+    });
+  });
+});
+
+describe("interpretador — fala de viagem", () => {
+  it("reconhece viagem no singular e no plural", () => {
+    expect(mensagemFalaDeViagem("marcar bh viagem dia 7/11")).toBe(true);
+    expect(mensagemFalaDeViagem("marcar viagens para o sul")).toBe(true);
+    expect(mensagemFalaDeViagem("marcar reunião com a ana")).toBe(false);
+  });
+});
+
+describe("interpretador — duração da viagem", () => {
+  const novembro = DateTime.fromObject(
+    { year: 2026, month: 11, day: 6, hour: 10, minute: 0 },
+    { zone: FUSO_DONO },
+  );
+
+  it("1 dia e mais dias são respostas explícitas", () => {
+    expect(interpretarRespostaDuracao("1 dia", novembro)).toEqual({
+      tipo: "um_dia",
+    });
+    expect(interpretarRespostaDuracao("mais dias", novembro)).toEqual({
+      tipo: "mais_dias",
+    });
+    expect(interpretarRespostaDuracao("3 dias", novembro)).toEqual({
+      tipo: "quantidade_dias",
+      dias: 3,
+    });
+  });
+
+  it("intervalo e um dia sugerido fecham o Período", () => {
+    expect(
+      periodoAPartirDaDuracao(
+        { tipo: "um_dia" },
+        "2026-11-07",
+      ),
+    ).toEqual({ primeiroDia: "2026-11-07", ultimoDia: "2026-11-07" });
+    expect(
+      periodoAPartirDaDuracao(
+        { tipo: "quantidade_dias", dias: 3 },
+        "2026-11-07",
+      ),
+    ).toEqual({ primeiroDia: "2026-11-07", ultimoDia: "2026-11-09" });
+    expect(
+      interpretarRespostaDuracao("7/11 a 10/11", novembro),
+    ).toEqual({
+      tipo: "intervalo",
+      primeiroDia: "2026-11-07",
+      ultimoDia: "2026-11-10",
     });
   });
 });

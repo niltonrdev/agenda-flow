@@ -92,6 +92,20 @@ export type ConfirmacaoCompletarAlteracao = {
   titulo: string;
 };
 
+/** Viagem sem intervalo: a Conversa pergunta se é 1 dia ou mais. */
+export type ConfirmacaoCompletarDuracaoPeriodo = {
+  acao: "completar_duracao_periodo";
+  titulo: string;
+  dia?: string;
+};
+
+/** Viagem de mais dias: a Conversa pede o intervalo (fala ou seletor). */
+export type ConfirmacaoCompletarDiasPeriodo = {
+  acao: "completar_dias_periodo";
+  titulo: string;
+  dia?: string;
+};
+
 export type ConfirmacaoPendente =
   | ConfirmacaoPontual
   | ConfirmacaoPeriodo
@@ -102,7 +116,9 @@ export type ConfirmacaoPendente =
   | ConfirmacaoCancelarPeriodo
   | ConfirmacaoEscolherCancelamento
   | ConfirmacaoCompletarMarcacao
-  | ConfirmacaoCompletarAlteracao;
+  | ConfirmacaoCompletarAlteracao
+  | ConfirmacaoCompletarDuracaoPeriodo
+  | ConfirmacaoCompletarDiasPeriodo;
 
 export type ConfirmacaoMarcacao = ConfirmacaoPontual | ConfirmacaoPeriodo;
 
@@ -245,6 +261,15 @@ export function ehConfirmacaoPendente(valor: unknown): valor is ConfirmacaoPende
   }
   if (proposta.acao === "completar_alteracao") {
     return tituloValido(proposta.titulo) && typeof proposta.id === "string";
+  }
+  if (
+    proposta.acao === "completar_duracao_periodo" ||
+    proposta.acao === "completar_dias_periodo"
+  ) {
+    return (
+      tituloValido(proposta.titulo) &&
+      (proposta.dia === undefined || typeof proposta.dia === "string")
+    );
   }
   return false;
 }

@@ -46,6 +46,9 @@ function detalhePontual(titulo: string, inicio: string, fim: string): string {
 }
 
 function detalhePeriodo(proposta: ConfirmacaoPeriodo): string {
+  if (proposta.primeiroDia === proposta.ultimoDia) {
+    return `${proposta.titulo}, ${formatarDiaPorExtenso(proposta.primeiroDia)}, dia inteiro`;
+  }
   return `${proposta.titulo}, de ${formatarDiaPorExtenso(proposta.primeiroDia)} a ${formatarDiaPorExtenso(proposta.ultimoDia)}, dia inteiro`;
 }
 
@@ -95,6 +98,20 @@ export function formatarPedirHorarioMarcacao(
 
 export function formatarPedirDiaEHorarioMarcacao(titulo: string): string {
   return `Para marcar ${titulo}, diga o dia e o horário — por exemplo “20 de dezembro às 15h”.`;
+}
+
+export function formatarPedirDuracaoPeriodo(
+  titulo: string,
+  dia?: string,
+): string {
+  if (dia) {
+    return `${titulo} em ${formatarDiaPorExtenso(dia)}: é de 1 dia ou de mais dias?`;
+  }
+  return `${titulo}: é de 1 dia ou de mais dias?`;
+}
+
+export function formatarPedirDiasPeriodo(titulo: string): string {
+  return `Quais dias de ${titulo}? Diga o intervalo — por exemplo “7/11 a 10/11” — ou escolha no calendário.`;
 }
 
 export function formatarPedirDestinoAlteracao(titulo: string): string {
