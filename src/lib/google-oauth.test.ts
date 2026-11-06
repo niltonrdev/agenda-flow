@@ -67,16 +67,28 @@ describe("sessão Google persistida", () => {
     ).toBe("http://localhost:3000/api/auth/google/callback");
   });
 
-  it("não usa redirect de produção num host de preview", () => {
+  it("preview sem GOOGLE_REDIRECT_URI usa callback same-origin; variável de outro host é recusada", () => {
     const preview = "https://agenda-flow-git-x-nilteras-projects.vercel.app";
     const producao =
       "https://agenda-flow-mu.vercel.app/api/auth/google/callback";
     expect(
+      decidirRedirectOAuth(preview, { VERCEL_ENV: "preview" }),
+    ).toEqual({
+      ok: true,
+      uri: `${preview}/api/auth/google/callback`,
+    });
+    expect(
+      decidirRedirectOAuth(preview, {
+        VERCEL_ENV: "preview",
+        GOOGLE_REDIRECT_URI: "",
+      }),
+    ).toEqual({
+      ok: true,
+      uri: `${preview}/api/auth/google/callback`,
+    });
+    expect(
       decidirRedirectOAuth(preview, { GOOGLE_REDIRECT_URI: producao }),
     ).toEqual({ ok: false, motivo: "host_divergente" });
-    expect(
-      decidirRedirectOAuth(preview, { VERCEL_ENV: "preview" }),
-    ).toEqual({ ok: false, motivo: "preview_nao_cadastrado" });
     expect(
       decidirRedirectOAuth("https://agenda-flow-mu.vercel.app", {
         GOOGLE_REDIRECT_URI: producao,

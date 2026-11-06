@@ -27,10 +27,7 @@ export type TokensGoogle = {
 
 export type RedirectOAuth =
   | { ok: true; uri: string }
-  | {
-      ok: false;
-      motivo: "host_divergente" | "preview_nao_cadastrado" | "uri_invalida";
-    };
+  | { ok: false; motivo: "host_divergente" | "uri_invalida" };
 
 export type EnvOAuth = Record<string, string | undefined>;
 
@@ -267,8 +264,8 @@ export function redirectUriPadrao(origem: string): string {
 }
 
 /**
- * GOOGLE_REDIRECT_URI só vale se for do mesmo host do pedido.
- * Preview da Vercel sem URI cadastrada não cai no callback de produção.
+ * Sem GOOGLE_REDIRECT_URI: callback same-origin (`<origem>/api/auth/google/callback`).
+ * Com a variável: só vale se for deste host; outro host é recusado (não mistura cookie/callback).
  */
 export function decidirRedirectOAuth(
   origemPedido: string,
@@ -291,15 +288,11 @@ export function decidirRedirectOAuth(
     }
     return { ok: true, uri: configurado };
   }
-  if (env.VERCEL_ENV === "preview") {
-    return { ok: false, motivo: "preview_nao_cadastrado" };
-  }
   return { ok: true, uri: redirectUriPadrao(origem) };
 }
 
 /**
- * Resolve o redirect_uri do OAuth. GOOGLE_REDIRECT_URI vazio (comum ao
- * copiar .env.example) não vale: o Google exige o parâmetro preenchido.
+ * Resolve o redirect_uri do OAuth. Variável vazia → callback da origem.
  * Host divergente não é usado — evita misturar cookie/callback.
  */
 export function resolverRedirectUri(

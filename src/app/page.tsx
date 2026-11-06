@@ -81,7 +81,7 @@ export default function ConversaPage() {
         googleParam === "negado"
           ? "A conexão com o Google foi cancelada. Tente de novo quando quiser."
           : googleParam === "host"
-            ? "Este endereço (preview) não está cadastrado no Google. Abra a Agenda em https://agenda-flow-mu.vercel.app/ para entrar, ou cadastre o redirect deste host."
+            ? "Este endereço não pode usar o redirect configurado no servidor (aponta para outro host). No Preview, deixe GOOGLE_REDIRECT_URI vazio e cadastre no Google Cloud a URI exata deste host."
             : "Não foi possível conectar ao Google. Confira o redirect URI no Console e tente de novo.",
       );
     }
