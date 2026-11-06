@@ -1,7 +1,11 @@
 import type { Calendario, IntervaloCalendario } from "@/domain/calendario";
 import type { Compromisso, NovoCompromisso } from "@/domain/compromisso";
+import { FalhaDoCalendario } from "@/domain/falha-calendario";
 import { FUSO_DONO, resolverAnoDaData } from "@/domain/fuso";
 import { DateTime } from "luxon";
+
+export const RESPOSTA_DEMONSTRACAO_SOMENTE_LEITURA =
+  "A demonstração é só consulta. Conecte o Google para marcar, alterar ou cancelar.";
 
 function sobrepoeIntervalo(
   compromisso: Compromisso,
@@ -163,4 +167,23 @@ export function criarCalendarioDeDemonstracao(
   agora: DateTime = DateTime.now().setZone(FUSO_DONO),
 ): CalendarioEmMemoria {
   return criarCalendarioEmMemoria(compromissosDeDemonstracao(agora));
+}
+
+/** Seed imutável por requisição: consulta livre, escrita bloqueada. */
+export function criarCalendarioDeDemonstracaoSomenteLeitura(
+  agora: DateTime = DateTime.now().setZone(FUSO_DONO),
+): Calendario {
+  const base = criarCalendarioDeDemonstracao(agora);
+  return {
+    listar: (intervalo) => base.listar(intervalo),
+    async criar() {
+      throw new FalhaDoCalendario(RESPOSTA_DEMONSTRACAO_SOMENTE_LEITURA);
+    },
+    async alterar() {
+      throw new FalhaDoCalendario(RESPOSTA_DEMONSTRACAO_SOMENTE_LEITURA);
+    },
+    async cancelar() {
+      throw new FalhaDoCalendario(RESPOSTA_DEMONSTRACAO_SOMENTE_LEITURA);
+    },
+  };
 }

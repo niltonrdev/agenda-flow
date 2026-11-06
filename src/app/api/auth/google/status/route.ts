@@ -1,3 +1,4 @@
+import { comCachePrivado } from "@/lib/cabecalhos-privados";
 import {
   cookiesOAuth,
   credencialGoogleConfigurada,
@@ -7,23 +8,35 @@ import {
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const configurada = credencialGoogleConfigurada();
   if (!configurada) {
-    return NextResponse.json({
-      credencialConfigurada: false,
-      conectado: false,
-    });
+    return comCachePrivado(
+      NextResponse.json({
+        credencialConfigurada: false,
+        conectado: false,
+      }),
+    );
   }
 
   const jar = await cookies();
-  const sessao = desserializarSessao(
-    jar.get(cookiesOAuth.sessao)?.value,
-    segredoDaSessao(),
-  );
+  let conectado = false;
+  try {
+    const sessao = desserializarSessao(
+      jar.get(cookiesOAuth.sessao)?.value,
+      segredoDaSessao(),
+    );
+    conectado = Boolean(sessao?.refreshToken);
+  } catch {
+    conectado = false;
+  }
 
-  return NextResponse.json({
-    credencialConfigurada: true,
-    conectado: Boolean(sessao?.refreshToken),
-  });
+  return comCachePrivado(
+    NextResponse.json({
+      credencialConfigurada: true,
+      conectado,
+    }),
+  );
 }

@@ -1,14 +1,33 @@
 import { FalhaDoCalendario } from "@/domain/falha-calendario";
+import { cifrarValor, decifrarValor } from "@/lib/criptografia";
+import { TIMEOUT_GOOGLE_MS } from "@/lib/limites";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 const COOKIE_SESSAO = "agenda_google";
 const COOKIE_STATE = "agenda_google_oauth_state";
-const ESCOPO = "https://www.googleapis.com/auth/calendar";
+const COOKIE_PROPOSTA = "agenda_proposta";
+
+export const ESCOPOS_CALENDARIO = [
+  "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+] as const;
+
+const ESCOPO = ESCOPOS_CALENDARIO.join(" ");
+
+/** 7 dias — expiração absoluta validada no servidor. */
+export const MAX_AGE_SESSAO_S = 60 * 60 * 24 * 7;
+/** 24 h sem uso invalida a sessão mesmo com cookie ainda presente. */
+export const OCIOSIDADE_SESSAO_MS = 60 * 60 * 24 * 1000;
+const MAX_AGE_STATE_S = 60 * 10;
+export const MAX_AGE_PROPOSTA_S = 15 * 60;
+const TAMANHO_MINIMO_SEGREDO = 32;
 
 export type TokensGoogle = {
   accessToken: string;
   refreshToken: string;
   expiraEmMs: number;
+  iat?: number;
+  exp?: number;
 };
 
 export type EnvOAuth = Record<string, string | undefined>;
@@ -19,8 +38,27 @@ export function credencialGoogleConfigurada(
   return Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
 }
 
-function segredo(env: EnvOAuth = process.env as EnvOAuth): string {
-  return env.GOOGLE_TOKEN_SECRET || env.GOOGLE_CLIENT_SECRET || "";
+function ambienteProducao(env: EnvOAuth): boolean {
+  return (env.NODE_ENV ?? process.env.NODE_ENV) === "production";
+}
+
+function segredoBruto(env: EnvOAuth = process.env as EnvOAuth): string {
+  return env.GOOGLE_TOKEN_SECRET?.trim() || "";
+}
+
+/**
+ * Chave de cifra da sessão. Em produção exige GOOGLE_TOKEN_SECRET
+ * próprio, com pelo menos 32 caracteres — sem fallback para o client secret.
+ */
+export function segredoDaSessao(env: EnvOAuth = process.env as EnvOAuth): string {
+  const dedicado = segredoBruto(env);
+  if (dedicado.length >= TAMANHO_MINIMO_SEGREDO) return dedicado;
+  if (ambienteProducao(env)) {
+    throw new Error(
+      "GOOGLE_TOKEN_SECRET é obrigatório em produção (mínimo 32 caracteres).",
+    );
+  }
+  return dedicado || env.GOOGLE_CLIENT_SECRET || "dev-token-secret-inseguro-nao-usar-em-prod";
 }
 
 export function assinarValor(valor: string, secret: string): string {
@@ -46,30 +84,56 @@ export function lerValorAssinado(pacote: string, secret: string): string | null 
   return valor;
 }
 
-export function serializarSessao(tokens: TokensGoogle, secret: string): string {
-  return assinarValor(JSON.stringify(tokens), secret);
+export function serializarSessao(
+  tokens: TokensGoogle,
+  secret: string,
+  agora = Date.now(),
+): string {
+  const iat = tokens.iat ?? agora;
+  const exp = tokens.exp ?? agora + MAX_AGE_SESSAO_S * 1000;
+  return cifrarValor(
+    JSON.stringify({
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      expiraEmMs: tokens.expiraEmMs,
+      iat,
+      exp,
+      ultimoUso: agora,
+    }),
+    secret,
+  );
 }
 
 export function desserializarSessao(
   pacote: string | undefined,
   secret: string,
+  agora = Date.now(),
 ): TokensGoogle | null {
   if (!pacote || !secret) return null;
-  const valor = lerValorAssinado(pacote, secret);
+  const valor = decifrarValor(pacote, secret);
   if (!valor) return null;
   try {
-    const parsed = JSON.parse(valor) as Partial<TokensGoogle>;
+    const parsed = JSON.parse(valor) as Partial<TokensGoogle> & {
+      ultimoUso?: unknown;
+    };
     if (
       typeof parsed.accessToken !== "string" ||
       typeof parsed.refreshToken !== "string" ||
-      typeof parsed.expiraEmMs !== "number"
+      typeof parsed.expiraEmMs !== "number" ||
+      typeof parsed.iat !== "number" ||
+      typeof parsed.exp !== "number" ||
+      typeof parsed.ultimoUso !== "number"
     ) {
       return null;
     }
+    if (parsed.exp <= agora) return null;
+    if (agora - parsed.ultimoUso > OCIOSIDADE_SESSAO_MS) return null;
     return {
       accessToken: parsed.accessToken,
       refreshToken: parsed.refreshToken,
       expiraEmMs: parsed.expiraEmMs,
+      iat: parsed.iat,
+      exp: parsed.exp,
     };
   } catch {
     return null;
@@ -89,6 +153,7 @@ export function urlDeAutorizacao(opcoes: {
     response_type: "code",
     scope: ESCOPO,
     access_type: "offline",
+    include_granted_scopes: "false",
     state: opcoes.state,
   });
   if (opcoes.forcarConsentimento) {
@@ -137,19 +202,45 @@ export async function renovarTokens(opcoes: {
   };
 }
 
+export async function revogarTokenGoogle(opcoes: {
+  token: string;
+  fetchFn?: typeof fetch;
+}): Promise<void> {
+  const fetchFn = opcoes.fetchFn ?? fetch;
+  const controlador = new AbortController();
+  const timer = setTimeout(() => controlador.abort(), TIMEOUT_GOOGLE_MS);
+  try {
+    await fetchFn("https://oauth2.googleapis.com/revoke", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ token: opcoes.token }),
+      signal: controlador.signal,
+    });
+  } catch {
+    // A sessão local some mesmo se o Google não responder.
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function pedirTokens(
   corpo: Record<string, string>,
   fetchFn: typeof fetch,
 ): Promise<TokensGoogle> {
   let resposta: Response;
+  const controlador = new AbortController();
+  const timer = setTimeout(() => controlador.abort(), TIMEOUT_GOOGLE_MS);
   try {
     resposta = await fetchFn("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams(corpo),
+      signal: controlador.signal,
     });
   } catch {
     throw new FalhaDoCalendario();
+  } finally {
+    clearTimeout(timer);
   }
   if (!resposta.ok) throw new FalhaDoCalendario();
   const json = (await resposta.json()) as {
@@ -183,17 +274,20 @@ export function criarObterAccessToken(opcoes: {
       clientSecret: opcoes.clientSecret,
       fetchFn: opcoes.fetchFn,
     });
+    atual = {
+      ...atual,
+      iat: opcoes.tokens.iat,
+      exp: opcoes.tokens.exp,
+    };
     opcoes.aoRenovar?.(atual);
     return atual.accessToken;
   };
 }
 
-const MAX_AGE_SESSAO_S = 60 * 60 * 24 * 180;
-const MAX_AGE_STATE_S = 60 * 10;
-
 export const cookiesOAuth = {
   sessao: COOKIE_SESSAO,
   state: COOKIE_STATE,
+  proposta: COOKIE_PROPOSTA,
   maxAgeSessao: MAX_AGE_SESSAO_S,
   opcoesSessao: {
     httpOnly: true,
@@ -207,6 +301,13 @@ export const cookiesOAuth = {
     sameSite: "lax" as const,
     path: "/",
     maxAge: MAX_AGE_STATE_S,
+    secure: process.env.NODE_ENV === "production",
+  },
+  opcoesProposta: {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: MAX_AGE_PROPOSTA_S,
     secure: process.env.NODE_ENV === "production",
   },
 };
@@ -230,8 +331,23 @@ export function opcoesCookieStateAgora(): typeof cookiesOAuth.opcoesState & {
   };
 }
 
-export function segredoDaSessao(env: EnvOAuth = process.env as EnvOAuth): string {
-  return segredo(env);
+export function opcoesCookiePropostaAgora(): typeof cookiesOAuth.opcoesProposta & {
+  expires: Date;
+} {
+  return {
+    ...cookiesOAuth.opcoesProposta,
+    expires: new Date(Date.now() + MAX_AGE_PROPOSTA_S * 1000),
+  };
+}
+
+export function opcoesCookieApagado(
+  base: typeof cookiesOAuth.opcoesSessao | typeof cookiesOAuth.opcoesProposta | typeof cookiesOAuth.opcoesState,
+) {
+  return {
+    ...base,
+    maxAge: 0,
+    expires: new Date(0),
+  };
 }
 
 export function redirectUriPadrao(origem: string): string {
