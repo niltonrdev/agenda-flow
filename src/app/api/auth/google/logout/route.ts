@@ -1,3 +1,5 @@
+import { comCachePrivado } from "@/lib/cabecalhos-privados";
+import { pedidoDeEscritaSeguro } from "@/lib/csrf";
 import {
   cookiesOAuth,
   desserializarSessao,
@@ -5,15 +7,31 @@ import {
   revogarTokenGoogle,
   segredoDaSessao,
 } from "@/lib/google-oauth";
+import { RATE_LOGOUT_POR_MINUTO } from "@/lib/limites";
+import { chaveCliente, consumirRateLimit } from "@/lib/rate-limit";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) {
-    return NextResponse.json({ erro: "Pedido rejeitado." }, { status: 403 });
+  if (!pedidoDeEscritaSeguro(request)) {
+    return comCachePrivado(
+      NextResponse.json({ erro: "Pedido rejeitado." }, { status: 403 }),
+    );
+  }
+
+  const limite = consumirRateLimit(
+    `logout:${chaveCliente(request)}`,
+    RATE_LOGOUT_POR_MINUTO,
+  );
+  if (!limite.ok) {
+    return comCachePrivado(
+      NextResponse.json(
+        { erro: "Muitas tentativas. Espere um pouco e tente de novo." },
+        { status: 429, headers: { "Retry-After": String(limite.retryAfterS) } },
+      ),
+    );
   }
 
   const jar = await cookies();
@@ -21,9 +39,11 @@ export async function POST(request: Request) {
   try {
     const sessao = desserializarSessao(pacote, segredoDaSessao());
     const token = sessao?.refreshToken || sessao?.accessToken;
-    if (token) await revogarTokenGoogle({ token });
+    if (token) {
+      await revogarTokenGoogle({ token });
+    }
   } catch {
-    // Apaga o cookie mesmo se o Google não responder.
+    // Apaga cookies mesmo se a cifra ou o Google falharem.
   }
 
   const resposta = NextResponse.json({ ok: true });
@@ -33,9 +53,14 @@ export async function POST(request: Request) {
     opcoesCookieApagado(cookiesOAuth.opcoesSessao),
   );
   resposta.cookies.set(
+    cookiesOAuth.proposta,
+    "",
+    opcoesCookieApagado(cookiesOAuth.opcoesProposta),
+  );
+  resposta.cookies.set(
     cookiesOAuth.state,
     "",
     opcoesCookieApagado(cookiesOAuth.opcoesState),
   );
-  return resposta;
+  return comCachePrivado(resposta);
 }

@@ -666,6 +666,83 @@ body {
   background: #fff;
 }
 
+.entrada-shell-home {
+  max-width: 32rem;
+}
+
+.entrada-texto-voz {
+  font-size: 0.92rem;
+}
+
+.aviso-rascunho {
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.7rem;
+  background: color-mix(in oklab, #f4e7c5 80%, white);
+  color: #5a3d12;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.rodape-legal {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.rodape-legal a,
+.pagina-legal a,
+.conversa-google-link {
+  color: var(--enviar);
+}
+
+.conversa-aviso-voz {
+  margin: 0 0 0.45rem;
+  color: var(--texto-suave);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.pagina-legal {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding:
+    calc(1.5rem + env(safe-area-inset-top)) 1.35rem
+    calc(2rem + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.pagina-legal-titulo {
+  margin: 0;
+  font-family: var(--font-marca), Georgia, serif;
+  font-size: clamp(1.4rem, 4vw, 1.8rem);
+  line-height: 1.25;
+}
+
+.pagina-legal-meta,
+.pagina-legal p,
+.pagina-legal-voltar {
+  margin: 0;
+  color: var(--texto-suave);
+  line-height: 1.55;
+}
+
+.pagina-legal h2 {
+  margin: 0 0 0.45rem;
+  font-size: 1.05rem;
+}
+
+.pagina-legal section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.pagina-legal code {
+  font-size: 0.88em;
+}
+
 @media (min-width: 640px) {
   .conversa-shell {
     margin-top: 1.5rem;

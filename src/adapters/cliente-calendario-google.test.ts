@@ -26,6 +26,7 @@ describe("cliente HTTP do Calendário Google", () => {
     });
 
     expect(urls.some((u) => u.includes("singleEvents=true"))).toBe(true);
+    expect(urls.some((u) => u.includes("maxResults=500"))).toBe(true);
   });
 
   it("grava na agenda primary", async () => {
@@ -45,6 +46,21 @@ describe("cliente HTTP do Calendário Google", () => {
       end: { date: "2025-09-08" },
     });
     expect(urls[0]).toContain("/calendars/primary/events");
+  });
+
+  it("relê o evento com o id na URL", async () => {
+    const urls: string[] = [];
+    const cliente = criarClienteCalendarioGoogle({
+      obterAccessToken: async () => "token",
+      fetch: async (input) => {
+        urls.push(String(input));
+        return new Response(JSON.stringify({ id: "evt-1", summary: "X" }), {
+          status: 200,
+        });
+      },
+    });
+    await cliente.obterEvento("trabalho/equipe", "evt/1");
+    expect(urls[0]).toContain("/calendars/trabalho%2Fequipe/events/evt%2F1");
   });
 
   it("transforma HTTP de erro em FalhaDoCalendario", async () => {

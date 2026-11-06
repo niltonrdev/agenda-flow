@@ -1,3 +1,4 @@
+import { comCachePrivado } from "@/lib/cabecalhos-privados";
 import {
   cookiesOAuth,
   credencialGoogleConfigurada,
@@ -16,19 +17,33 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const configurada = credencialGoogleConfigurada();
   if (!configurada) {
-    return NextResponse.json({
-      credencialConfigurada: false,
-      conectado: false,
-      email: null,
-      motivo: "configuracao",
-    });
+    return comCachePrivado(
+      NextResponse.json({
+        credencialConfigurada: false,
+        conectado: false,
+        email: null,
+        motivo: "configuracao",
+      }),
+    );
   }
 
   const jar = await cookies();
-  const tokens = desserializarSessao(
-    jar.get(cookiesOAuth.sessao)?.value,
-    segredoDaSessao(),
-  );
+  let tokens = null;
+  try {
+    tokens = desserializarSessao(
+      jar.get(cookiesOAuth.sessao)?.value,
+      segredoDaSessao(),
+    );
+  } catch {
+    return comCachePrivado(
+      NextResponse.json({
+        credencialConfigurada: true,
+        conectado: false,
+        email: null,
+        motivo: "configuracao",
+      }),
+    );
+  }
 
   let renovados = tokens;
   const status = await avaliarSessaoGoogle({
@@ -52,15 +67,20 @@ export async function GET() {
       opcoesCookieApagado(cookiesOAuth.opcoesSessao),
     );
   } else if (status.conectado && status.tokens) {
-    const vigentes = status.tokens.email
-      ? status.tokens
-      : { ...status.tokens, email: renovados?.email ?? null };
-    resposta.cookies.set(
-      cookiesOAuth.sessao,
-      serializarSessao(vigentes, segredoDaSessao()),
-      opcoesCookieSessaoAgora(),
-    );
+    const vigentes = {
+      ...status.tokens,
+      email: status.tokens.email ?? renovados?.email ?? null,
+    };
+    try {
+      resposta.cookies.set(
+        cookiesOAuth.sessao,
+        serializarSessao(vigentes, segredoDaSessao()),
+        opcoesCookieSessaoAgora(),
+      );
+    } catch {
+      // Sem secret válido não regrava o cookie.
+    }
   }
 
-  return resposta;
+  return comCachePrivado(resposta);
 }

@@ -13,7 +13,9 @@ import {
 } from "@/domain/confirmacao";
 import { mensagemAPartirDoCampo } from "@/domain/transcritor";
 import { obterTranscritor } from "@/lib/transcritor-app";
+import { AvisoRascunho, RodapeLegal } from "@/app/legal";
 import { MarcaCartao, MarcaCompacta } from "@/app/marca";
+import Link from "next/link";
 import {
   Fragment,
   useEffect,
@@ -141,9 +143,13 @@ export default function ConversaPage() {
     if (desconectando) return;
     setDesconectando(true);
     try {
-      await fetch("/api/auth/google/logout", { method: "POST" });
+      await fetch("/api/auth/google/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
     } catch {
-      /* recarrega mesmo assim */
+      /* o recarregamento limpa o estado local */
     }
     window.location.assign("/");
   }
@@ -241,14 +247,27 @@ export default function ConversaPage() {
 
   if (!naConversa) {
     return (
-      <div className="entrada-shell">
+      <div className="entrada-shell entrada-shell-home">
+        <AvisoRascunho />
         <MarcaCartao />
         <header className="entrada-hero">
-          <h1 className="entrada-titulo">Conecte para usar o seu calendário</h1>
+          <h1 className="entrada-titulo">Agenda Inteligente</h1>
           <p className="entrada-texto">
-            Continue com o Google para consultar e marcar compromissos no seu
-            Google Calendar. A conexão fica salva neste aparelho (até ~6 meses),
-            fora de aba anônima. O histórico da conversa ainda não é guardado.
+            Conversa pessoal para consultar a disponibilidade no seu Google
+            Calendar e, depois de uma Confirmação, marcar, alterar ou cancelar
+            um compromisso. Não há outras contas no produto: só o calendário
+            do Dono.
+          </p>
+          <p className="entrada-texto">
+            A Consulta lê as agendas visíveis. A Marcação grava só na agenda
+            principal. O histórico da conversa não é guardado. A sessão Google
+            fica num cookie cifrado neste aparelho por até 7 dias (ou 24 horas
+            sem uso), fora de aba anônima.
+          </p>
+          <p className="entrada-texto entrada-texto-voz">
+            O ditado usa o reconhecimento de voz do navegador. Em alguns
+            aparelhos o áudio pode ser processado fora do dispositivo. A
+            Agenda não envia o áudio a um modelo de linguagem próprio.
           </p>
         </header>
 
@@ -266,7 +285,8 @@ export default function ConversaPage() {
           ) : (
             <p className="entrada-sem-oauth">
               OAuth do Google ainda não está configurado neste servidor. Você
-              pode entrar em demonstração com um calendário de exemplo.
+              pode entrar em demonstração com um calendário de exemplo
+              somente leitura.
             </p>
           )}
           <button
@@ -274,9 +294,10 @@ export default function ConversaPage() {
             className="entrada-botao-demo"
             onClick={entrarEmDemonstracao}
           >
-            Continuar em demonstração
+            Continuar em demonstração (só consulta)
           </button>
         </div>
+        <RodapeLegal />
       </div>
     );
   }
@@ -291,21 +312,27 @@ export default function ConversaPage() {
             <p className="conversa-google conversa-google-ok">
               {google.email
                 ? `Conectado como ${google.email}`
-                : "Conta Google conectada. Reconecte para ver o e-mail desta conta."}
+                : "Conta Google conectada. Reconecte para ver o e-mail desta conta."}{" "}
+              A Consulta lê as agendas visíveis; a Marcação grava na principal.{" "}
+              <button
+                type="button"
+                className="conversa-sair"
+                onClick={() => void desconectarGoogle()}
+                disabled={desconectando}
+              >
+                {desconectando ? "Saindo…" : "Desconectar"}
+              </button>
+              {" · "}
+              <Link className="conversa-google-link" href="/privacidade">
+                Privacidade
+              </Link>
             </p>
-            <button
-              type="button"
-              className="conversa-sair"
-              onClick={() => void desconectarGoogle()}
-              disabled={desconectando}
-            >
-              {desconectando ? "Saindo…" : "Desconectar"}
-            </button>
           </div>
         ) : null}
         {!google.conectado ? (
           <p className="conversa-google conversa-demo">
-            Modo demonstração: calendário de exemplo neste aparelho.
+            Demonstração somente leitura: calendário de exemplo no servidor,
+            sem gravar. Não é um calendário deste aparelho.
             {google.credencialConfigurada ? (
               <>
                 {" "}
@@ -314,6 +341,10 @@ export default function ConversaPage() {
                 </a>
               </>
             ) : null}
+            {" · "}
+            <Link className="conversa-google-link" href="/privacidade">
+              Privacidade
+            </Link>
           </p>
         ) : null}
       </header>
@@ -451,6 +482,10 @@ export default function ConversaPage() {
         <label className="sr-only" htmlFor="mensagem">
           Mensagem
         </label>
+        <p className="conversa-aviso-voz">
+          O ditado usa o reconhecimento de voz do navegador; o áudio pode ser
+          processado fora deste aparelho.
+        </p>
         {dicaVoz ? (
           <p className="conversa-dica-ditado" role="status">
             {dicaVoz}

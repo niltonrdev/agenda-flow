@@ -1,8 +1,10 @@
+import { comCachePrivado } from "@/lib/cabecalhos-privados";
 import {
   cookiesOAuth,
   credencialGoogleConfigurada,
   decidirRedirectOAuth,
   obterIdentidadeGoogle,
+  opcoesCookieApagado,
   opcoesCookieSessaoAgora,
   segredoDaSessao,
   serializarSessao,
@@ -11,21 +13,29 @@ import {
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const origem = url.origin;
   const erroAuth = url.searchParams.get("error");
   if (erroAuth) {
-    return NextResponse.redirect(new URL("/?google=negado", origem));
+    return comCachePrivado(
+      NextResponse.redirect(new URL("/?google=negado", origem)),
+    );
   }
 
   if (!credencialGoogleConfigurada()) {
-    return NextResponse.redirect(new URL("/?google=falha", origem));
+    return comCachePrivado(
+      NextResponse.redirect(new URL("/?google=falha", origem)),
+    );
   }
 
   const decisao = decidirRedirectOAuth(origem);
   if (!decisao.ok) {
-    return NextResponse.redirect(new URL("/?google=host", origem));
+    return comCachePrivado(
+      NextResponse.redirect(new URL("/?google=host", origem)),
+    );
   }
 
   const code = url.searchParams.get("code");
@@ -34,7 +44,9 @@ export async function GET(request: Request) {
   const stateEsperado = jar.get(cookiesOAuth.state)?.value;
 
   if (!code || !state || !stateEsperado || state !== stateEsperado) {
-    return NextResponse.redirect(new URL("/?google=falha", origem));
+    return comCachePrivado(
+      NextResponse.redirect(new URL("/?google=falha", origem)),
+    );
   }
 
   try {
@@ -45,7 +57,9 @@ export async function GET(request: Request) {
       redirectUri: decisao.uri,
     });
     if (!tokens.refreshToken) {
-      return NextResponse.redirect(new URL("/api/auth/google?consent=1", origem));
+      return comCachePrivado(
+        NextResponse.redirect(new URL("/api/auth/google?consent=1", origem)),
+      );
     }
 
     let email: string | null = null;
@@ -61,13 +75,15 @@ export async function GET(request: Request) {
       serializarSessao({ ...tokens, email }, segredoDaSessao()),
       opcoesCookieSessaoAgora(),
     );
-    resposta.cookies.set(cookiesOAuth.state, "", {
-      ...cookiesOAuth.opcoesState,
-      maxAge: 0,
-      expires: new Date(0),
-    });
-    return resposta;
+    resposta.cookies.set(
+      cookiesOAuth.state,
+      "",
+      opcoesCookieApagado(cookiesOAuth.opcoesState),
+    );
+    return comCachePrivado(resposta);
   } catch {
-    return NextResponse.redirect(new URL("/?google=falha", origem));
+    return comCachePrivado(
+      NextResponse.redirect(new URL("/?google=falha", origem)),
+    );
   }
 }

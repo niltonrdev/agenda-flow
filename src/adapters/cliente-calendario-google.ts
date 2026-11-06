@@ -6,6 +6,7 @@ import type {
 } from "@/adapters/calendario-google";
 import type { IntervaloCalendario } from "@/domain/calendario";
 import { falhaDeHttpGoogle, falhaDoCalendario } from "@/domain/falha-calendario";
+import { LIMITE_EVENTOS_POR_AGENDA, TIMEOUT_GOOGLE_MS } from "@/lib/limites";
 
 const API = "https://www.googleapis.com/calendar/v3";
 
@@ -26,9 +27,12 @@ async function chamar<T>(
   init?: RequestInit,
 ): Promise<T> {
   let resposta: Response;
+  const controlador = new AbortController();
+  const timer = setTimeout(() => controlador.abort(), TIMEOUT_GOOGLE_MS);
   try {
     resposta = await fetchFn(url, {
       ...init,
+      signal: init?.signal ?? controlador.signal,
       headers: {
         Authorization: `Bearer ${accessToken}`,
         ...(init?.body ? { "Content-Type": "application/json" } : {}),
@@ -37,6 +41,8 @@ async function chamar<T>(
     });
   } catch {
     throw falhaDoCalendario("temporaria");
+  } finally {
+    clearTimeout(timer);
   }
 
   if (!resposta.ok) {
@@ -74,7 +80,7 @@ export function criarClienteCalendarioGoogle(opcoes: {
         timeMax: intervalo.fim,
         singleEvents: "true",
         orderBy: "startTime",
-        maxResults: "2500",
+        maxResults: String(LIMITE_EVENTOS_POR_AGENDA),
       });
       const corpo = await chamar<{ items?: EventoGoogle[] }>(
         fetchFn,
@@ -82,6 +88,15 @@ export function criarClienteCalendarioGoogle(opcoes: {
         `${API}/calendars/${encodeURIComponent(calendarId)}/events?${params}`,
       );
       return corpo.items ?? [];
+    },
+
+    async obterEvento(calendarId, eventId) {
+      const token = await opcoes.obterAccessToken();
+      return chamar<EventoGoogle>(
+        fetchFn,
+        token,
+        `${API}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+      );
     },
 
     async criarEvento(calendarId, evento: EventoParaGravar) {

@@ -102,7 +102,8 @@ export type EntradaConversa = {
   /** Relógio congelado nos testes; nunca ler Date.now() no núcleo. */
   agora: DateTime;
   /**
-   * Proposta do turno anterior. O chamador devolve; o servidor não a guarda.
+   * Proposta do turno anterior. O núcleo não a guarda: a rota cifra uma
+   * cópia no cookie e ignora o valor enviado pelo cliente.
    */
   confirmacaoPendente?: ConfirmacaoPendente | null;
   /** Último dia de Consulta; serve para "marcar … então". */

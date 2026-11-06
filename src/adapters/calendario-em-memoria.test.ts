@@ -1,4 +1,9 @@
-import { criarCalendarioEmMemoria } from "@/adapters/calendario-em-memoria";
+import {
+  criarCalendarioDeDemonstracaoSomenteLeitura,
+  criarCalendarioEmMemoria,
+  RESPOSTA_DEMONSTRACAO_SOMENTE_LEITURA,
+} from "@/adapters/calendario-em-memoria";
+import { FalhaDoCalendario } from "@/domain/falha-calendario";
 import { FUSO_DONO } from "@/domain/fuso";
 import { DateTime } from "luxon";
 import { describe, expect, it } from "vitest";
@@ -37,5 +42,31 @@ describe("porta Calendário — adaptador em memória", () => {
       fim: inicio.endOf("day").toISO()!,
     });
     expect(depois).toHaveLength(0);
+  });
+
+  it("o calendário de demonstração só consulta o seed", async () => {
+    const agora = DateTime.fromObject(
+      { year: 2025, month: 8, day: 1, hour: 10 },
+      { zone: FUSO_DONO },
+    );
+    const calendario = criarCalendarioDeDemonstracaoSomenteLeitura(agora);
+    const listados = await calendario.listar({
+      inicio: "2025-09-07T00:00:00.000-03:00",
+      fim: "2025-09-07T23:59:59.999-03:00",
+    });
+    expect(listados.some((c) => c.titulo === "Cirurgia")).toBe(true);
+    await expect(
+      calendario.criar({
+        tipo: "periodo",
+        titulo: "Segredo",
+        primeiroDia: "2025-09-08",
+        ultimoDia: "2025-09-08",
+      }),
+    ).rejects.toMatchObject({
+      message: RESPOSTA_DEMONSTRACAO_SOMENTE_LEITURA,
+    });
+    await expect(calendario.cancelar("demo-cirurgia")).rejects.toBeInstanceOf(
+      FalhaDoCalendario,
+    );
   });
 });
