@@ -29,6 +29,13 @@ describe("pede sim ou não", () => {
     ).toBe(false);
     expect(
       pedeSimOuNao({
+        acao: "completar_duracao_periodo",
+        titulo: "Viagem BH",
+        dia: "2026-11-07",
+      }),
+    ).toBe(false);
+    expect(
+      pedeSimOuNao({
         acao: "escolher_cancelamento",
         candidatos: [{ id: "1", rotulo: "Dentista" }],
       }),

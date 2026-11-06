@@ -1915,3 +1915,127 @@ describe("entrada de conversa — Calendário indisponível", () => {
   });
 });
 
+describe("entrada de conversa — data certa e viagem informal", () => {
+  const AGORA_NOV = DateTime.fromObject(
+    { year: 2026, month: 11, day: 6, hour: 10, minute: 0 },
+    { zone: FUSO_DONO },
+  );
+
+  it("reunião com Luiza em 10/11 às 19h grava em 2026 e aponta o dia do Calendário", async () => {
+    const calendario = criarCalendarioEmMemoria([]);
+    const proposta = await processarTurno(
+      {
+        mensagem: "Marcar reunião com Luiza dia 10/11 às 19h",
+        agora: AGORA_NOV,
+      },
+      calendario,
+    );
+
+    expect(proposta.confirmacaoPendente).toMatchObject({
+      acao: "marcar_pontual",
+      titulo: "Reunião com Luiza",
+    });
+    expect(proposta.confirmacaoPendente).toMatchObject({
+      inicio: expect.stringContaining("2026-11-10T19:00"),
+    });
+
+    const gravado = await processarTurno(
+      {
+        mensagem: "sim",
+        agora: AGORA_NOV,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(gravado.texto).toMatch(/Compromisso gravado/i);
+    expect(gravado.diaParaCalendario).toBe("2026-11-10");
+    expect(calendario.listarTodos()[0]).toMatchObject({
+      tipo: "pontual",
+      titulo: "Reunião com Luiza",
+    });
+    expect(calendario.listarTodos()[0]).toMatchObject({
+      inicio: expect.stringContaining("2026-11-10T19:00"),
+    });
+  });
+
+  it("Marcar BH viagem dia 7/11 pergunta a duração e 1 dia grava Período na data certa", async () => {
+    const calendario = criarCalendarioEmMemoria([]);
+    const pedindo = await processarTurno(
+      { mensagem: "Marcar BH viagem dia 7/11", agora: AGORA_NOV },
+      calendario,
+    );
+
+    expect(pedindo.texto).toMatch(/1 dia ou de mais dias/i);
+    expect(pedindo.confirmacaoPendente).toMatchObject({
+      acao: "completar_duracao_periodo",
+      titulo: "Viagem BH",
+      dia: "2026-11-07",
+    });
+
+    const proposta = await processarTurno(
+      {
+        mensagem: "1 dia",
+        agora: AGORA_NOV,
+        confirmacaoPendente: pedindo.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(proposta.confirmacaoPendente).toMatchObject({
+      acao: "marcar_periodo",
+      titulo: "Viagem BH",
+      primeiroDia: "2026-11-07",
+      ultimoDia: "2026-11-07",
+    });
+
+    const gravado = await processarTurno(
+      {
+        mensagem: "sim",
+        agora: AGORA_NOV,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(gravado.diaParaCalendario).toBe("2026-11-07");
+    expect(calendario.listarTodos()[0]).toMatchObject({
+      tipo: "periodo",
+      primeiroDia: "2026-11-07",
+      ultimoDia: "2026-11-07",
+    });
+  });
+
+  it("mais dias aceita o intervalo na fala e no formato do seletor", async () => {
+    const calendario = criarCalendarioEmMemoria([]);
+    const pedindo = await processarTurno(
+      { mensagem: "Marcar viagem para BH dia 7/11", agora: AGORA_NOV },
+      calendario,
+    );
+    const dias = await processarTurno(
+      {
+        mensagem: "mais dias",
+        agora: AGORA_NOV,
+        confirmacaoPendente: pedindo.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(dias.texto).toMatch(/calendário/i);
+    expect(dias.confirmacaoPendente).toMatchObject({
+      acao: "completar_dias_periodo",
+    });
+
+    const proposta = await processarTurno(
+      {
+        mensagem: "7/11/2026 a 10/11/2026",
+        agora: AGORA_NOV,
+        confirmacaoPendente: dias.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(proposta.confirmacaoPendente).toMatchObject({
+      acao: "marcar_periodo",
+      primeiroDia: "2026-11-07",
+      ultimoDia: "2026-11-10",
+    });
+  });
+});
+

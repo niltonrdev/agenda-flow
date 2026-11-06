@@ -46,6 +46,20 @@ export type IntencaoMarcarPeriodo = {
   ultimoDia: string;
 };
 
+/** Viagem (ou similar) sem intervalo: a Conversa pergunta se é 1 dia ou mais. */
+export type IntencaoMarcarPeriodoSemDuracao = {
+  tipo: "marcar_periodo_sem_duracao";
+  titulo: string;
+  dia?: string;
+};
+
+export type RespostaDuracaoPeriodo =
+  | { tipo: "um_dia" }
+  | { tipo: "mais_dias" }
+  | { tipo: "quantidade_dias"; dias: number }
+  | { tipo: "intervalo"; primeiroDia: string; ultimoDia: string }
+  | { tipo: "dia"; dia: string };
+
 export type IntencaoConfirmar = {
   tipo: "confirmar";
 };
@@ -100,6 +114,7 @@ export type Intencao =
   | IntencaoMarcarPontualSemHora
   | IntencaoMarcarIncompleta
   | IntencaoMarcarPeriodo
+  | IntencaoMarcarPeriodoSemDuracao
   | IntencaoConfirmar
   | IntencaoRecusar
   | IntencaoAlterar
@@ -153,18 +168,40 @@ const RE_CANCELAR =
 
 const PALAVRA = String.raw`(?<![\p{L}\p{N}])`;
 const FIM_PALAVRA = String.raw`(?![\p{L}\p{N}])`;
-/** 5h, 5h30, 5:30, 5:30h, 5 horas */
-const HORA = String.raw`(\d{1,2})(?:h(\d{2})?|:(\d{2})h?|\s*horas?)`;
+/** 5h, 5hs, 5h30, 5:30, 5:30h, 5 hrs, 5 horas */
+const HORA = String.raw`(\d{1,2})(?:h(?:s)?(\d{2})?|:(\d{2})h?s?|\s*hrs?|\s*horas?)`;
 
 const RE_TEM_HORA = new RegExp(
   [
-    `${PALAVRA}\\d{1,2}\\s*h(?:\\d{2})?${FIM_PALAVRA}`,
-    `${PALAVRA}\\d{1,2}:\\d{2}h?${FIM_PALAVRA}`,
+    `${PALAVRA}\\d{1,2}\\s*hs?(?:\\d{2})?${FIM_PALAVRA}`,
+    `${PALAVRA}\\d{1,2}\\s+hrs?${FIM_PALAVRA}`,
+    `${PALAVRA}\\d{1,2}:\\d{2}h?s?${FIM_PALAVRA}`,
     `${PALAVRA}\\d{1,2}\\s+horas?${FIM_PALAVRA}`,
+    `${PALAVRA}[aà]s\\s+\\d{1,2}${FIM_PALAVRA}`,
     `${PALAVRA}\\d{1,2}(?:h\\d{0,2}|:\\d{2}h?)?\\s+da\\s+(?:manh[aã]|tarde|noite)${FIM_PALAVRA}`,
   ].join("|"),
   "u",
 );
+
+const RE_HORA_SO_AS = new RegExp(
+  `${PALAVRA}[aà]s\\s+(\\d{1,2})${FIM_PALAVRA}`,
+  "u",
+);
+
+const RE_MARCAR =
+  /\b(?:marcar|marca|marque|agendar|agende)\b/u;
+
+const RE_VIAGEM =
+  /\bviage(?:m|ns)\b|\bviaj(?:ar|o|a|amos|ei|aremos)\b/u;
+
+const RE_UM_DIA =
+  /^(?:(?:s[oó]|apenas|somente)\s+)?(?:1|um)\s+dias?\s*[.!]?\s*$/u;
+
+const RE_MAIS_DIAS =
+  /^(?:mais(?:\s+de\s+um)?\s+dias?|v[aá]rios(?:\s+dias)?|alguns\s+dias)\s*[.!]?\s*$/u;
+
+const RE_QUANTIDADE_DIAS =
+  /\b(?:por\s+)?(\d{1,2})\s+dias?\b/u;
 
 const RE_INTERVALO_HORAS = new RegExp(
   `${PALAVRA}das?\\s+${HORA}\\s+[aà]s\\s+${HORA}${FIM_PALAVRA}`,
@@ -441,8 +478,12 @@ function extrairHoraInicio(
     return aplicarPeriodoDoDia(base, periodo[4]);
   }
   const hora = RE_HORA_INICIO.exec(texto);
-  if (!hora) return null;
-  return horaMinuto(hora[1], hora[2], hora[3]);
+  if (hora) {
+    return horaMinuto(hora[1], hora[2], hora[3]);
+  }
+  const soAs = RE_HORA_SO_AS.exec(texto);
+  if (!soAs) return null;
+  return horaMinuto(soAs[1], undefined, undefined);
 }
 
 /** Dia dito na Mensagem; null se não houver data explícita. */
@@ -499,9 +540,102 @@ function duracaoEmMinutos(texto: string): number | null {
   return quantidade;
 }
 
+export function mensagemFalaDeViagem(texto: string): boolean {
+  return RE_VIAGEM.test(texto);
+}
+
+export function ehPedidoDeMarcacao(texto: string): boolean {
+  return RE_MARCAR.test(texto);
+}
+
+function capitalizarTitulo(titulo: string): string {
+  const limpo = titulo.replace(/\s+/g, " ").trim();
+  if (!limpo) return "Compromisso";
+  return limpo.charAt(0).toLocaleUpperCase("pt-BR") + limpo.slice(1);
+}
+
+function tituloDaViagem(mensagemOriginal: string): string {
+  const titulo = tituloDaMensagem(mensagemOriginal);
+  const invertido = /^(.+?)\s+viagem$/iu.exec(titulo);
+  if (invertido) {
+    const dest = invertido[1].replace(/^(?:para|pra|em)\s+/iu, "").trim();
+    return dest ? `Viagem ${capitalizarTitulo(dest)}` : "Viagem";
+  }
+  return titulo;
+}
+
+function periodoPorQuantidade(
+  primeiroDia: string,
+  dias: number,
+): { primeiroDia: string; ultimoDia: string } | null {
+  if (dias < 1) return null;
+  const inicio = DateTime.fromISO(primeiroDia, { zone: FUSO_DONO });
+  if (!inicio.isValid) return null;
+  return {
+    primeiroDia,
+    ultimoDia: inicio.plus({ days: dias - 1 }).toISODate()!,
+  };
+}
+
+/** Resposta enquanto a Conversa pergunta a duração da viagem. */
+export function interpretarRespostaDuracao(
+  mensagem: string,
+  agora: DateTime,
+  diaSugerido?: string,
+): RespostaDuracaoPeriodo | null {
+  const texto = mensagem.trim().toLowerCase().normalize("NFC");
+  if (!texto) return null;
+
+  const recorte = extrairIntervalo(texto, agora);
+  if (recorte?.tipo === "consulta_intervalo") {
+    return {
+      tipo: "intervalo",
+      primeiroDia: recorte.primeiroDia,
+      ultimoDia: recorte.ultimoDia,
+    };
+  }
+
+  if (RE_UM_DIA.test(texto)) return { tipo: "um_dia" };
+  if (RE_MAIS_DIAS.test(texto)) return { tipo: "mais_dias" };
+
+  const quantidade = RE_QUANTIDADE_DIAS.exec(texto);
+  if (quantidade) {
+    const dias = Number(quantidade[1]);
+    if (dias >= 1) return { tipo: "quantidade_dias", dias };
+  }
+
+  const dia = diaExplicitoNaMensagem(texto, agora);
+  if (dia) return { tipo: "dia", dia };
+
+  if (diaSugerido && RE_UM_DIA.test(texto)) return { tipo: "um_dia" };
+  return null;
+}
+
+export function periodoAPartirDaDuracao(
+  resposta: RespostaDuracaoPeriodo,
+  diaSugerido?: string,
+): { primeiroDia: string; ultimoDia: string } | null {
+  if (resposta.tipo === "intervalo") {
+    return { primeiroDia: resposta.primeiroDia, ultimoDia: resposta.ultimoDia };
+  }
+  if (resposta.tipo === "dia") {
+    return { primeiroDia: resposta.dia, ultimoDia: resposta.dia };
+  }
+  if (resposta.tipo === "um_dia" && diaSugerido) {
+    return { primeiroDia: diaSugerido, ultimoDia: diaSugerido };
+  }
+  if (resposta.tipo === "quantidade_dias" && diaSugerido) {
+    return periodoPorQuantidade(diaSugerido, resposta.dias);
+  }
+  return null;
+}
+
 function tituloDaMensagem(mensagemOriginal: string): string {
   let titulo = mensagemOriginal.normalize("NFC").trim();
-  titulo = titulo.replace(/^\s*(?:marcar|marca|marque)\s+/iu, "");
+  titulo = titulo.replace(
+    new RegExp(`${PALAVRA}(?:marcar|marca|marque|agendar|agende)${FIM_PALAVRA}`, "giu"),
+    " ",
+  );
   titulo = titulo.replace(/^\s*(?:uma|um|a|o)\s+/iu, "");
   titulo = titulo.replace(
     new RegExp(`${PALAVRA}ent[aã]o${FIM_PALAVRA}`, "giu"),
@@ -516,6 +650,9 @@ function tituloDaMensagem(mensagemOriginal: string): string {
     " ",
   );
   titulo = titulo.replace(new RegExp(`${PALAVRA}hoje${FIM_PALAVRA}`, "giu"), " ");
+  titulo = titulo.replace(new RegExp(RE_INTERVALO_NUM.source, "giu"), " ");
+  titulo = titulo.replace(new RegExp(RE_INTERVALO.source, "giu"), " ");
+  titulo = titulo.replace(/\bpara\s+os\s+dias?\b/giu, " ");
   titulo = titulo.replace(
     new RegExp(
       `${PALAVRA}(?:no\\s+)?(?:dia\\s+)?\\d{1,2}\\s+de\\s+(?:${GRUPO_MES})(?:\\s+de\\s+\\d{4})?${FIM_PALAVRA}`,
@@ -546,14 +683,14 @@ function tituloDaMensagem(mensagemOriginal: string): string {
   );
   titulo = titulo.replace(
     new RegExp(
-      `${PALAVRA}[aà]s\\s+\\d{1,2}(?:h\\d{0,2}|:\\d{2}h?|\\s*horas?)${FIM_PALAVRA}`,
+      `${PALAVRA}[aà]s\\s+\\d{1,2}(?:h\\d{0,2}|:\\d{2}h?s?|\\s*hrs?|\\s*horas?)?${FIM_PALAVRA}`,
       "giu",
     ),
     " ",
   );
   titulo = titulo.replace(
     new RegExp(
-      `${PALAVRA}\\d{1,2}(?:h\\d{0,2}|:\\d{2}h?|\\s+horas?)${FIM_PALAVRA}`,
+      `${PALAVRA}\\d{1,2}(?:hs?(?:\\d{2})?|:\\d{2}h?s?|\\s+hrs?|\\s+horas?)${FIM_PALAVRA}`,
       "giu",
     ),
     " ",
@@ -563,12 +700,6 @@ function tituloDaMensagem(mensagemOriginal: string): string {
       `${PALAVRA}por\\s+(?:meia hora|uma hora|\\d+\\s*(?:minutos?|min|horas?))${FIM_PALAVRA}`,
       "giu",
     ),
-    " ",
-  );
-  titulo = titulo.replace(new RegExp(RE_INTERVALO_NUM.source, "giu"), " ");
-  titulo = titulo.replace(new RegExp(RE_INTERVALO.source, "giu"), " ");
-  titulo = titulo.replace(
-    /\bpara\s+os\s+dias?\b/giu,
     " ",
   );
   titulo = titulo.replace(/[?.!,]+/g, " ").replace(/\s+/g, " ").trim();
@@ -935,23 +1066,12 @@ export function interpretarMensagem(
     return montarPontual(mensagem.trim(), texto, agora);
   }
 
-  const pedidoDeMarcacao = /^(?:marcar|marca|marque)\b/u.test(texto);
+  const pedidoDeMarcacao = ehPedidoDeMarcacao(texto);
   const recorteIntervalo = extrairIntervalo(texto, agora);
   if (pedidoDeMarcacao && recorteIntervalo?.tipo === "consulta_intervalo") {
-    const tituloBruto = mensagem
-      .trim()
-      .replace(/^(?:marcar|marca|marque)\s+/iu, "")
-      .replace(new RegExp(RE_INTERVALO_NUM.source, "iu"), " ")
-      .replace(new RegExp(RE_INTERVALO.source, "iu"), " ")
-      .replace(/\bpara\s+os\s+dias?\b/giu, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    const titulo = tituloBruto
-      ? tituloBruto.charAt(0).toLocaleUpperCase("pt-BR") + tituloBruto.slice(1)
-      : "Compromisso";
     return {
       tipo: "marcar_periodo",
-      titulo,
+      titulo: tituloDaViagem(mensagem.trim()),
       primeiroDia: recorteIntervalo.primeiroDia,
       ultimoDia: recorteIntervalo.ultimoDia,
     };
@@ -980,6 +1100,15 @@ export function interpretarMensagem(
   if (RE_FIM_DE_SEMANA.test(texto) && !RE_DATA.test(texto)) {
     const recorte = recorteFimDeSemana(agora);
     return { tipo: "consulta_intervalo", ...recorte };
+  }
+
+  if (pedidoDeMarcacao && mensagemFalaDeViagem(texto)) {
+    const dia = diaExplicitoNaMensagem(texto, agora) ?? undefined;
+    return {
+      tipo: "marcar_periodo_sem_duracao",
+      titulo: tituloDaViagem(mensagem.trim()),
+      ...(dia ? { dia } : {}),
+    };
   }
 
   if (pedidoDeMarcacao) {

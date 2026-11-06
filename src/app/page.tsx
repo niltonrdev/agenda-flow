@@ -1,24 +1,17 @@
 "use client";
 
 import {
-  DICA_DITADO_TECLADO,
-  DICA_OUVINDO,
   PLACEHOLDER_MENSAGEM,
-  ROTULO_MICROFONE,
-  ROTULO_PARAR_MICROFONE,
   ROTULO_VER_NO_CALENDARIO,
 } from "@/app/conversa-campo";
+import { MicrofoneWhatsApp } from "@/app/microfone-whatsapp";
+import { SeletorDiasPeriodo } from "@/app/seletor-dias";
 import { ehAparelhoIos, urlAbrirCalendario } from "@/lib/link-calendario";
 import {
   pedeSimOuNao,
   type ConfirmacaoPendente,
 } from "@/domain/confirmacao";
 import { mensagemAPartirDoCampo } from "@/domain/transcritor";
-import {
-  criarSessaoReconhecimento,
-  suportaReconhecimentoVoz,
-  type SessaoReconhecimento,
-} from "@/lib/reconhecimento-voz";
 import { obterTranscritor } from "@/lib/transcritor-app";
 import { MarcaCartao, MarcaCompacta } from "@/app/marca";
 import {
@@ -64,21 +57,12 @@ export default function ConversaPage() {
   const [demoLocal, setDemoLocal] = useState(false);
   const [avisoAuth, setAvisoAuth] = useState<string | null>(null);
   const [dicaVoz, setDicaVoz] = useState<string | null>(null);
-  const [ouvindo, setOuvindo] = useState(false);
   const fimRef = useRef<HTMLDivElement>(null);
   const campoRef = useRef<HTMLTextAreaElement>(null);
-  const sessaoVozRef = useRef<SessaoReconhecimento | null>(null);
-  const baseAntesDoParcialRef = useRef("");
 
   useEffect(() => {
     fimRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [mensagens, carregando, erro, confirmacaoPendente]);
-
-  useEffect(() => {
-    return () => {
-      sessaoVozRef.current?.parar();
-    };
-  }, []);
 
   useEffect(() => {
     try {
@@ -134,12 +118,9 @@ export default function ConversaPage() {
       (await mensagemAPartirDoCampo(obterTranscritor(), rascunho));
     if (!texto || carregando) return;
 
-    sessaoVozRef.current?.parar();
-    setOuvindo(false);
     setDicaVoz(null);
     setErro(null);
     setRascunho("");
-    baseAntesDoParcialRef.current = "";
     const idDono = `dono-${Date.now()}`;
     setMensagens((atual) => [
       ...atual,
@@ -197,61 +178,6 @@ export default function ConversaPage() {
       evento.preventDefault();
       void enviar();
     }
-  }
-
-  function juntarFala(base: string, falado: string): string {
-    const a = base.trim();
-    const b = falado.trim();
-    if (!a) return b;
-    if (!b) return a;
-    return `${a} ${b}`;
-  }
-
-  function garantirSessaoVoz(): SessaoReconhecimento | null {
-    if (sessaoVozRef.current) return sessaoVozRef.current;
-    if (!suportaReconhecimentoVoz()) return null;
-
-    sessaoVozRef.current = criarSessaoReconhecimento({
-      lang: "pt-BR",
-      aoMudarEstado: (ativo) => {
-        setOuvindo(ativo);
-        setDicaVoz(ativo ? DICA_OUVINDO : null);
-      },
-      aoParcial: (parcial) => {
-        setRascunho(juntarFala(baseAntesDoParcialRef.current, parcial));
-      },
-      aoFinal: (final) => {
-        const junto = juntarFala(baseAntesDoParcialRef.current, final);
-        baseAntesDoParcialRef.current = junto;
-        setRascunho(junto);
-      },
-      aoErro: (mensagem) => {
-        setErro(mensagem);
-        setDicaVoz(null);
-      },
-    });
-    return sessaoVozRef.current;
-  }
-
-  function alternarMicrofone() {
-    setErro(null);
-    if (ouvindo) {
-      sessaoVozRef.current?.parar();
-      setOuvindo(false);
-      setDicaVoz(null);
-      return;
-    }
-
-    const sessao = garantirSessaoVoz();
-    if (!sessao) {
-      setDicaVoz(DICA_DITADO_TECLADO);
-      campoRef.current?.focus();
-      return;
-    }
-
-    baseAntesDoParcialRef.current = rascunho.trim();
-    setDicaVoz(DICA_OUVINDO);
-    sessao.iniciar();
   }
 
   if (google == null) {
@@ -400,6 +326,38 @@ export default function ConversaPage() {
                 </button>
               </div>
             ) : null}
+            {ultimaAgenda &&
+            confirmacaoPendente?.acao === "completar_duracao_periodo" &&
+            !carregando ? (
+              <div
+                className="conversa-sim-nao"
+                role="group"
+                aria-label="Duração da viagem"
+              >
+                <button
+                  type="button"
+                  className="conversa-sim"
+                  onClick={() => void enviar("1 dia")}
+                >
+                  1 dia
+                </button>
+                <button
+                  type="button"
+                  className="conversa-nao"
+                  onClick={() => void enviar("mais dias")}
+                >
+                  Mais dias
+                </button>
+              </div>
+            ) : null}
+            {ultimaAgenda &&
+            confirmacaoPendente?.acao === "completar_dias_periodo" &&
+            !carregando ? (
+              <SeletorDiasPeriodo
+                diaSugerido={confirmacaoPendente.dia}
+                onConfirmar={(mensagem) => void enviar(mensagem)}
+              />
+            ) : null}
             </Fragment>
           );
         })}
@@ -447,9 +405,6 @@ export default function ConversaPage() {
             value={rascunho}
             onChange={(e) => {
               setRascunho(e.target.value);
-              if (!ouvindo) {
-                baseAntesDoParcialRef.current = e.target.value.trim();
-              }
             }}
             onKeyDown={aoTeclar}
             disabled={carregando}
@@ -458,32 +413,14 @@ export default function ConversaPage() {
             inputMode="text"
             lang="pt-BR"
           />
-          <button
-            type="button"
-            className={
-              ouvindo ? "conversa-ditado conversa-ditado-ativo" : "conversa-ditado"
-            }
-            title={ouvindo ? ROTULO_PARAR_MICROFONE : ROTULO_MICROFONE}
-            aria-label={ouvindo ? ROTULO_PARAR_MICROFONE : ROTULO_MICROFONE}
-            aria-pressed={ouvindo}
+          <MicrofoneWhatsApp
             disabled={carregando}
-            onClick={alternarMicrofone}
-          >
-            <svg
-              className="conversa-ditado-icone"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <rect x="9" y="3" width="6" height="11" rx="3" />
-              <path d="M6 11a6 6 0 0 0 12 0" />
-              <path d="M12 17v4" />
-            </svg>
-          </button>
+            textoBase={rascunho}
+            onTranscricao={setRascunho}
+            onEnviar={(texto) => void enviar(texto)}
+            onErro={setErro}
+            onDica={setDicaVoz}
+          />
         </div>
         <button
           type="submit"

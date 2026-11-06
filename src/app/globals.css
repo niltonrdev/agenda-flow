@@ -267,7 +267,85 @@ body {
 }
 
 .conversa-campo-com-ditado .conversa-campo {
-  padding-right: 2.6rem;
+  padding-right: 3.2rem;
+}
+
+.seletor-dias {
+  align-self: flex-start;
+  width: min(92%, 28rem);
+  padding: 0.85rem 0.9rem 1rem;
+  border-radius: 1.05rem;
+  background: #fff;
+  border: 1px solid color-mix(in oklab, var(--borda) 65%, white);
+  box-shadow: var(--sombra);
+}
+
+.seletor-dias-topo {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr 2.5rem;
+  align-items: center;
+  margin-bottom: 0.55rem;
+}
+
+.seletor-dias-mes {
+  margin: 0;
+  text-align: center;
+  font-weight: 600;
+}
+
+.seletor-dias-nav {
+  border: 0;
+  background: transparent;
+  color: var(--enviar);
+  font: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  min-height: 2.5rem;
+  cursor: pointer;
+}
+
+.seletor-dias-semana,
+.seletor-dias-grade {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.2rem;
+}
+
+.seletor-dias-semana {
+  margin-bottom: 0.25rem;
+  color: var(--texto-suave);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.seletor-dias-dia {
+  min-height: 2.55rem;
+  border: 0;
+  border-radius: 0.7rem;
+  background: transparent;
+  color: var(--texto);
+  font: inherit;
+  cursor: pointer;
+}
+
+.seletor-dias-fora {
+  color: var(--texto-suave);
+  opacity: 0.45;
+}
+
+.seletor-dias-escolhido {
+  background: color-mix(in oklab, var(--enviar) 16%, white);
+}
+
+.seletor-dias-ponta {
+  background: var(--enviar);
+  color: var(--enviar-texto);
+  font-weight: 600;
+}
+
+.seletor-dias-usar {
+  width: 100%;
+  margin-top: 0.7rem;
 }
 
 .conversa-dica-ditado {
@@ -281,21 +359,64 @@ body {
   line-height: 1.35;
 }
 
-.conversa-ditado {
+.microfone-whatsapp {
   position: absolute;
-  right: 0.35rem;
+  right: 0.2rem;
   top: 50%;
+  z-index: 3;
   transform: translateY(-50%);
+  touch-action: none;
+}
+
+.microfone-whatsapp-dicas {
+  position: absolute;
+  right: 0.15rem;
+  bottom: calc(100% + 0.45rem);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  pointer-events: none;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--texto-suave);
+}
+
+.microfone-whatsapp-trava .microfone-whatsapp-trava-icone,
+.microfone-whatsapp-cancela .microfone-whatsapp-cancela-icone {
+  color: var(--enviar);
+}
+
+.microfone-whatsapp-cancela .microfone-whatsapp-cancela-icone {
+  color: var(--erro);
+}
+
+.microfone-whatsapp-travado {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.45rem);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  width: min(18rem, calc(100vw - 2.5rem));
+}
+
+.conversa-ditado {
   display: grid;
   place-items: center;
-  width: 2.2rem;
-  height: 2.2rem;
+  width: 2.75rem;
+  height: 2.75rem;
   padding: 0;
   border: none;
   border-radius: 999px;
   background: transparent;
   color: var(--texto-suave);
   cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .conversa-ditado:disabled {

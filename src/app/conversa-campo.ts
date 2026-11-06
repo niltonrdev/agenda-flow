@@ -2,11 +2,19 @@
 export const PLACEHOLDER_MENSAGEM =
   "Fale ou escreva, por exemplo “reunião com a Ana amanhã às 15h”";
 
-export const ROTULO_MICROFONE = "Falar a Mensagem";
+export const ROTULO_MICROFONE = "Segure para falar";
 
-export const ROTULO_PARAR_MICROFONE = "Parar de ouvir";
+export const ROTULO_PARAR_MICROFONE = "Solte para enviar";
 
-export const DICA_OUVINDO = "Ouvindo… fale agora. Toque de novo para parar.";
+export const ROTULO_TRAVAR_MICROFONE = "Gravação travada. Toque em enviar.";
+
+export const ROTULO_CANCELAR_MICROFONE = "Solte para cancelar";
+
+export const DICA_OUVINDO =
+  "Ouvindo… solte para enviar, arraste para cima para travar, para o lado para cancelar.";
+
+export const DICA_GRAVACAO_TRAVADA =
+  "Pode falar sem segurar. Toque em enviar ou cancele.";
 
 /** Quando o navegador não expõe Web Speech API. */
 export const DICA_DITADO_TECLADO =

@@ -41,7 +41,7 @@ Pedido para saber se um dia ou um Período está livre ou ocupado, sem gravar na
 _Avoid_: search, listagem, report
 
 **Marcação**:
-Criar um Compromisso novo no Calendário, só depois da Confirmação.
+Criar um Compromisso novo no Calendário, só depois da Confirmação. Fala de viagem sem intervalo pergunta se o Período é de um dia ou de mais dias.
 _Avoid_: booking, schedule (verbo inglês)
 
 **Alteração**:
