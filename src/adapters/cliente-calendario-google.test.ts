@@ -54,4 +54,24 @@ describe("cliente HTTP do Calendário Google", () => {
     });
     await expect(cliente.listarAgendas()).rejects.toBeInstanceOf(FalhaDoCalendario);
   });
+
+  it("distingue 401 (reconectar) de 503 (temporária) sem vazar o corpo", async () => {
+    const cliente401 = criarClienteCalendarioGoogle({
+      obterAccessToken: async () => "token",
+      fetch: async () => new Response("invalid_token Bearer xyz", { status: 401 }),
+    });
+    const cliente403 = criarClienteCalendarioGoogle({
+      obterAccessToken: async () => "token",
+      fetch: async () => new Response("forbidden", { status: 403 }),
+    });
+    await expect(cliente401.listarAgendas()).rejects.toMatchObject({
+      codigo: "reconectar",
+    });
+    await expect(cliente403.listarAgendas()).rejects.toMatchObject({
+      codigo: "permissao",
+    });
+    await expect(cliente401.listarAgendas()).rejects.not.toMatchObject({
+      message: expect.stringMatching(/Bearer|xyz/i),
+    });
+  });
 });

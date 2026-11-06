@@ -5,7 +5,7 @@ import type {
   EventoParaGravar,
 } from "@/adapters/calendario-google";
 import type { IntervaloCalendario } from "@/domain/calendario";
-import { FalhaDoCalendario } from "@/domain/falha-calendario";
+import { falhaDeHttpGoogle, falhaDoCalendario } from "@/domain/falha-calendario";
 
 const API = "https://www.googleapis.com/calendar/v3";
 
@@ -15,7 +15,7 @@ async function lerJson(resposta: Response): Promise<unknown> {
   try {
     return JSON.parse(texto) as unknown;
   } catch {
-    throw new FalhaDoCalendario();
+    throw falhaDoCalendario("temporaria");
   }
 }
 
@@ -36,11 +36,11 @@ async function chamar<T>(
       },
     });
   } catch {
-    throw new FalhaDoCalendario();
+    throw falhaDoCalendario("temporaria");
   }
 
   if (!resposta.ok) {
-    throw new FalhaDoCalendario();
+    throw falhaDeHttpGoogle(resposta.status);
   }
 
   if (resposta.status === 204) {

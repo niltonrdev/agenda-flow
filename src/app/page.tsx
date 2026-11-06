@@ -32,6 +32,8 @@ type MensagemNaTela = {
 type StatusGoogle = {
   credencialConfigurada: boolean;
   conectado: boolean;
+  email: string | null;
+  motivo: string | null;
 };
 
 const CHAVE_DEMO = "agenda-demo";
@@ -57,6 +59,7 @@ export default function ConversaPage() {
   const [demoLocal, setDemoLocal] = useState(false);
   const [avisoAuth, setAvisoAuth] = useState<string | null>(null);
   const [dicaVoz, setDicaVoz] = useState<string | null>(null);
+  const [desconectando, setDesconectando] = useState(false);
   const fimRef = useRef<HTMLDivElement>(null);
   const campoRef = useRef<HTMLTextAreaElement>(null);
 
@@ -73,11 +76,13 @@ export default function ConversaPage() {
 
     const params = new URLSearchParams(window.location.search);
     const googleParam = params.get("google");
-    if (googleParam === "falha" || googleParam === "negado") {
+    if (googleParam === "falha" || googleParam === "negado" || googleParam === "host") {
       setAvisoAuth(
         googleParam === "negado"
           ? "A conexão com o Google foi cancelada. Tente de novo quando quiser."
-          : "Não foi possível conectar ao Google. Confira o redirect URI no Console e tente de novo.",
+          : googleParam === "host"
+            ? "Este endereço (preview) não está cadastrado no Google. Abra a Agenda em https://agenda-flow-mu.vercel.app/ para entrar, ou cadastre o redirect deste host."
+            : "Não foi possível conectar ao Google. Confira o redirect URI no Console e tente de novo.",
       );
     }
     if (googleParam) {
@@ -86,14 +91,39 @@ export default function ConversaPage() {
 
     void fetch("/api/auth/google/status")
       .then((r) => r.json())
-      .then((dados: { credencialConfigurada?: boolean; conectado?: boolean }) => {
-        setGoogle({
-          credencialConfigurada: Boolean(dados.credencialConfigurada),
-          conectado: Boolean(dados.conectado),
-        });
-      })
+      .then(
+        (dados: {
+          credencialConfigurada?: boolean;
+          conectado?: boolean;
+          email?: string | null;
+          motivo?: string | null;
+        }) => {
+          setGoogle({
+            credencialConfigurada: Boolean(dados.credencialConfigurada),
+            conectado: Boolean(dados.conectado),
+            email: typeof dados.email === "string" ? dados.email : null,
+            motivo: typeof dados.motivo === "string" ? dados.motivo : null,
+          });
+          if (dados.motivo === "reconectar" || dados.motivo === "permissao") {
+            setAvisoAuth(
+              dados.motivo === "permissao"
+                ? "Esta conta não autorizou o Calendário com as permissões necessárias. Entre de novo e aceite o acesso à agenda."
+                : "A conexão com o Google expirou ou não vale mais. Entre de novo.",
+            );
+          } else if (dados.motivo === "temporaria" && !dados.conectado) {
+            setAvisoAuth(
+              "Não foi possível confirmar a conexão com o Google agora. Tente de novo em instantes.",
+            );
+          }
+        },
+      )
       .catch(() => {
-        setGoogle({ credencialConfigurada: false, conectado: false });
+        setGoogle({
+          credencialConfigurada: false,
+          conectado: false,
+          email: null,
+          motivo: "configuracao",
+        });
       });
   }, []);
 
@@ -105,6 +135,17 @@ export default function ConversaPage() {
     }
     setDemoLocal(true);
     setAvisoAuth(null);
+  }
+
+  async function desconectarGoogle() {
+    if (desconectando) return;
+    setDesconectando(true);
+    try {
+      await fetch("/api/auth/google/logout", { method: "POST" });
+    } catch {
+      /* recarrega mesmo assim */
+    }
+    window.location.assign("/");
   }
 
   const naConversa = google != null && (google.conectado || demoLocal);
@@ -141,10 +182,19 @@ export default function ConversaPage() {
       const dados = (await resposta.json()) as {
         texto?: string;
         erro?: string;
+        falha?: string | null;
         confirmacaoPendente?: ConfirmacaoPendente | null;
         ultimoDiaConsultado?: string | null;
         diaParaCalendario?: string | null;
       };
+
+      if (dados.falha === "reconectar" || resposta.status === 401) {
+        setGoogle((atual) =>
+          atual
+            ? { ...atual, conectado: false, email: null, motivo: "reconectar" }
+            : atual,
+        );
+      }
 
       if (!resposta.ok) {
         throw new Error(dados.erro ?? "Falha ao falar com a agenda.");
@@ -237,10 +287,21 @@ export default function ConversaPage() {
         <MarcaCompacta />
         <p className="conversa-sub">Conversa com o seu Calendário</p>
         {google.conectado ? (
-          <p className="conversa-google conversa-google-ok">
-            Conta Google conectada. A Consulta lê as agendas visíveis; a
-            Marcação grava na principal.
-          </p>
+          <div className="conversa-conta">
+            <p className="conversa-google conversa-google-ok">
+              {google.email
+                ? `Conectado como ${google.email}`
+                : "Conta Google conectada. Reconecte para ver o e-mail desta conta."}
+            </p>
+            <button
+              type="button"
+              className="conversa-sair"
+              onClick={() => void desconectarGoogle()}
+              disabled={desconectando}
+            >
+              {desconectando ? "Saindo…" : "Desconectar"}
+            </button>
+          </div>
         ) : null}
         {!google.conectado ? (
           <p className="conversa-google conversa-demo">

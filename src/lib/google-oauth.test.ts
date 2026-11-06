@@ -1,7 +1,12 @@
 import {
   assinarValor,
+  CAMINHO_CALLBACK_OAUTH,
+  decidirRedirectOAuth,
   desserializarSessao,
+  emailPublicavel,
+  ESCOPOS_OAUTH,
   lerValorAssinado,
+  MENSAGEM_OAUTH_HOST,
   resolverRedirectUri,
   serializarSessao,
   urlDeAutorizacao,
@@ -15,6 +20,7 @@ describe("sessão Google persistida", () => {
       accessToken: "at",
       refreshToken: "rt",
       expiraEmMs: 1_700_000_000_000,
+      email: "dono@example.com",
     };
     const pacote = serializarSessao(tokens, secret);
     expect(desserializarSessao(pacote, secret)).toEqual(tokens);
@@ -27,16 +33,20 @@ describe("sessão Google persistida", () => {
     expect(lerValorAssinado(pacote.slice(0, -1) + "x", secret)).toBeNull();
   });
 
-  it("pede acesso offline para a sessão durar, sem forçar consent toda vez", () => {
+  it("pede identidade + events + calendarlist, sem o escopo amplo de administrar agendas", () => {
     const url = urlDeAutorizacao({
       clientId: "id",
       redirectUri: "http://localhost:3000/api/auth/google/callback",
       state: "abc",
     });
     expect(url).toContain("access_type=offline");
+    expect(url).toContain("include_granted_scopes=false");
     expect(url).not.toContain("prompt=");
-    expect(url).toContain("redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fapi%2Fauth%2Fgoogle%2Fcallback");
-    expect(url).toContain("scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcalendar");
+    for (const escopo of ESCOPOS_OAUTH) {
+      expect(url).toContain(encodeURIComponent(escopo));
+    }
+    expect(url).not.toMatch(/auth%2Fcalendar(?:&|$)/);
+    expect(CAMINHO_CALLBACK_OAUTH).toBe("/api/auth/google/callback");
   });
 
   it("só pede prompt=consent quando forçamos o refresh_token", () => {
@@ -55,5 +65,29 @@ describe("sessão Google persistida", () => {
         GOOGLE_REDIRECT_URI: "",
       }),
     ).toBe("http://localhost:3000/api/auth/google/callback");
+  });
+
+  it("não usa redirect de produção num host de preview", () => {
+    const preview = "https://agenda-flow-git-x-nilteras-projects.vercel.app";
+    const producao =
+      "https://agenda-flow-mu.vercel.app/api/auth/google/callback";
+    expect(
+      decidirRedirectOAuth(preview, { GOOGLE_REDIRECT_URI: producao }),
+    ).toEqual({ ok: false, motivo: "host_divergente" });
+    expect(
+      decidirRedirectOAuth(preview, { VERCEL_ENV: "preview" }),
+    ).toEqual({ ok: false, motivo: "preview_nao_cadastrado" });
+    expect(
+      decidirRedirectOAuth("https://agenda-flow-mu.vercel.app", {
+        GOOGLE_REDIRECT_URI: producao,
+      }),
+    ).toEqual({ ok: true, uri: producao });
+    expect(MENSAGEM_OAUTH_HOST).toMatch(/produção/i);
+  });
+
+  it("só aceita e-mail com formato de endereço, sem id de agenda", () => {
+    expect(emailPublicavel("dono@example.com")).toBe("dono@example.com");
+    expect(emailPublicavel("primary")).toBeNull();
+    expect(emailPublicavel("not an email")).toBeNull();
   });
 });

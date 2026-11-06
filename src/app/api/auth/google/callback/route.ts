@@ -1,8 +1,9 @@
 import {
   cookiesOAuth,
   credencialGoogleConfigurada,
+  decidirRedirectOAuth,
+  obterIdentidadeGoogle,
   opcoesCookieSessaoAgora,
-  resolverRedirectUri,
   segredoDaSessao,
   serializarSessao,
   trocarCodigoPorTokens,
@@ -22,6 +23,11 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/?google=falha", origem));
   }
 
+  const decisao = decidirRedirectOAuth(origem);
+  if (!decisao.ok) {
+    return NextResponse.redirect(new URL("/?google=host", origem));
+  }
+
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   const jar = await cookies();
@@ -36,17 +42,23 @@ export async function GET(request: Request) {
       code,
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      redirectUri: resolverRedirectUri(origem),
+      redirectUri: decisao.uri,
     });
     if (!tokens.refreshToken) {
-      // Sem refresh_token a sessão não dura; pede consentimento uma vez.
       return NextResponse.redirect(new URL("/api/auth/google?consent=1", origem));
+    }
+
+    let email: string | null = null;
+    try {
+      email = await obterIdentidadeGoogle({ accessToken: tokens.accessToken });
+    } catch {
+      email = null;
     }
 
     const resposta = NextResponse.redirect(new URL("/?google=ok", origem));
     resposta.cookies.set(
       cookiesOAuth.sessao,
-      serializarSessao(tokens, segredoDaSessao()),
+      serializarSessao({ ...tokens, email }, segredoDaSessao()),
       opcoesCookieSessaoAgora(),
     );
     resposta.cookies.set(cookiesOAuth.state, "", {

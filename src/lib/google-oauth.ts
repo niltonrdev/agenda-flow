@@ -1,15 +1,36 @@
-import { FalhaDoCalendario } from "@/domain/falha-calendario";
+import { falhaDeHttpGoogle, falhaDoCalendario } from "@/domain/falha-calendario";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 const COOKIE_SESSAO = "agenda_google";
 const COOKIE_STATE = "agenda_google_oauth_state";
-const ESCOPO = "https://www.googleapis.com/auth/calendar";
+
+export const CAMINHO_CALLBACK_OAUTH = "/api/auth/google/callback";
+
+export const ESCOPOS_OAUTH = [
+  "openid",
+  "https://www.googleapis.com/auth/userinfo.email",
+  "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+] as const;
+
+const ESCOPO = ESCOPOS_OAUTH.join(" ");
+
+export const MENSAGEM_OAUTH_HOST =
+  "Este endereço não está autorizado para entrar com o Google. Abra a Agenda no endereço de produção, ou cadastre o redirect deste host no Google Cloud.";
 
 export type TokensGoogle = {
   accessToken: string;
   refreshToken: string;
   expiraEmMs: number;
+  email?: string | null;
 };
+
+export type RedirectOAuth =
+  | { ok: true; uri: string }
+  | {
+      ok: false;
+      motivo: "host_divergente" | "preview_nao_cadastrado" | "uri_invalida";
+    };
 
 export type EnvOAuth = Record<string, string | undefined>;
 
@@ -70,6 +91,7 @@ export function desserializarSessao(
       accessToken: parsed.accessToken,
       refreshToken: parsed.refreshToken,
       expiraEmMs: parsed.expiraEmMs,
+      email: typeof parsed.email === "string" ? parsed.email : null,
     };
   } catch {
     return null;
@@ -89,6 +111,7 @@ export function urlDeAutorizacao(opcoes: {
     response_type: "code",
     scope: ESCOPO,
     access_type: "offline",
+    include_granted_scopes: "false",
     state: opcoes.state,
   });
   if (opcoes.forcarConsentimento) {
@@ -149,15 +172,20 @@ async function pedirTokens(
       body: new URLSearchParams(corpo),
     });
   } catch {
-    throw new FalhaDoCalendario();
+    throw falhaDoCalendario("temporaria");
   }
-  if (!resposta.ok) throw new FalhaDoCalendario();
+  if (!resposta.ok) {
+    if (resposta.status === 400 || resposta.status === 401) {
+      throw falhaDoCalendario("reconectar");
+    }
+    throw falhaDeHttpGoogle(resposta.status);
+  }
   const json = (await resposta.json()) as {
     access_token?: string;
     refresh_token?: string;
     expires_in?: number;
   };
-  if (!json.access_token) throw new FalhaDoCalendario();
+  if (!json.access_token) throw falhaDoCalendario("reconectar");
   return {
     accessToken: json.access_token,
     refreshToken: json.refresh_token ?? "",
@@ -235,17 +263,101 @@ export function segredoDaSessao(env: EnvOAuth = process.env as EnvOAuth): string
 }
 
 export function redirectUriPadrao(origem: string): string {
-  return `${origem.replace(/\/$/, "")}/api/auth/google/callback`;
+  return `${origem.replace(/\/$/, "")}${CAMINHO_CALLBACK_OAUTH}`;
+}
+
+/**
+ * GOOGLE_REDIRECT_URI só vale se for do mesmo host do pedido.
+ * Preview da Vercel sem URI cadastrada não cai no callback de produção.
+ */
+export function decidirRedirectOAuth(
+  origemPedido: string,
+  env: EnvOAuth = process.env as EnvOAuth,
+): RedirectOAuth {
+  const origem = origemPedido.replace(/\/$/, "");
+  const configurado = env.GOOGLE_REDIRECT_URI?.trim();
+  if (configurado) {
+    let url: URL;
+    try {
+      url = new URL(configurado);
+    } catch {
+      return { ok: false, motivo: "uri_invalida" };
+    }
+    if (url.pathname !== CAMINHO_CALLBACK_OAUTH) {
+      return { ok: false, motivo: "uri_invalida" };
+    }
+    if (url.origin !== origem) {
+      return { ok: false, motivo: "host_divergente" };
+    }
+    return { ok: true, uri: configurado };
+  }
+  if (env.VERCEL_ENV === "preview") {
+    return { ok: false, motivo: "preview_nao_cadastrado" };
+  }
+  return { ok: true, uri: redirectUriPadrao(origem) };
 }
 
 /**
  * Resolve o redirect_uri do OAuth. GOOGLE_REDIRECT_URI vazio (comum ao
  * copiar .env.example) não vale: o Google exige o parâmetro preenchido.
+ * Host divergente não é usado — evita misturar cookie/callback.
  */
 export function resolverRedirectUri(
   origem: string,
   env: EnvOAuth = process.env as EnvOAuth,
 ): string {
-  const configurado = env.GOOGLE_REDIRECT_URI?.trim();
-  return configurado || redirectUriPadrao(origem);
+  const decisao = decidirRedirectOAuth(origem, env);
+  if (decisao.ok) return decisao.uri;
+  return redirectUriPadrao(origem);
+}
+
+export function emailPublicavel(valor: unknown): string | null {
+  if (typeof valor !== "string") return null;
+  const email = valor.trim();
+  if (!email || !email.includes("@") || /\s/.test(email)) return null;
+  return email;
+}
+
+export async function obterIdentidadeGoogle(opcoes: {
+  accessToken: string;
+  fetchFn?: typeof fetch;
+}): Promise<string | null> {
+  const fetchFn = opcoes.fetchFn ?? fetch;
+  let resposta: Response;
+  try {
+    resposta = await fetchFn("https://openidconnect.googleapis.com/v1/userinfo", {
+      headers: { Authorization: `Bearer ${opcoes.accessToken}` },
+    });
+  } catch {
+    throw falhaDoCalendario("temporaria");
+  }
+  if (!resposta.ok) throw falhaDeHttpGoogle(resposta.status);
+  const json = (await resposta.json()) as { email?: unknown };
+  return emailPublicavel(json.email);
+}
+
+export async function revogarTokenGoogle(opcoes: {
+  token: string;
+  fetchFn?: typeof fetch;
+}): Promise<void> {
+  const fetchFn = opcoes.fetchFn ?? fetch;
+  try {
+    await fetchFn("https://oauth2.googleapis.com/revoke", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ token: opcoes.token }),
+    });
+  } catch {
+    // A sessão local some mesmo se o Google não responder.
+  }
+}
+
+export function opcoesCookieApagado(
+  base: typeof cookiesOAuth.opcoesSessao | typeof cookiesOAuth.opcoesState,
+) {
+  return {
+    ...base,
+    maxAge: 0,
+    expires: new Date(0),
+  };
 }
