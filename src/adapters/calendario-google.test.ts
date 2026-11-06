@@ -96,6 +96,9 @@ describe("adaptador Google — porta Calendário", () => {
         }
         throw new Error(`não deveria listar ${calendarId}`);
       },
+      async obterEvento() {
+        throw new Error("não obter");
+      },
       async criarEvento() {
         throw new Error("não criar");
       },
@@ -128,6 +131,9 @@ describe("adaptador Google — porta Calendário", () => {
       },
       async listarEventos() {
         return [];
+      },
+      async obterEvento() {
+        throw new Error("não obter");
       },
       async criarEvento(calendarId, evento) {
         gravados.push({ calendarId, summary: evento.summary });
@@ -169,10 +175,19 @@ describe("adaptador Google — porta Calendário", () => {
     const id = idDoCompromisso("trabalho", "standup_20250905T120000Z");
     const calendario = criarCalendarioGoogle({
       async listarAgendas() {
-        return [];
+        return [{ id: "trabalho", summary: "Trabalho", selected: true }];
       },
       async listarEventos() {
         return [];
+      },
+      async obterEvento(calendarId, eventId) {
+        mutacoes.push(`obter:${calendarId}:${eventId}`);
+        return {
+          id: eventId,
+          summary: "Standup",
+          start: { dateTime: "2025-09-05T09:00:00-03:00" },
+          end: { dateTime: "2025-09-05T09:15:00-03:00" },
+        };
       },
       async criarEvento() {
         throw new Error("não criar");
@@ -199,9 +214,51 @@ describe("adaptador Google — porta Calendário", () => {
     await calendario.cancelar(id);
 
     expect(mutacoes).toEqual([
+      "obter:trabalho:standup_20250905T120000Z",
       "alterar:trabalho:standup_20250905T120000Z:Standup",
+      "obter:trabalho:standup_20250905T120000Z",
       "cancelar:trabalho:standup_20250905T120000Z",
     ]);
+  });
+
+  it("recusa alterar ou cancelar em agenda oculta ou evento inexistente", async () => {
+    const idOculto = idDoCompromisso("escondida", "evt-1");
+    const idVisivel = idDoCompromisso("trabalho", "sumido");
+    const calendario = criarCalendarioGoogle({
+      async listarAgendas() {
+        return [
+          { id: "trabalho", summary: "Trabalho", selected: true },
+          { id: "escondida", summary: "Escondida", selected: false },
+        ];
+      },
+      async listarEventos() {
+        return [];
+      },
+      async obterEvento() {
+        return { status: "cancelled" };
+      },
+      async criarEvento() {
+        throw new Error("não criar");
+      },
+      async alterarEvento() {
+        throw new Error("não deveria alterar");
+      },
+      async cancelarEvento() {
+        throw new Error("não deveria cancelar");
+      },
+    });
+
+    await expect(
+      calendario.alterar(idOculto, {
+        tipo: "pontual",
+        titulo: "X",
+        inicio: "2025-09-05T10:00:00.000-03:00",
+        fim: "2025-09-05T11:00:00.000-03:00",
+      }),
+    ).rejects.toBeInstanceOf(FalhaDoCalendario);
+    await expect(calendario.cancelar(idVisivel)).rejects.toBeInstanceOf(
+      FalhaDoCalendario,
+    );
   });
 
   it("propaga indisponibilidade como FalhaDoCalendario", async () => {
@@ -211,6 +268,9 @@ describe("adaptador Google — porta Calendário", () => {
       },
       async listarEventos() {
         return [];
+      },
+      async obterEvento() {
+        throw new FalhaDoCalendario();
       },
       async criarEvento() {
         throw new FalhaDoCalendario();
