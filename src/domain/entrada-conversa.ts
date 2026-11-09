@@ -27,7 +27,11 @@ import {
   ehRecusaPura,
   temPrefixoDeRecusa,
 } from "./corrigir-confirmacao";
-import { FalhaDoCalendario, RESPOSTA_NAO_GRAVADO } from "./falha-calendario";
+import {
+  FalhaDoCalendario,
+  RESPOSTA_NAO_GRAVADO,
+  type CodigoFalhaCalendario,
+} from "./falha-calendario";
 import {
   formatarConfirmacao,
   formatarConfirmacaoAlterarPeriodo,
@@ -98,7 +102,8 @@ export type EntradaConversa = {
   /** Relógio congelado nos testes; nunca ler Date.now() no núcleo. */
   agora: DateTime;
   /**
-   * Proposta do turno anterior. O chamador devolve; o servidor não a guarda.
+   * Proposta do turno anterior. O núcleo não a guarda: a rota cifra uma
+   * cópia no cookie e ignora o valor enviado pelo cliente.
    */
   confirmacaoPendente?: ConfirmacaoPendente | null;
   /** Último dia de Consulta; serve para "marcar … então". */
@@ -111,6 +116,7 @@ export type SaidaConversa = {
   ultimoDiaConsultado?: string | null;
   /** Dia civil (YYYY-MM-DD) para abrir a visão do dia no Calendário. */
   diaParaCalendario?: string | null;
+  falha?: CodigoFalhaCalendario | null;
 };
 
 function normalizar(texto: string): string {
@@ -527,10 +533,11 @@ export async function processarTurno(
   } catch (erro) {
     if (erro instanceof FalhaDoCalendario) {
       return {
-        texto: RESPOSTA_NAO_GRAVADO,
+        texto: erro.message || RESPOSTA_NAO_GRAVADO,
         confirmacaoPendente: pendenteInicial,
         ultimoDiaConsultado: entrada.ultimoDiaConsultado ?? null,
         diaParaCalendario: null,
+        falha: erro.codigo,
       };
     }
     throw erro;

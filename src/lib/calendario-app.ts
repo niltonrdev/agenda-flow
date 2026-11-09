@@ -1,4 +1,4 @@
-import { criarCalendarioDeDemonstracao } from "@/adapters/calendario-em-memoria";
+import { criarCalendarioDeDemonstracaoSomenteLeitura } from "@/adapters/calendario-em-memoria";
 import { criarCalendarioGoogle } from "@/adapters/calendario-google";
 import { criarClienteCalendarioGoogle } from "@/adapters/cliente-calendario-google";
 import type { Calendario } from "@/domain/calendario";
@@ -10,8 +10,6 @@ import {
 } from "@/lib/google-oauth";
 import { DateTime } from "luxon";
 
-let calendarioMemoria: Calendario | null = null;
-
 export type OpcoesCalendarioApp = {
   agora?: DateTime;
   tokens?: TokensGoogle | null;
@@ -21,8 +19,9 @@ export type OpcoesCalendarioApp = {
 };
 
 /**
- * Sem credencial ou sem sessão Google: adaptador em memória semeado.
- * Com OAuth do Dono: adaptador Google (lê visíveis, grava na principal).
+ * Com sessão Google válida: adaptador Google (lê visíveis, grava na principal).
+ * Sem sessão: seed de demonstração somente leitura, isolado por requisição.
+ * Sessão inválida nunca cai num calendário gravável compartilhado.
  */
 export function obterCalendario(opcoes: OpcoesCalendarioApp = {}): Calendario {
   const env = opcoes.env ?? (process.env as Record<string, string | undefined>);
@@ -44,8 +43,5 @@ export function obterCalendario(opcoes: OpcoesCalendarioApp = {}): Calendario {
   }
 
   const agora = opcoes.agora ?? DateTime.now().setZone(FUSO_DONO);
-  if (!calendarioMemoria) {
-    calendarioMemoria = criarCalendarioDeDemonstracao(agora);
-  }
-  return calendarioMemoria;
+  return criarCalendarioDeDemonstracaoSomenteLeitura(agora);
 }
