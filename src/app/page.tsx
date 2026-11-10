@@ -18,6 +18,7 @@ import { mensagemAPartirDoCampo } from "@/domain/transcritor";
 import { obterTranscritor } from "@/lib/transcritor-app";
 import { AvisoRascunho, RodapeLegal } from "@/app/legal";
 import { MarcaCartao, MarcaCompacta } from "@/app/marca";
+import { ControleTutorial } from "@/app/tutorial-painel";
 import Link from "next/link";
 import {
   Fragment,
@@ -315,6 +316,7 @@ export default function ConversaPage() {
           >
             Continuar em demonstração (só consulta)
           </button>
+          <ControleTutorial variante="texto" />
         </div>
         <RodapeLegal />
       </div>
@@ -323,8 +325,11 @@ export default function ConversaPage() {
 
   return (
     <div className="conversa-shell">
-      <header className="conversa-topo">
-        <MarcaCompacta />
+      <header className="conversa-topo" data-tutorial="topo">
+        <div className="conversa-topo-linha">
+          <MarcaCompacta />
+          <ControleTutorial abrirAutomatico />
+        </div>
         <p className="conversa-sub">Conversa com o seu Calendário</p>
         {google.conectado ? (
           <div className="conversa-conta">
@@ -368,7 +373,7 @@ export default function ConversaPage() {
         ) : null}
       </header>
 
-      <main className="conversa-fio" aria-live="polite">
+      <main className="conversa-fio" aria-live="polite" data-tutorial="fio">
         {mensagens.map((m, indice) => {
           const ultimaAgenda =
             m.papel === "agenda" && indice === indiceUltimaAgenda;
@@ -507,7 +512,7 @@ export default function ConversaPage() {
             {dicaVoz}
           </p>
         ) : null}
-        <div className="conversa-linha-envio">
+        <div className="conversa-linha-envio" data-tutorial="composer">
           <div className="conversa-campo-com-ditado">
             <textarea
               id="mensagem"

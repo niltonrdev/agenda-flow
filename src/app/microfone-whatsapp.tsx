@@ -184,6 +184,7 @@ export function MicrofoneWhatsApp({
 
   return (
     <div
+      data-tutorial="microfone"
       className={[
         "microfone-whatsapp",
         ouvindo ? "microfone-whatsapp-ativo" : "",
