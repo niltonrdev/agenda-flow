@@ -6,7 +6,7 @@ export const LIMIAR_CANCELA_PX = 64;
 
 export type DestinoGestoMicrofone = "segurar" | "trava" | "cancela";
 
-export type AcaoAoSoltarMicrofone = "enviar" | "manter" | "cancelar";
+export type AcaoAoSoltarMicrofone = "parar" | "manter" | "cancelar";
 
 /**
  * Interpreta o arraste a partir do ponto em que o Dono segurou o microfone.
@@ -37,5 +37,10 @@ export function acaoAoSoltarMicrofone(
 ): AcaoAoSoltarMicrofone {
   if (destino === "cancela") return "cancelar";
   if (destino === "trava") return "manter";
-  return "enviar";
+  return "parar";
+}
+
+/** Gravação travada não ganha Cancelar/Enviar por cima: o microfone para o ditado. */
+export function mostraAcoesGravacaoTravada(): boolean {
+  return false;
 }

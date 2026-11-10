@@ -1,6 +1,7 @@
 import {
   acaoAoSoltarMicrofone,
   destinoDoGestoMicrofone,
+  mostraAcoesGravacaoTravada,
 } from "@/lib/gesto-microfone";
 import { describe, expect, it } from "vitest";
 
@@ -24,9 +25,13 @@ describe("gesto do microfone no estilo WhatsApp", () => {
     expect(destinoDoGestoMicrofone(ORIGEM, { x: 170, y: 320 })).toBe("trava");
   });
 
-  it("soltar sem gesto envia; travado mantém; cancelado descarta", () => {
-    expect(acaoAoSoltarMicrofone("segurar")).toBe("enviar");
+  it("soltar sem gesto para e deixa o texto na caixa; travado mantém; cancelado descarta", () => {
+    expect(acaoAoSoltarMicrofone("segurar")).toBe("parar");
     expect(acaoAoSoltarMicrofone("trava")).toBe("manter");
     expect(acaoAoSoltarMicrofone("cancela")).toBe("cancelar");
+  });
+
+  it("gravação travada não mostra Cancelar nem Enviar por cima do campo", () => {
+    expect(mostraAcoesGravacaoTravada()).toBe(false);
   });
 });
