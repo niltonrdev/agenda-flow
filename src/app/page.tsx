@@ -1,12 +1,15 @@
 "use client";
 
+import { AvisoVozDitado } from "@/app/aviso-voz-ditado";
 import {
   PLACEHOLDER_MENSAGEM,
+  ROTULO_ENVIAR,
   ROTULO_VER_NO_CALENDARIO,
 } from "@/app/conversa-campo";
 import { MicrofoneWhatsApp } from "@/app/microfone-whatsapp";
 import { SeletorDiasPeriodo } from "@/app/seletor-dias";
 import { ehAparelhoIos, urlAbrirCalendario } from "@/lib/link-calendario";
+import { cssAlturaViewportVisual } from "@/lib/viewport-visual";
 import {
   pedeSimOuNao,
   type ConfirmacaoPendente,
@@ -15,6 +18,7 @@ import { mensagemAPartirDoCampo } from "@/domain/transcritor";
 import { obterTranscritor } from "@/lib/transcritor-app";
 import { AvisoRascunho, RodapeLegal } from "@/app/legal";
 import { MarcaCartao, MarcaCompacta } from "@/app/marca";
+import { ControleTutorial } from "@/app/tutorial-painel";
 import Link from "next/link";
 import {
   Fragment,
@@ -91,6 +95,17 @@ export default function ConversaPage() {
       window.history.replaceState({}, "", "/");
     }
 
+    const viewport = window.visualViewport;
+    const alinharViewport = () => {
+      document.documentElement.style.setProperty(
+        "--vvh",
+        cssAlturaViewportVisual(viewport, window.innerHeight),
+      );
+    };
+    alinharViewport();
+    viewport?.addEventListener("resize", alinharViewport);
+    viewport?.addEventListener("scroll", alinharViewport);
+
     void fetch("/api/auth/google/status")
       .then((r) => r.json())
       .then(
@@ -127,6 +142,11 @@ export default function ConversaPage() {
           motivo: "configuracao",
         });
       });
+
+    return () => {
+      viewport?.removeEventListener("resize", alinharViewport);
+      viewport?.removeEventListener("scroll", alinharViewport);
+    };
   }, []);
 
   function entrarEmDemonstracao() {
@@ -296,6 +316,7 @@ export default function ConversaPage() {
           >
             Continuar em demonstração (só consulta)
           </button>
+          <ControleTutorial variante="texto" />
         </div>
         <RodapeLegal />
       </div>
@@ -304,8 +325,11 @@ export default function ConversaPage() {
 
   return (
     <div className="conversa-shell">
-      <header className="conversa-topo">
-        <MarcaCompacta />
+      <header className="conversa-topo" data-tutorial="topo">
+        <div className="conversa-topo-linha">
+          <MarcaCompacta />
+          <ControleTutorial abrirAutomatico />
+        </div>
         <p className="conversa-sub">Conversa com o seu Calendário</p>
         {google.conectado ? (
           <div className="conversa-conta">
@@ -349,7 +373,7 @@ export default function ConversaPage() {
         ) : null}
       </header>
 
-      <main className="conversa-fio" aria-live="polite">
+      <main className="conversa-fio" aria-live="polite" data-tutorial="fio">
         {mensagens.map((m, indice) => {
           const ultimaAgenda =
             m.papel === "agenda" && indice === indiceUltimaAgenda;
@@ -482,49 +506,47 @@ export default function ConversaPage() {
         <label className="sr-only" htmlFor="mensagem">
           Mensagem
         </label>
-        <p className="conversa-aviso-voz">
-          O ditado usa o reconhecimento de voz do navegador; o áudio pode ser
-          processado fora deste aparelho.
-        </p>
+        <AvisoVozDitado />
         {dicaVoz ? (
           <p className="conversa-dica-ditado" role="status">
             {dicaVoz}
           </p>
         ) : null}
-        <div className="conversa-campo-com-ditado">
-          <textarea
-            id="mensagem"
-            ref={campoRef}
-            className="conversa-campo"
-            rows={1}
-            placeholder={PLACEHOLDER_MENSAGEM}
-            value={rascunho}
-            onChange={(e) => {
-              setRascunho(e.target.value);
-            }}
-            onKeyDown={aoTeclar}
-            disabled={carregando}
-            enterKeyHint="send"
-            autoComplete="off"
-            inputMode="text"
-            lang="pt-BR"
-          />
-          <MicrofoneWhatsApp
-            disabled={carregando}
-            textoBase={rascunho}
-            onTranscricao={setRascunho}
-            onEnviar={(texto) => void enviar(texto)}
-            onErro={setErro}
-            onDica={setDicaVoz}
-          />
+        <div className="conversa-linha-envio" data-tutorial="composer">
+          <div className="conversa-campo-com-ditado">
+            <textarea
+              id="mensagem"
+              ref={campoRef}
+              className="conversa-campo"
+              rows={1}
+              placeholder={PLACEHOLDER_MENSAGEM}
+              value={rascunho}
+              onChange={(e) => {
+                setRascunho(e.target.value);
+              }}
+              onKeyDown={aoTeclar}
+              disabled={carregando}
+              enterKeyHint="send"
+              autoComplete="off"
+              inputMode="text"
+              lang="pt-BR"
+            />
+            <MicrofoneWhatsApp
+              disabled={carregando}
+              textoBase={rascunho}
+              onTranscricao={setRascunho}
+              onErro={setErro}
+              onDica={setDicaVoz}
+            />
+          </div>
+          <button
+            type="submit"
+            className="conversa-enviar"
+            disabled={carregando || rascunho.trim() === ""}
+          >
+            {ROTULO_ENVIAR}
+          </button>
         </div>
-        <button
-          type="submit"
-          className="conversa-enviar"
-          disabled={carregando || rascunho.trim() === ""}
-        >
-          Enviar
-        </button>
       </form>
     </div>
   );

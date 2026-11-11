@@ -2,11 +2,11 @@
 
 import {
   DICA_DITADO_TECLADO,
-  DICA_GRAVACAO_TRAVADA,
   DICA_OUVINDO,
   ROTULO_CANCELAR_MICROFONE,
   ROTULO_MICROFONE,
   ROTULO_PARAR_MICROFONE,
+  ROTULO_SOLTAR_MICROFONE,
   ROTULO_TRAVAR_MICROFONE,
 } from "@/app/conversa-campo";
 import {
@@ -25,7 +25,6 @@ type Props = {
   disabled?: boolean;
   textoBase: string;
   onTranscricao: (texto: string) => void;
-  onEnviar: (texto: string) => void;
   onErro: (mensagem: string | null) => void;
   onDica: (dica: string | null) => void;
 };
@@ -42,7 +41,6 @@ export function MicrofoneWhatsApp({
   disabled,
   textoBase,
   onTranscricao,
-  onEnviar,
   onErro,
   onDica,
 }: Props) {
@@ -56,9 +54,10 @@ export function MicrofoneWhatsApp({
   const destinoRef = useRef<DestinoGestoMicrofone>("segurar");
   const faseRef = useRef<"idle" | "segurando" | "travado">("idle");
 
-  useEffect(() => {
-    faseRef.current = fase;
-  }, [fase]);
+  function mudarFase(proxima: "idle" | "segurando" | "travado") {
+    faseRef.current = proxima;
+    setFase(proxima);
+  }
 
   useEffect(() => {
     return () => {
@@ -93,6 +92,7 @@ export function MicrofoneWhatsApp({
 
   function comecar(x: number, y: number) {
     onErro(null);
+    onDica(null);
     const sessao = garantirSessao();
     if (!sessao) {
       onDica(DICA_DITADO_TECLADO);
@@ -104,8 +104,7 @@ export function MicrofoneWhatsApp({
     origemRef.current = { x, y };
     destinoRef.current = "segurar";
     setDestino("segurar");
-    setFase("segurando");
-    onDica(DICA_OUVINDO);
+    mudarFase("segurando");
     sessao.iniciar();
     return true;
   }
@@ -113,47 +112,52 @@ export function MicrofoneWhatsApp({
   function cancelarGravacao() {
     sessaoRef.current?.parar();
     origemRef.current = null;
-    setFase("idle");
+    mudarFase("idle");
     setDestino("segurar");
     destinoRef.current = "segurar";
     onTranscricao(textoAntesRef.current);
-    onDica(null);
   }
 
-  function enviarOuvido() {
+  function pararMantendoTexto() {
     sessaoRef.current?.parar();
     origemRef.current = null;
-    setFase("idle");
+    mudarFase("idle");
     setDestino("segurar");
     destinoRef.current = "segurar";
-    onDica(null);
-    const texto = juntoRef.current.trim();
-    if (texto) onEnviar(texto);
+  }
+
+  function rotuloDoMicrofone(): string {
+    if (fase === "travado") return ROTULO_PARAR_MICROFONE;
+    if (fase === "segurando" && destino === "cancela") {
+      return ROTULO_CANCELAR_MICROFONE;
+    }
+    if (fase === "segurando" && destino === "trava") {
+      return ROTULO_TRAVAR_MICROFONE;
+    }
+    if (fase === "segurando") return ROTULO_SOLTAR_MICROFONE;
+    return ROTULO_MICROFONE;
   }
 
   function aoPointerDown(evento: React.PointerEvent<HTMLButtonElement>) {
-    if (disabled || fase === "travado") return;
+    if (disabled) return;
     if (evento.button !== 0) return;
     evento.preventDefault();
+    if (faseRef.current === "travado") {
+      pararMantendoTexto();
+      return;
+    }
     evento.currentTarget.setPointerCapture(evento.pointerId);
     comecar(evento.clientX, evento.clientY);
   }
 
   function aoPointerMove(evento: React.PointerEvent<HTMLButtonElement>) {
-    if (fase !== "segurando" || !origemRef.current) return;
+    if (faseRef.current !== "segurando" || !origemRef.current) return;
     const proximo = destinoDoGestoMicrofone(origemRef.current, {
       x: evento.clientX,
       y: evento.clientY,
     });
     destinoRef.current = proximo;
     setDestino(proximo);
-    if (proximo === "cancela") {
-      onDica(ROTULO_CANCELAR_MICROFONE);
-    } else if (proximo === "trava") {
-      onDica(ROTULO_TRAVAR_MICROFONE);
-    } else {
-      onDica(DICA_OUVINDO);
-    }
   }
 
   function aoPointerUp() {
@@ -165,21 +169,22 @@ export function MicrofoneWhatsApp({
       return;
     }
     if (acao === "manter") {
-      setFase("travado");
+      mudarFase("travado");
       setDestino("trava");
       origemRef.current = null;
-      onDica(DICA_GRAVACAO_TRAVADA);
       return;
     }
-    enviarOuvido();
+    pararMantendoTexto();
   }
 
   const ouvindo = fase !== "idle";
   const cancelando = fase === "segurando" && destino === "cancela";
   const travando = fase === "segurando" && destino === "trava";
+  const rotulo = rotuloDoMicrofone();
 
   return (
     <div
+      data-tutorial="microfone"
       className={[
         "microfone-whatsapp",
         ouvindo ? "microfone-whatsapp-ativo" : "",
@@ -195,73 +200,41 @@ export function MicrofoneWhatsApp({
           <span className="microfone-whatsapp-cancela-icone">← cancela</span>
         </div>
       ) : null}
-      {fase === "travado" ? (
-        <div className="microfone-whatsapp-travado" role="group">
-          <button
-            type="button"
-            className="conversa-nao"
-            onClick={cancelarGravacao}
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            className="conversa-sim"
-            onClick={enviarOuvido}
-          >
-            Enviar
-          </button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          className={
-            ouvindo ? "conversa-ditado conversa-ditado-ativo" : "conversa-ditado"
-          }
-          title={
-            cancelando
-              ? ROTULO_CANCELAR_MICROFONE
-              : travando
-                ? ROTULO_TRAVAR_MICROFONE
-                : ouvindo
-                  ? ROTULO_PARAR_MICROFONE
-                  : ROTULO_MICROFONE
-          }
-          aria-label={
-            cancelando
-              ? ROTULO_CANCELAR_MICROFONE
-              : travando
-                ? ROTULO_TRAVAR_MICROFONE
-                : ouvindo
-                  ? ROTULO_PARAR_MICROFONE
-                  : ROTULO_MICROFONE
-          }
-          aria-pressed={ouvindo}
-          disabled={disabled}
-          onPointerDown={aoPointerDown}
-          onPointerMove={aoPointerMove}
-          onPointerUp={aoPointerUp}
-          onPointerCancel={() => {
-            if (faseRef.current === "segurando") cancelarGravacao();
-          }}
-          onContextMenu={(evento) => evento.preventDefault()}
+      <button
+        type="button"
+        className={
+          ouvindo ? "conversa-ditado conversa-ditado-ativo" : "conversa-ditado"
+        }
+        title={rotulo}
+        aria-label={rotulo}
+        aria-pressed={ouvindo}
+        disabled={disabled}
+        onPointerDown={aoPointerDown}
+        onPointerMove={aoPointerMove}
+        onPointerUp={aoPointerUp}
+        onPointerCancel={() => {
+          if (faseRef.current === "segurando") cancelarGravacao();
+        }}
+        onContextMenu={(evento) => evento.preventDefault()}
+      >
+        <svg
+          className="conversa-ditado-icone"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
         >
-          <svg
-            className="conversa-ditado-icone"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <rect x="9" y="3" width="6" height="11" rx="3" />
-            <path d="M6 11a6 6 0 0 0 12 0" />
-            <path d="M12 17v4" />
-          </svg>
-        </button>
-      )}
+          <rect x="9" y="3" width="6" height="11" rx="3" />
+          <path d="M6 11a6 6 0 0 0 12 0" />
+          <path d="M12 17v4" />
+        </svg>
+      </button>
+      <span className="sr-only" role="status">
+        {ouvindo ? DICA_OUVINDO : ""}
+      </span>
     </div>
   );
 }
