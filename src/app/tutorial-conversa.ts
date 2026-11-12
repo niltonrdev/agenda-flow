@@ -18,7 +18,8 @@ export type PassoTutorial = {
 
 /**
  * Passos alinhados ao que a Conversa faz hoje.
- * Ditado: soltar coloca o texto na caixa; Enviar manda.
+ * Campo vazio: só o microfone. Com texto: a seta de enviar.
+ * Ditado: toque = mãos livres; segurar = soltar finaliza; trava e cancela.
  * Demonstração: só consulta, não grava.
  */
 export const PASSOS_TUTORIAL: PassoTutorial[] = [
@@ -26,7 +27,7 @@ export const PASSOS_TUTORIAL: PassoTutorial[] = [
     id: "escrever",
     titulo: "Escrever e enviar",
     texto:
-      "Na caixa de baixo, escreva o compromisso como se falasse com uma pessoa. Depois toque no botão verde Enviar, à direita da caixa.",
+      "Na caixa de baixo, escreva o compromisso como se falasse com uma pessoa. Com a caixa vazia só aparece o microfone à direita. Quando houver texto, o microfone vira a seta de enviar.",
     exemplo: "Dentista amanhã às 15h",
     alvo: "composer",
   },
@@ -34,7 +35,7 @@ export const PASSOS_TUTORIAL: PassoTutorial[] = [
     id: "ditado",
     titulo: "Falar no microfone",
     texto:
-      "Segure o microfone (ao lado esquerdo do Enviar) e fale. Solte para o texto aparecer na caixa — ele ainda não envia. Arraste para cima para falar sem segurar; toque de novo no microfone para parar. Arraste para o lado para cancelar. Quando o texto estiver certo, toque em Enviar.",
+      "Toque no microfone para falar com as mãos livres: a gravação continua depois que você solta, com Enviar e Cancelar visíveis. Segure para gravar enquanto o dedo estiver na tela e solte para o texto ficar na caixa — ainda não envia. Arraste para cima para travar (continua depois de soltar). Arraste para a esquerda para cancelar.",
     alvo: "microfone",
   },
   {

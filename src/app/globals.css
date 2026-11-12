@@ -30,6 +30,16 @@ body {
   height: 100%;
 }
 
+html.conversa-aberta,
+html.conversa-aberta body {
+  overflow: hidden;
+  overscroll-behavior: none;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
 body {
   margin: 0;
   color: var(--texto);
@@ -55,11 +65,16 @@ body {
 .conversa-shell {
   display: grid;
   grid-template-rows: auto 1fr auto;
-  height: 100dvh;
-  height: var(--vvh, 100dvh);
+  position: fixed;
+  top: var(--vvo, 0px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
   max-width: 40rem;
-  margin: 0 auto;
+  height: var(--vvh, 100dvh);
+  margin: 0;
   padding: env(safe-area-inset-top) 0 0;
+  overflow: hidden;
 }
 
 .conversa-topo {
@@ -329,16 +344,9 @@ body {
   min-width: 0;
 }
 
-.conversa-campo-com-ditado {
-  position: relative;
-  display: grid;
-  flex: 1;
-  min-width: 0;
-}
-
-.conversa-campo-com-ditado .conversa-campo {
-  padding-right: 3.2rem;
-  width: 100%;
+.conversa-linha-envio-travada {
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .seletor-dias {
@@ -430,11 +438,9 @@ body {
 }
 
 .microfone-whatsapp {
-  position: absolute;
-  right: 0.2rem;
-  top: 50%;
+  position: relative;
+  flex: none;
   z-index: 3;
-  transform: translateY(-50%);
   touch-action: none;
 }
 
@@ -462,16 +468,17 @@ body {
   color: var(--erro);
 }
 
-.conversa-ditado {
+.conversa-acao-circular {
+  flex: none;
   display: grid;
   place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 2.85rem;
+  height: 2.85rem;
   padding: 0;
   border: none;
   border-radius: 999px;
-  background: transparent;
-  color: var(--texto-suave);
+  background: var(--enviar);
+  color: var(--enviar-texto);
   cursor: pointer;
   touch-action: none;
   user-select: none;
@@ -479,16 +486,64 @@ body {
   -webkit-touch-callout: none;
 }
 
-.conversa-ditado:disabled {
-  opacity: 0.5;
-  cursor: default;
+.conversa-acao-circular:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
-.conversa-ditado-ativo {
+.conversa-acao-circular-gravando {
   color: #fff;
   background: #b42318;
   box-shadow: 0 0 0 0 color-mix(in oklab, #b42318 45%, transparent);
   animation: conversa-ditado-pulso 1.4s ease-out infinite;
+}
+
+.conversa-acao-icone {
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.conversa-gravacao-travada {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  min-height: 2.85rem;
+}
+
+.conversa-gravacao-cancelar {
+  flex: none;
+  min-height: 2.55rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--borda);
+  border-radius: 0.85rem;
+  background: #fff;
+  color: var(--erro);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.conversa-gravacao-status {
+  margin: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  color: var(--texto);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.conversa-gravacao-ponto {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: #b42318;
+  animation: pulsar 1s ease-in-out infinite;
 }
 
 @keyframes conversa-ditado-pulso {
@@ -503,13 +558,9 @@ body {
   }
 }
 
-.conversa-ditado-icone {
-  display: block;
-  width: 1.25rem;
-  height: 1.25rem;
-}
-
 .conversa-campo {
+  flex: 1;
+  min-width: 0;
   resize: none;
   min-height: 2.85rem;
   max-height: 8rem;
@@ -519,6 +570,15 @@ body {
   background: #fff;
   color: var(--texto);
   font: inherit;
+  font-size: 1rem;
+  line-height: 1.35;
+  overflow-x: hidden;
+}
+
+.conversa-campo::placeholder {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   line-height: 1.35;
 }
 
@@ -529,31 +589,6 @@ body {
 
 .conversa-campo:disabled {
   opacity: 0.7;
-}
-
-.conversa-enviar {
-  flex: none;
-  align-self: flex-end;
-  border: 0;
-  border-radius: 0.95rem;
-  min-height: 2.85rem;
-  padding: 0 0.95rem;
-  background: var(--enviar);
-  color: var(--enviar-texto);
-  font: inherit;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: transform 160ms ease, opacity 160ms ease;
-}
-
-.conversa-enviar:hover:not(:disabled) {
-  transform: translateY(-1px);
-}
-
-.conversa-enviar:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
 }
 
 @keyframes surgir {
@@ -967,13 +1002,10 @@ body {
 
 @media (min-width: 640px) {
   .conversa-shell {
-    margin-top: 1.5rem;
-    margin-bottom: 1.5rem;
-    height: calc(100dvh - 3rem);
+    top: calc(1.5rem + var(--vvo, 0px));
     height: calc(var(--vvh, 100dvh) - 3rem);
     border: 1px solid color-mix(in oklab, var(--borda) 80%, white);
     border-radius: 1.25rem;
-    overflow: hidden;
     box-shadow: 0 18px 50px rgba(28, 42, 36, 0.12);
     background: color-mix(in oklab, #f7faf8 70%, transparent);
   }
