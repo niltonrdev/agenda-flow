@@ -39,8 +39,13 @@ describe("tutorial de primeiro acesso", () => {
   it("navega entre os passos com progresso 1 de 5 até 5 de 5", () => {
     expect(PASSOS_TUTORIAL).toHaveLength(5);
     expect(PASSOS_TUTORIAL[0]?.exemplo).toBe("Dentista amanhã às 15h");
-    expect(PASSOS_TUTORIAL[1]?.texto).toMatch(/Solte para o texto aparecer na caixa/i);
+    expect(PASSOS_TUTORIAL[1]?.texto).toMatch(/Toque no microfone/i);
+    expect(PASSOS_TUTORIAL[1]?.texto).toMatch(/mãos livres/i);
+    expect(PASSOS_TUTORIAL[1]?.texto).toMatch(/Segure para gravar/i);
+    expect(PASSOS_TUTORIAL[1]?.texto).toMatch(/Arraste para cima/i);
+    expect(PASSOS_TUTORIAL[1]?.texto).toMatch(/esquerda/i);
     expect(PASSOS_TUTORIAL[1]?.texto).not.toMatch(/solte para enviar/i);
+    expect(PASSOS_TUTORIAL[0]?.texto).toMatch(/seta de enviar/i);
 
     expect(textoProgresso(0)).toBe("1 de 5");
     expect(indiceAposProximo(0)).toBe(1);

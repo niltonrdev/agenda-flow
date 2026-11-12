@@ -88,6 +88,7 @@ export function mensagemErroReconhecimento(codigo: string): string {
 }
 
 export type SessaoReconhecimento = {
+  id: () => number;
   iniciar: () => void;
   parar: () => void;
 };
@@ -112,19 +113,29 @@ export function criarSessaoReconhecimento(opcoes: {
 
   let ativo = false;
   let reiniciar = false;
+  let proximoId = 1;
+  let idSessao = 0;
+  let idValida = 0;
+
+  function sessaoViva(): boolean {
+    return idValida !== 0 && idSessao === idValida;
+  }
 
   reconhecimento.onstart = () => {
+    if (!sessaoViva()) return;
     ativo = true;
     opcoes.aoMudarEstado?.(true);
   };
 
   reconhecimento.onresult = (evento) => {
+    if (!sessaoViva()) return;
     const { final, parcial } = textoDoResultado(evento);
     if (parcial) opcoes.aoParcial?.(parcial);
     if (final) opcoes.aoFinal?.(final);
   };
 
   reconhecimento.onerror = (evento) => {
+    if (!sessaoViva()) return;
     const mensagem = mensagemErroReconhecimento(evento.error);
     if (evento.error === "aborted" || evento.error === "no-speech") {
       reiniciar = false;
@@ -134,7 +145,7 @@ export function criarSessaoReconhecimento(opcoes: {
 
   reconhecimento.onend = () => {
     ativo = false;
-    if (reiniciar) {
+    if (reiniciar && sessaoViva()) {
       try {
         reconhecimento.start();
         return;
@@ -142,17 +153,24 @@ export function criarSessaoReconhecimento(opcoes: {
         reiniciar = false;
       }
     }
-    opcoes.aoMudarEstado?.(false);
+    if (sessaoViva()) opcoes.aoMudarEstado?.(false);
   };
 
   return {
+    id() {
+      return idSessao;
+    },
     iniciar() {
+      idSessao = proximoId;
+      proximoId += 1;
+      idValida = idSessao;
       reiniciar = true;
       if (ativo) return;
       try {
         reconhecimento.start();
       } catch {
         reiniciar = false;
+        idValida = 0;
         opcoes.aoErro?.(
           "Não foi possível iniciar o microfone. Tente de novo.",
         );
@@ -160,6 +178,7 @@ export function criarSessaoReconhecimento(opcoes: {
       }
     },
     parar() {
+      idValida = 0;
       reiniciar = false;
       try {
         reconhecimento.stop();
