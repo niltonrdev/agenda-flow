@@ -14,10 +14,10 @@ import {
 } from "@/domain/confirmacao";
 import { mensagemAPartirDoCampo } from "@/domain/transcritor";
 import { obterTranscritor } from "@/lib/transcritor-app";
+import { CabecalhoConversa } from "@/app/cabecalho-conversa";
 import { AvisoRascunho, RodapeLegal } from "@/app/legal";
-import { MarcaCartao, MarcaCompacta } from "@/app/marca";
+import { MarcaCartao } from "@/app/marca";
 import { ControleTutorial } from "@/app/tutorial-painel";
-import Link from "next/link";
 import { Fragment, useEffect, useRef, useState } from "react";
 
 type MensagemNaTela = {
@@ -331,53 +331,14 @@ export default function ConversaPage() {
 
   return (
     <div className="conversa-shell">
-      <header className="conversa-topo" data-tutorial="topo">
-        <div className="conversa-topo-linha">
-          <MarcaCompacta />
-          <ControleTutorial abrirAutomatico />
-        </div>
-        <p className="conversa-sub">Conversa com o seu Calendário</p>
-        {google.conectado ? (
-          <div className="conversa-conta">
-            <p className="conversa-google conversa-google-ok">
-              {google.email
-                ? `Conectado como ${google.email}`
-                : "Conta Google conectada. Reconecte para ver o e-mail desta conta."}{" "}
-              A Consulta lê as agendas visíveis; a Marcação grava na principal.{" "}
-              <button
-                type="button"
-                className="conversa-sair"
-                onClick={() => void desconectarGoogle()}
-                disabled={desconectando}
-              >
-                {desconectando ? "Saindo…" : "Desconectar"}
-              </button>
-              {" · "}
-              <Link className="conversa-google-link" href="/privacidade">
-                Privacidade
-              </Link>
-            </p>
-          </div>
-        ) : null}
-        {!google.conectado ? (
-          <p className="conversa-google conversa-demo">
-            Demonstração somente leitura: calendário de exemplo no servidor,
-            sem gravar. Não é um calendário deste aparelho.
-            {google.credencialConfigurada ? (
-              <>
-                {" "}
-                <a className="conversa-google-link" href="/api/auth/google">
-                  Conectar Google
-                </a>
-              </>
-            ) : null}
-            {" · "}
-            <Link className="conversa-google-link" href="/privacidade">
-              Privacidade
-            </Link>
-          </p>
-        ) : null}
-      </header>
+      <CabecalhoConversa
+        conectado={google.conectado}
+        email={google.email}
+        credencialConfigurada={google.credencialConfigurada}
+        desconectando={desconectando}
+        onDesconectar={() => void desconectarGoogle()}
+        ajuda={<ControleTutorial abrirAutomatico />}
+      />
 
       <main className="conversa-fio" aria-live="polite" data-tutorial="fio">
         {mensagens.map((m, indice) => {

@@ -110,6 +110,16 @@ export type IntencaoDesconhecida = {
   tipo: "desconhecida";
 };
 
+/** Filtros da resposta enquanto a Conversa lista candidatos. */
+export type FiltrosEscolha = {
+  /** 1-based; "a segunda", "2". */
+  posicao?: number;
+  ultima?: boolean;
+  dia?: DiaRecorte;
+  hora?: { hour: number; minute: number };
+  termo: string;
+};
+
 export type PeriodoFalado = {
   primeiroDia: string;
   ultimoDia: string;
@@ -223,10 +233,16 @@ const RE_RECUSAR = /^(?:n[aã]o)\s*[.!]?\s*$/u;
 
 /** Formas longas antes das curtas (senão "remarca" engole "remarcar"). `i` para Remarcar/Cancela. */
 const RE_ALTERAR =
-  /^(?:mudar|muda|alterar|altere|remarcar|remarca)(?:\s+(?:o|a))?\s+/iu;
+  /^(?:mudar|muda|alterar|altere|remarcar|remarca)(?:\s+(?:o|a|os|as))?(?:\s+|$)/iu;
 
 const RE_CANCELAR =
-  /^(?:cancelar|cancela|cancele|desmarcar|desmarca|tirar|tira|apagar|apaga|apague|excluir|exclui|delete)(?:\s+(?:o|a|os|as))?\s+/iu;
+  /^(?:cancelar|cancela|cancele|desmarcar|desmarca|tirar|tira|apagar|apaga|apague|excluir|exclui|delete)(?:\s+(?:o|a|os|as))?(?:\s+|$)/iu;
+
+const RE_DEITICO =
+  /^(?:ess[ea]s?|est[ea]s?|isso|aquel[ea]s?)(?:\s+compromissos?)?$/u;
+
+const RE_PREFIXO_ESCOLHA =
+  /^(?:a|o|essa|esse|este|esta|quero(?:\s+(?:a|o))?)(?:\s+(?:de|do|da|com))?\s+/iu;
 
 const PALAVRA = String.raw`(?<![\p{L}\p{N}])`;
 const FIM_PALAVRA = String.raw`(?![\p{L}\p{N}])`;
@@ -963,31 +979,100 @@ function extrairDiaRecorteDoTexto(texto: string): {
 }
 
 function termoDeAlteracao(trecho: string): string {
-  return trecho
+  const termo = trecho
     .replace(/^(?:o|a|os|as)\s+/iu, "")
     .replace(/^(?:data|hora|hor[aá]rio|t[ií]tulo)\s+(?:d[aoe]\s+)?/iu, "")
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase()
     .normalize("NFC");
+  if (!termo || RE_DEITICO.test(termo)) return "";
+  return termo;
 }
 
 function termoDeCancelamento(trecho: string): string {
-  return trecho
+  const termo = trecho
     .replace(/\s+/g, " ")
     .trim()
     .replace(/^(?:o|a|os|as|da|do|de|na|no|em)\s+/iu, "")
     .trim()
     .toLowerCase()
     .normalize("NFC");
+  if (!termo || RE_DEITICO.test(termo)) return "";
+  return termo;
 }
 
 function montarCancelar(mensagem: string): Intencao {
   const semVerbo = mensagem.trim().replace(RE_CANCELAR, "");
   const { dia, semDia } = extrairDiaRecorteDoTexto(semVerbo);
   const termo = termoDeCancelamento(semDia);
-  if (!termo) return { tipo: "desconhecida" };
   return dia ? { tipo: "cancelar", termo, dia } : { tipo: "cancelar", termo };
+}
+
+const ORDINAIS_ESCOLHA: { re: RegExp; valor: number | "ultima" }[] = [
+  { re: /^(?:a|o)?\s*(?:primeira|primeiro|1[ªºao]?)\s*[.!]?\s*$/iu, valor: 1 },
+  { re: /^(?:a|o)?\s*(?:segunda|segundo|2[ªºao]?)\s*[.!]?\s*$/iu, valor: 2 },
+  { re: /^(?:a|o)?\s*(?:terceira|terceiro|3[ªºao]?)\s*[.!]?\s*$/iu, valor: 3 },
+  { re: /^(?:a|o)?\s*(?:quarta|quarto|4[ªºao]?)\s*[.!]?\s*$/iu, valor: 4 },
+  { re: /^(?:a|o)?\s*(?:quinta|quinto|5[ªºao]?)\s*[.!]?\s*$/iu, valor: 5 },
+  { re: /^(?:a|o)?\s*(?:sexta|sexto|6[ªºao]?)\s*[.!]?\s*$/iu, valor: 6 },
+  { re: /^(?:a|o)?\s*(?:s[eé]tima|s[eé]timo|7[ªºao]?)\s*[.!]?\s*$/iu, valor: 7 },
+  { re: /^(?:a|o)?\s*(?:oitava|oitavo|8[ªºao]?)\s*[.!]?\s*$/iu, valor: 8 },
+  { re: /^(?:a|o)?\s*(?:nona|nono|9[ªºao]?)\s*[.!]?\s*$/iu, valor: 9 },
+  { re: /^(?:a|o)?\s*(?:d[eé]cima|d[eé]cimo|10[ªºao]?)\s*[.!]?\s*$/iu, valor: 10 },
+  { re: /^(?:a|o)?\s*[uú]ltim[oa]\s*[.!]?\s*$/iu, valor: "ultima" },
+];
+
+function termoDaEscolha(trecho: string): string {
+  return trecho
+    .replace(new RegExp(RE_INTERVALO_HORAS.source, "giu"), " ")
+    .replace(new RegExp(RE_HORA_PERIODO.source, "giu"), " ")
+    .replace(new RegExp(RE_HORA_INICIO.source, "giu"), " ")
+    .replace(new RegExp(RE_HORA_SO_AS.source, "giu"), " ")
+    .replace(/[?.!,]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^(?:o|a|os|as|da|do|de|na|no|em|com)\s+/iu, "")
+    .replace(/\s+(?:o|a|os|as|da|do|de|na|no|em|com)$/iu, "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFC");
+}
+
+/**
+ * Resposta à lista “Qual você quer cancelar/alterar?”: posição, data, hora ou trecho do título.
+ */
+export function interpretarEscolhaLista(
+  mensagem: string,
+  agora: DateTime,
+): FiltrosEscolha {
+  void agora;
+  const texto = mensagem.trim().toLowerCase().normalize("NFC");
+  if (!texto) return { termo: "" };
+
+  for (const { re, valor } of ORDINAIS_ESCOLHA) {
+    if (re.test(texto)) {
+      return valor === "ultima" ? { ultima: true, termo: "" } : { posicao: valor, termo: "" };
+    }
+  }
+
+  const soNumero = /^(?:a|o)?\s*([1-9])\s*[.!]?\s*$/u.exec(texto);
+  if (soNumero) {
+    return { posicao: Number(soNumero[1]), termo: "" };
+  }
+
+  let resto = texto.replace(RE_CANCELAR, "").replace(RE_ALTERAR, "").trim();
+  resto = resto.replace(RE_PREFIXO_ESCOLHA, "").trim();
+
+  const { dia, semDia } = extrairDiaRecorteDoTexto(resto);
+  const hora = extrairHoraInicio(semDia);
+  const termoBruto = termoDaEscolha(semDia);
+  const termo = !termoBruto || RE_DEITICO.test(termoBruto) ? "" : termoBruto;
+  return {
+    ...(dia ? { dia } : {}),
+    ...(hora ? { hora } : {}),
+    termo,
+  };
 }
 
 function montarAlterar(mensagem: string, agora: DateTime): Intencao {
@@ -1004,7 +1089,6 @@ function montarAlterar(mensagem: string, agora: DateTime): Intencao {
     if (!sufixo) {
       const { dia, semDia } = extrairDiaRecorteDoTexto(termoBruto);
       const termo = termoDeAlteracao(semDia);
-      if (!termo) return { tipo: "desconhecida" };
       return dia
         ? { tipo: "alterar_sem_destino", termo, dia }
         : { tipo: "alterar_sem_destino", termo };

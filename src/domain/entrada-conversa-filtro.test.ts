@@ -155,7 +155,14 @@ describe("entrada de conversa — filtro por tipo e busca livre", () => {
     const resto = segunda.texto.split("\n").filter((l) => l.startsWith("•"));
     expect(resto).toHaveLength(5);
     expect(segunda.texto).not.toMatch(/e mais/);
-    expect(segunda.confirmacaoPendente).toBeNull();
+    expect(primeira.confirmacaoPendente?.acao).toBe("listagem_paginada");
+    if (primeira.confirmacaoPendente?.acao === "listagem_paginada") {
+      expect(primeira.confirmacaoPendente.candidatos).toHaveLength(15);
+    }
+    expect(segunda.confirmacaoPendente?.acao).toBe("contexto_listagem");
+    if (segunda.confirmacaoPendente?.acao === "contexto_listagem") {
+      expect(segunda.confirmacaoPendente.candidatos).toHaveLength(5);
+    }
   });
 
   it("CA9: mostrar mais sem listagem anterior devolve a dica de uso", async () => {
@@ -495,5 +502,231 @@ describe("entrada de conversa — filtro por tipo e busca livre", () => {
     );
     expect(saida.texto).toMatch(/Mostrei até 1 de dezembro/);
     expect(saida.texto).toMatch(/Peça um período/);
+  });
+});
+
+describe("entrada de conversa — Cancelar e mostrar mais na listagem", () => {
+  it("Cancelar depois de Mostrar viagens com um item vai para a Confirmação, sem gravar", async () => {
+    const calendario = criarCalendarioEmMemoria([
+      pontual("voo", "Voo GRU-REC", 10, 9),
+    ]);
+    const listagem = await processarTurno(
+      { mensagem: "Mostrar viagens", agora: AGORA },
+      calendario,
+    );
+    expect(listagem.confirmacaoPendente?.acao).toBe("contexto_listagem");
+
+    const cancelar = await processarTurno(
+      {
+        mensagem: "Cancelar",
+        agora: AGORA,
+        confirmacaoPendente: listagem.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(cancelar.texto).toMatch(/Confirmação/i);
+    expect(cancelar.texto).toMatch(/Voo GRU-REC/);
+    expect(cancelar.confirmacaoPendente?.acao).toBe("cancelar_pontual");
+    expect(calendario.listarTodos()).toHaveLength(1);
+  });
+
+  it("Cancelar depois de Mostrar viagens com vários pergunta qual, sem gravar", async () => {
+    const calendario = criarCalendarioEmMemoria([
+      pontual("gru", "Voo GRU-REC", 10, 9),
+      pontual("gig", "Voo GIG-SSA", 12, 11),
+      pontual("cgh", "Viagem SP", 14, 8),
+    ]);
+    const listagem = await processarTurno(
+      { mensagem: "Mostrar viagens", agora: AGORA },
+      calendario,
+    );
+    expect(listagem.confirmacaoPendente?.acao).toBe("contexto_listagem");
+
+    const cancelar = await processarTurno(
+      {
+        mensagem: "Cancelar",
+        agora: AGORA,
+        confirmacaoPendente: listagem.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(cancelar.texto).toMatch(/Qual você quer cancelar/i);
+    expect(cancelar.confirmacaoPendente?.acao).toBe("escolher_cancelamento");
+    expect(calendario.listarTodos()).toHaveLength(3);
+  });
+
+  it("Cancelar depois da primeira página de reuniões usa os 15 visíveis", async () => {
+    const reunioes = Array.from({ length: 20 }, (_, i) =>
+      pontual(`r${i}`, "Reunião time", i + 1, 10 + (i % 8)),
+    );
+    const calendario = criarCalendarioEmMemoria(reunioes);
+    const primeira = await processarTurno(
+      { mensagem: "Mostrar reuniões", agora: AGORA },
+      calendario,
+    );
+    expect(primeira.confirmacaoPendente?.acao).toBe("listagem_paginada");
+
+    const cancelar = await processarTurno(
+      {
+        mensagem: "Cancelar",
+        agora: AGORA,
+        confirmacaoPendente: primeira.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(cancelar.texto).toMatch(/Qual você quer cancelar/i);
+    expect(cancelar.confirmacaoPendente?.acao).toBe("escolher_cancelamento");
+    if (cancelar.confirmacaoPendente?.acao === "escolher_cancelamento") {
+      expect(cancelar.confirmacaoPendente.candidatos).toHaveLength(15);
+    }
+    expect(calendario.listarTodos()).toHaveLength(20);
+  });
+
+  it("mostrar mais depois da desambiguação relista a escolha e não pagina", async () => {
+    const calendario = criarCalendarioEmMemoria([
+      pontual("a", "Reunião Ana", 2, 10),
+      pontual("b", "Reunião Bia", 3, 11),
+    ]);
+    const lista = await processarTurno(
+      { mensagem: "Cancelar reunião", agora: AGORA },
+      calendario,
+    );
+    expect(lista.confirmacaoPendente?.acao).toBe("escolher_cancelamento");
+
+    const mais = await processarTurno(
+      {
+        mensagem: "mostrar mais",
+        agora: AGORA,
+        confirmacaoPendente: lista.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(mais.texto).toMatch(/Qual você quer cancelar/i);
+    expect(mais.confirmacaoPendente?.acao).toBe("escolher_cancelamento");
+    expect(calendario.listarTodos()).toHaveLength(2);
+  });
+
+  it("mostrar mais depois de uma Confirmação de cancelar não interrompe", async () => {
+    const calendario = criarCalendarioEmMemoria([
+      pontual("voo", "Voo GRU-REC", 10, 9),
+    ]);
+    const listagem = await processarTurno(
+      { mensagem: "Mostrar viagens", agora: AGORA },
+      calendario,
+    );
+    const cancelar = await processarTurno(
+      {
+        mensagem: "Cancelar",
+        agora: AGORA,
+        confirmacaoPendente: listagem.confirmacaoPendente,
+      },
+      calendario,
+    );
+    const mais = await processarTurno(
+      {
+        mensagem: "mostrar mais",
+        agora: AGORA,
+        confirmacaoPendente: cancelar.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(mais.texto).toMatch(/não entendi/i);
+    expect(mais.confirmacaoPendente?.acao).toBe("cancelar_pontual");
+    expect(calendario.listarTodos()).toHaveLength(1);
+  });
+
+  it("mostrar mais depois de um contexto de consulta não apaga o Cancelar", async () => {
+    const calendario = criarCalendarioEmMemoria([
+      pontual("voo", "Voo GRU-REC", 10, 9),
+    ]);
+    const consulta = await processarTurno(
+      { mensagem: "23 de novembro", agora: AGORA },
+      calendario,
+    );
+    expect(consulta.confirmacaoPendente?.acao).toBe("contexto_listagem");
+
+    const mais = await processarTurno(
+      {
+        mensagem: "mostrar mais",
+        agora: AGORA,
+        confirmacaoPendente: consulta.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(mais.confirmacaoPendente?.acao).toBe("contexto_listagem");
+    expect(mais.texto).toMatch(/Posso mostrar viagens, reuniões ou buscar/);
+
+    const cancelar = await processarTurno(
+      {
+        mensagem: "Cancelar",
+        agora: AGORA,
+        confirmacaoPendente: mais.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(cancelar.confirmacaoPendente?.acao).toBe("cancelar_pontual");
+    expect(calendario.listarTodos()).toHaveLength(1);
+  });
+
+  it("um pedido novo de viagens substitui o contexto mole de consulta", async () => {
+    const calendario = criarCalendarioEmMemoria([
+      pontual("ana", "Reunião com a Ana", 1, 15),
+      pontual("voo", "Voo GRU-REC", 10, 9),
+    ]);
+    const consulta = await processarTurno(
+      { mensagem: "14 de novembro", agora: AGORA },
+      calendario,
+    );
+    expect(consulta.confirmacaoPendente?.acao).toBe("contexto_listagem");
+
+    const viagens = await processarTurno(
+      {
+        mensagem: "Mostrar viagens",
+        agora: AGORA,
+        confirmacaoPendente: consulta.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(viagens.texto).toContain("Voo GRU-REC");
+    expect(viagens.texto).not.toContain("Reunião com a Ana");
+    expect(viagens.confirmacaoPendente?.acao).toBe("contexto_listagem");
+  });
+
+  it("na demonstração, Sim depois de Cancelar a viagem listada não grava", async () => {
+    const { criarCalendarioDeDemonstracaoSomenteLeitura } = await import(
+      "@/adapters/calendario-em-memoria"
+    );
+    const agora = DateTime.fromObject(
+      { year: 2025, month: 8, day: 1, hour: 10 },
+      { zone: FUSO_DONO },
+    );
+    const demo = criarCalendarioDeDemonstracaoSomenteLeitura(agora);
+    const listagem = await processarTurno(
+      { mensagem: "Mostrar viagens", agora },
+      demo,
+    );
+    const cancelar = await processarTurno(
+      {
+        mensagem: "Cancelar",
+        agora,
+        confirmacaoPendente: listagem.confirmacaoPendente,
+      },
+      demo,
+    );
+    expect(cancelar.confirmacaoPendente?.acao).toBe("cancelar_pontual");
+    const sim = await processarTurno(
+      {
+        mensagem: "sim",
+        agora,
+        confirmacaoPendente: cancelar.confirmacaoPendente,
+      },
+      demo,
+    );
+    expect(sim.texto).toMatch(/só consulta/i);
+    const ainda = await demo.listar({
+      inicio: agora.toISO()!,
+      fim: agora.plus({ years: 1 }).toISO()!,
+    });
+    expect(ainda.some((c) => c.titulo === "Voo GRU-REC")).toBe(true);
   });
 });

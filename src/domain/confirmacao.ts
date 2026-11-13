@@ -52,6 +52,7 @@ export type ConfirmacaoEscolherAlteracao = {
   candidatos: CandidatoAlteracao[];
   /** Ausente quando o Dono ainda não disse para quando alterar. */
   destino?: DestinoAlteracao;
+  em?: string;
 };
 
 export type ConfirmacaoCancelarPontual = {
@@ -75,7 +76,19 @@ export type ConfirmacaoCancelarPeriodo = {
 export type ConfirmacaoEscolherCancelamento = {
   acao: "escolher_cancelamento";
   candidatos: CandidatoAlteracao[];
+  /** Instantâneo ISO; o contexto de escolha expira depois de TTL_CONTEXTO_MS. */
+  em?: string;
 };
+
+/** Compromissos acabados de listar numa Consulta; "Cancelar"/"Alterar" curto usa esta lista. */
+export type ConfirmacaoContextoListagem = {
+  acao: "contexto_listagem";
+  candidatos: CandidatoAlteracao[];
+  em: string;
+};
+
+/** 15 min: mesmo prazo do cookie da proposta. */
+export const TTL_CONTEXTO_MS = 15 * 60 * 1000;
 
 /** Marcação iniciada sem horário (e às vezes sem dia): a Conversa completa no próximo turno. */
 export type ConfirmacaoCompletarMarcacao = {
@@ -107,8 +120,8 @@ export type ConfirmacaoCompletarDiasPeriodo = {
 };
 
 /**
- * Continuação de "mostrar mais": só o filtro e o offset.
- * Sem descrição de evento, sem lista completa.
+ * Continuação de "mostrar mais": filtro, offset e a página visível
+ * (id+rótulo, sem descrição) para um Cancelar/Alterar curto.
  */
 export type ConfirmacaoListagemPaginada = {
   acao: "listagem_paginada";
@@ -120,6 +133,9 @@ export type ConfirmacaoListagemPaginada = {
   rotuloPeriodo?: string;
   offset: number;
   truncadoAte?: string;
+  /** Página visível: "Cancelar"/"Alterar" curto usa estes ids+rótulos, sem descrição. */
+  candidatos?: CandidatoAlteracao[];
+  em?: string;
 };
 
 export type ConfirmacaoPendente =
@@ -135,6 +151,7 @@ export type ConfirmacaoPendente =
   | ConfirmacaoCompletarAlteracao
   | ConfirmacaoCompletarDuracaoPeriodo
   | ConfirmacaoCompletarDiasPeriodo
+  | ConfirmacaoContextoListagem
   | ConfirmacaoListagemPaginada;
 
 export type ConfirmacaoMarcacao = ConfirmacaoPontual | ConfirmacaoPeriodo;
@@ -240,7 +257,8 @@ export function ehConfirmacaoPendente(valor: unknown): valor is ConfirmacaoPende
           typeof c.id === "string" &&
           typeof c.rotulo === "string",
       ) &&
-      (proposta.destino === undefined || destinoValido(proposta.destino))
+      (proposta.destino === undefined || destinoValido(proposta.destino)) &&
+      (proposta.em === undefined || typeof proposta.em === "string")
     );
   }
   if (proposta.acao === "cancelar_pontual") {
@@ -267,7 +285,20 @@ export function ehConfirmacaoPendente(valor: unknown): valor is ConfirmacaoPende
           c &&
           typeof c.id === "string" &&
           typeof c.rotulo === "string",
-      )
+      ) &&
+      (proposta.em === undefined || typeof proposta.em === "string")
+    );
+  }
+  if (proposta.acao === "contexto_listagem") {
+    return (
+      Array.isArray(proposta.candidatos) &&
+      proposta.candidatos.every(
+        (c) =>
+          c &&
+          typeof c.id === "string" &&
+          typeof c.rotulo === "string",
+      ) &&
+      typeof proposta.em === "string"
     );
   }
   if (proposta.acao === "completar_marcacao") {
@@ -310,7 +341,16 @@ export function ehConfirmacaoPendente(valor: unknown): valor is ConfirmacaoPende
         typeof proposta.rotuloPeriodo === "string") &&
       (proposta.truncadoAte === undefined ||
         typeof proposta.truncadoAte === "string") &&
-      (proposta.termo === undefined || typeof proposta.termo === "string")
+      (proposta.termo === undefined || typeof proposta.termo === "string") &&
+      (proposta.em === undefined || typeof proposta.em === "string") &&
+      (proposta.candidatos === undefined ||
+        (Array.isArray(proposta.candidatos) &&
+          proposta.candidatos.every(
+            (c) =>
+              c &&
+              typeof c.id === "string" &&
+              typeof c.rotulo === "string",
+          )))
     );
   }
   return false;
@@ -320,4 +360,40 @@ export function ehListagemPaginada(
   valor: ConfirmacaoPendente,
 ): valor is ConfirmacaoListagemPaginada {
   return valor.acao === "listagem_paginada";
+}
+
+export function ehContextoListagem(
+  valor: ConfirmacaoPendente,
+): valor is ConfirmacaoContextoListagem {
+  return valor.acao === "contexto_listagem";
+}
+
+/**
+ * Confirmação (Sim/Não), completar ou desambiguar: a listagem não interrompe.
+ * Contexto de consulta e paginação de "mostrar mais" não bloqueiam um
+ * pedido novo de viagens/reuniões/busca.
+ */
+export function ehConfirmacaoQueBloqueiaListagem(
+  pendente: ConfirmacaoPendente,
+): boolean {
+  return (
+    pendente.acao !== "listagem_paginada" &&
+    pendente.acao !== "contexto_listagem"
+  );
+}
+
+export function candidatosDoContexto(
+  pendente: ConfirmacaoPendente,
+): CandidatoAlteracao[] | null {
+  if (pendente.acao === "contexto_listagem") {
+    return pendente.candidatos;
+  }
+  if (
+    pendente.acao === "listagem_paginada" &&
+    Array.isArray(pendente.candidatos) &&
+    pendente.candidatos.length > 0
+  ) {
+    return pendente.candidatos;
+  }
+  return null;
 }

@@ -1,7 +1,9 @@
 import type { Calendario } from "./calendario";
 import { listarDetalhado } from "./calendario";
 import {
+  ehConfirmacaoQueBloqueiaListagem,
   ehListagemPaginada,
+  type CandidatoAlteracao,
   type ConfirmacaoListagemPaginada,
   type ConfirmacaoPendente,
 } from "./confirmacao";
@@ -20,6 +22,7 @@ import {
   formatarListagemFiltrada,
   mensagemVaziaBusca,
   mensagemVaziaTipo,
+  rotuloCandidato,
   RESPOSTA_NAO_ENTENDI,
   RESPOSTA_TERMO_BUSCA,
   RESPOSTA_TIPO_NAO_RECONHECIDO,
@@ -76,14 +79,29 @@ function filtrar(
 }
 
 function montarPendente(
-  consulta: Omit<ConfirmacaoListagemPaginada, "acao" | "offset">,
+  consulta: Omit<
+    ConfirmacaoListagemPaginada,
+    "acao" | "offset" | "candidatos" | "em"
+  >,
   proximoOffset: number | null,
-): ConfirmacaoListagemPaginada | null {
-  if (proximoOffset == null) return null;
+  candidatos: CandidatoAlteracao[],
+  agora: DateTime,
+): ConfirmacaoPendente | null {
+  if (candidatos.length === 0) return null;
+  const em = agora.toISO()!;
+  if (proximoOffset != null) {
+    return {
+      acao: "listagem_paginada",
+      ...consulta,
+      offset: proximoOffset,
+      candidatos,
+      em,
+    };
+  }
   return {
-    acao: "listagem_paginada",
-    ...consulta,
-    offset: proximoOffset,
+    acao: "contexto_listagem",
+    candidatos,
+    em,
   };
 }
 
@@ -118,6 +136,10 @@ async function executarListagem(
     itensPorPagina: ITENS_POR_LISTAGEM,
     truncadoAte: teto,
   });
+  const candidatos = formatada.itens.map((c) => ({
+    id: c.id,
+    rotulo: rotuloCandidato(c, agora),
+  }));
   return saidaTexto(
     formatada.texto,
     montarPendente(
@@ -131,6 +153,8 @@ async function executarListagem(
         truncadoAte: teto,
       },
       formatada.proximoOffset,
+      candidatos,
+      agora,
     ),
   );
 }
@@ -158,9 +182,13 @@ function consultaDeIntencao(
 }
 
 /**
- * Listagem por tipo/busca. Confirmação pendente (exceto a própria paginação)
- * tem prioridade: devolve null para o fluxo atual continuar, ou uma saída
- * que preserva a proposta quando a intenção é só de listagem.
+ * Listagem por tipo/busca.
+ *
+ * Confirmação (Sim/Não), completar e desambiguar não cedem a "Mostrar
+ * viagens" nem a "mostrar mais". Já o contexto de uma consulta/listagem
+ * (página visível) aceita Cancelar/Alterar curto; "mostrar mais" só avança
+ * se ainda houver página; um pedido novo de viagens/reuniões/busca substitui
+ * esse contexto.
  */
 export async function processarIntencaoListagem(
   intencao: Intencao,
@@ -170,23 +198,21 @@ export async function processarIntencaoListagem(
 ): Promise<SaidaListagem | null> {
   if (!ehIntencaoDeListagem(intencao)) return null;
 
-  const confirmacaoEmAndamento =
-    pendente != null && !ehListagemPaginada(pendente);
-  if (confirmacaoEmAndamento) {
+  if (pendente && ehConfirmacaoQueBloqueiaListagem(pendente)) {
     return saidaTexto(RESPOSTA_NAO_ENTENDI, pendente);
   }
 
   if (intencao.tipo === "busca_termo_invalido") {
-    return saidaTexto(RESPOSTA_TERMO_BUSCA, null);
+    return saidaTexto(RESPOSTA_TERMO_BUSCA, pendente);
   }
   if (intencao.tipo === "tipo_nao_reconhecido") {
-    return saidaTexto(RESPOSTA_TIPO_NAO_RECONHECIDO, null);
+    return saidaTexto(RESPOSTA_TIPO_NAO_RECONHECIDO, pendente);
   }
   if (intencao.tipo === "mostrar_mais") {
-    if (!pendente || !ehListagemPaginada(pendente)) {
-      return saidaTexto(RESPOSTA_TIPO_NAO_RECONHECIDO, null);
+    if (pendente && ehListagemPaginada(pendente)) {
+      return executarListagem(calendario, agora, pendente);
     }
-    return executarListagem(calendario, agora, pendente);
+    return saidaTexto(RESPOSTA_TIPO_NAO_RECONHECIDO, pendente);
   }
   if (intencao.tipo === "consulta_tipo" || intencao.tipo === "busca_livre") {
     return executarListagem(calendario, agora, {

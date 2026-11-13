@@ -367,7 +367,7 @@ export function formatarListagemFiltrada(
     itensPorPagina: number;
     truncadoAte?: string;
   },
-): { texto: string; proximoOffset: number | null } {
+): { texto: string; proximoOffset: number | null; itens: Compromisso[] } {
   const ordenados = [...compromissos].sort((a, b) =>
     instanteDeOrdenacao(a).localeCompare(instanteDeOrdenacao(b)),
   );
@@ -382,7 +382,11 @@ export function formatarListagemFiltrada(
     : "";
 
   if (ordenados.length === 0 || fatia.length === 0) {
-    return { texto: `${opcoes.vazia}${avisoTeto}`, proximoOffset: null };
+    return {
+      texto: `${opcoes.vazia}${avisoTeto}`,
+      proximoOffset: null,
+      itens: [],
+    };
   }
 
   const linhas = fatia.map((c) => `• ${formatarCompromissoNoIntervalo(c, agora)}`);
@@ -394,5 +398,6 @@ export function formatarListagemFiltrada(
   return {
     texto,
     proximoOffset: resto > 0 ? opcoes.offset + fatia.length : null,
+    itens: fatia,
   };
 }

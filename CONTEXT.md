@@ -37,7 +37,7 @@ Compromisso de dias inteiros, do primeiro ao último dia inclusive (pescaria do 
 _Avoid_: all-day (como nome nosso), viagem (é um exemplo, não o tipo), bloco
 
 **Consulta**:
-Pedido para saber se um dia ou um Período está livre ou ocupado, sem gravar nada. Uma data solta (“15 de novembro”) é só aquele dia. Fala de feriado, fim de semana, viagem ou pescaria consulta o intervalo desse recorte. Também lista Compromissos futuros de um tipo (viagens, reuniões) ou que contenham um termo falado, sem gravar nada.
+Pedido para saber se um dia ou um Período está livre ou ocupado, sem gravar nada. Uma data solta (“15 de novembro”) é só aquele dia. Fala de feriado, fim de semana, viagem ou pescaria consulta o intervalo desse recorte. Também lista Compromissos futuros de um tipo (viagens, reuniões) ou que contenham um termo falado, sem gravar nada. Os Compromissos mostrados na resposta servem de contexto se o Dono disser Cancelar ou Alterar em seguida.
 _Avoid_: search, listagem, report
 
 **Marcação**:
@@ -49,11 +49,11 @@ Mudar a data/hora de um Pontual, ou os dias de um Período, só depois da Confir
 _Avoid_: update genérico, edit, reschedule (como nome de produto)
 
 **Cancelamento**:
-Remover o Compromisso inteiro do Calendário, só depois da Confirmação. Um Período não se recorta num dia: para soltar um dia, é Alteração dos extremos. Se a fala for ambígua, a Conversa lista e o Dono escolhe.
+Remover o Compromisso inteiro do Calendário, só depois da Confirmação. Um Período não se recorta num dia: para soltar um dia, é Alteração dos extremos. Se a fala for ambígua, a Conversa lista e o Dono escolhe. Depois de uma listagem, Cancelar sozinho usa os itens mostrados: um vai à Confirmação; vários perguntam qual.
 _Avoid_: delete, unbook
 
 **Confirmação**:
-O sistema mostra o que entendeu (título, Pontual ou Período, datas/horas, Alerta de conflito se houver), não a transcrição crua do Áudio. O Dono diz sim e a mutação vai ao Calendário; diz não e a Conversa pergunta o que mudar, na mesma mutação.
+O sistema mostra o que entendeu (título, Pontual ou Período, datas/horas, Alerta de conflito se houver), não a transcrição crua do Áudio. O Dono diz sim e a mutação vai ao Calendário; diz não e a Conversa pergunta o que mudar, na mesma mutação. Enquanto a Confirmação está pendente, a Conversa não troca o assunto por uma listagem ou por “mostrar mais”.
 _Avoid_: dry-run, preview (como nome de domínio)
 
 **Alerta de conflito**:

@@ -1,0 +1,3 @@
+# Listagem paginada e contexto de Cancelar compartilham a proposta pendente
+
+A Confirmação (Sim/Não), completar e a desambiguação (“qual você quer cancelar?”) têm prioridade sobre “Mostrar viagens” e “mostrar mais”. A página visível de uma listagem guarda os ids+rótulos daqueles itens: Cancelar/Alterar curto usa essa página (1 → Confirmação, vários → qual). “mostrar mais” só avança se ainda houver página; depois de uma desambiguação, relista a escolha; depois de uma Confirmação, a Conversa diz que não entendeu e mantém a proposta. Um pedido novo de viagens/reuniões/busca substitui só o contexto mole de consulta/listagem. Nada é gravado sem o Sim.
