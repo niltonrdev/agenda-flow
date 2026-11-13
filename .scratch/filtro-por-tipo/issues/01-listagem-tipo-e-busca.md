@@ -4,10 +4,10 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** implementing
 
-- [ ] CA1–CA6 tipos
-- [ ] CA7–CA9 paginação
-- [ ] CA10–CA16 busca livre (D1 título+descrição; descrição só local)
-- [ ] CA17–CA20 sem regressão
-- [ ] CA21 sem escopo/requisição nova
+- [x] CA1–CA6 tipos
+- [x] CA7–CA9 paginação
+- [x] CA10–CA16 busca livre (D1 título+descrição; descrição só local)
+- [x] CA17–CA20 sem regressão
+- [x] CA21 sem escopo/requisição nova
