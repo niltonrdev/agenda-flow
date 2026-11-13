@@ -1,26 +1,24 @@
-import { AvisoRascunho, RodapeLegal } from "@/app/legal";
+import { RodapeLegal } from "@/app/legal";
 import { MarcaCartao } from "@/app/marca";
 import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Política de privacidade (rascunho) — Agenda Inteligente",
+  title: "Política de privacidade — Agenda Inteligente",
   description:
-    "Rascunho para revisão humana sobre o tratamento de dados da Agenda Inteligente.",
+    "Como a Agenda Inteligente coleta, usa e protege os seus dados pessoais.",
 };
 
 export default function PaginaPrivacidade() {
   return (
     <article className="pagina-legal">
-      <AvisoRascunho />
       <MarcaCartao />
       <p className="pagina-legal-voltar">
         <Link href="/">Voltar à página inicial</Link>
       </p>
       <h1 className="pagina-legal-titulo">Política de privacidade</h1>
       <p className="pagina-legal-meta">
-        Rascunho. Versão para revisão humana — 6 de novembro de 2026. Não
-        publicar como texto definitivo sem revisão jurídica e do controlador.
+        Última atualização: 13 de novembro de 2026.
       </p>
 
       <section>
@@ -28,9 +26,11 @@ export default function PaginaPrivacidade() {
         <p>
           A Agenda Inteligente é uma ferramenta pessoal do Dono do calendário.
           O controlador dos dados pessoais é o responsável pela instância
-          publicada (a preencher: nome e e-mail de contato). Este rascunho
-          precisa desse contato antes de qualquer verificação OAuth ou
-          divulgação pública.
+          publicada. Para entrar em contato:{" "}
+          <a href="mailto:contato@agendainteligente.app">
+            contato@agendainteligente.app
+          </a>
+          .
         </p>
       </section>
 
@@ -136,6 +136,17 @@ export default function PaginaPrivacidade() {
           revalidada no servidor; o modo demonstração não grava; há limite de
           frequência, verificação de origem e cabeçalhos de defesa do
           navegador. Nenhum controle elimina todo o risco.
+        </p>
+      </section>
+
+      <section>
+        <h2>10. Contato</h2>
+        <p>
+          Dúvidas, pedidos de acesso, correção ou exclusão de dados:{" "}
+          <a href="mailto:contato@agendainteligente.app">
+            contato@agendainteligente.app
+          </a>
+          .
         </p>
       </section>
 

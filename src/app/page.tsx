@@ -15,7 +15,7 @@ import {
 import { mensagemAPartirDoCampo } from "@/domain/transcritor";
 import { obterTranscritor } from "@/lib/transcritor-app";
 import { CabecalhoConversa } from "@/app/cabecalho-conversa";
-import { AvisoRascunho, RodapeLegal } from "@/app/legal";
+import { RodapeLegal } from "@/app/legal";
 import { MarcaCartao } from "@/app/marca";
 import { ControleTutorial } from "@/app/tutorial-painel";
 import { Fragment, useEffect, useRef, useState } from "react";
@@ -274,7 +274,6 @@ export default function ConversaPage() {
   if (!naConversa) {
     return (
       <div className="entrada-shell entrada-shell-home">
-        <AvisoRascunho />
         <MarcaCartao />
         <header className="entrada-hero">
           <h1 className="entrada-titulo">Agenda Inteligente</h1>
