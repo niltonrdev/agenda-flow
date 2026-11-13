@@ -179,6 +179,40 @@ export function recorteFimDeSemana(agora: DateTime): RecorteDias {
   };
 }
 
+/** Segunda a domingo da semana corrente em Brasília. */
+export function recorteEstaSemana(agora: DateTime): RecorteDias {
+  const d = agoraEmBrasilia(agora).startOf("day");
+  const segunda = d.minus({ days: d.weekday - 1 });
+  return {
+    primeiroDia: segunda.toISODate()!,
+    ultimoDia: segunda.plus({ days: 6 }).toISODate()!,
+  };
+}
+
+/**
+ * Mês civil: o corrente se ainda não acabou; senão o mesmo mês do ano seguinte.
+ */
+export function recorteMes(mes: number, agora: DateTime): RecorteDias {
+  if (mes < 1 || mes > 12) {
+    throw new Error(`Mês inválido: ${mes}`);
+  }
+  const base = agoraEmBrasilia(agora).startOf("day");
+  let inicio = DateTime.fromObject(
+    { year: base.year, month: mes, day: 1 },
+    { zone: FUSO_DONO },
+  );
+  if (!inicio.isValid) {
+    throw new Error(`Mês inválido: ${mes}`);
+  }
+  if (inicio.endOf("month") < base) {
+    inicio = inicio.plus({ years: 1 });
+  }
+  return {
+    primeiroDia: inicio.toISODate()!,
+    ultimoDia: inicio.endOf("month").toISODate()!,
+  };
+}
+
 /**
  * Recorte do feriado: o dia dito, mais o fim de semana colado
  * e a emenda típica (segunda↔sábado quando a folga é terça; quinta→domingo).

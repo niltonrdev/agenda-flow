@@ -23,6 +23,12 @@ import { DateTime } from "luxon";
 export const RESPOSTA_NAO_ENTENDI =
   "Não entendi o pedido. Pode reformular?";
 
+export const RESPOSTA_TIPO_NAO_RECONHECIDO =
+  "Posso mostrar viagens, reuniões ou buscar por um termo. Ex.: 'Mostrar reuniões' ou 'eventos com dentista'.";
+
+export const RESPOSTA_TERMO_BUSCA =
+  "Com o quê? Ex.: 'eventos com dentista'.";
+
 export const RESPOSTA_O_QUE_MUDAR = "O que mudar?";
 
 export const RESPOSTA_DEIXO_PRA_LA = "Ok, deixo pra lá.";
@@ -303,4 +309,90 @@ export function formatarConsultaIntervalo(
     .sort((a, b) => instanteDeOrdenacao(a).localeCompare(instanteDeOrdenacao(b)))
     .map((c) => `• ${formatarCompromissoNoIntervalo(c, agora)}`);
   return `${rotulo}:\n${linhas.join("\n")}`;
+}
+
+export function escaparTermoExibicao(termo: string): string {
+  return termo
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+export function cabecalhoListagemTipo(
+  filtro: "viagens" | "reunioes",
+  rotuloPeriodo?: string,
+): string {
+  const nome = filtro === "viagens" ? "Viagens" : "Reuniões";
+  if (!rotuloPeriodo) return `${nome} futuras:`;
+  return `${nome} ${rotuloPeriodo}:`;
+}
+
+export function mensagemVaziaTipo(
+  filtro: "viagens" | "reunioes",
+  rotuloPeriodo?: string,
+): string {
+  const nome = filtro === "viagens" ? "viagem" : "reunião";
+  if (!rotuloPeriodo) return `Nenhuma ${nome} futura.`;
+  return `Nenhuma ${nome} ${rotuloPeriodo}.`;
+}
+
+export function cabecalhoListagemBusca(
+  termo: string,
+  rotuloPeriodo?: string,
+): string {
+  const quoted = `"${escaparTermoExibicao(termo)}"`;
+  if (!rotuloPeriodo) return `Eventos com ${quoted}:`;
+  return `Eventos com ${quoted} ${rotuloPeriodo}:`;
+}
+
+export function mensagemVaziaBusca(
+  termo: string,
+  rotuloPeriodo?: string,
+): string {
+  const quoted = `"${escaparTermoExibicao(termo)}"`;
+  if (!rotuloPeriodo) {
+    return `Nenhum evento com ${quoted} nos próximos 12 meses.`;
+  }
+  return `Nenhum evento com ${quoted} ${rotuloPeriodo}.`;
+}
+
+export function formatarListagemFiltrada(
+  compromissos: Compromisso[],
+  agora: DateTime,
+  opcoes: {
+    cabecalho: string;
+    vazia: string;
+    offset: number;
+    itensPorPagina: number;
+    truncadoAte?: string;
+  },
+): { texto: string; proximoOffset: number | null } {
+  const ordenados = [...compromissos].sort((a, b) =>
+    instanteDeOrdenacao(a).localeCompare(instanteDeOrdenacao(b)),
+  );
+  const fatia = ordenados.slice(
+    opcoes.offset,
+    opcoes.offset + opcoes.itensPorPagina,
+  );
+  const resto = Math.max(0, ordenados.length - opcoes.offset - fatia.length);
+
+  const avisoTeto = opcoes.truncadoAte
+    ? `\n\nMostrei até ${formatarDiaPorExtenso(opcoes.truncadoAte, { agoraReferencia: agora })}. Peça um período para ver depois disso.`
+    : "";
+
+  if (ordenados.length === 0 || fatia.length === 0) {
+    return { texto: `${opcoes.vazia}${avisoTeto}`, proximoOffset: null };
+  }
+
+  const linhas = fatia.map((c) => `• ${formatarCompromissoNoIntervalo(c, agora)}`);
+  let texto = `${opcoes.cabecalho}\n${linhas.join("\n")}`;
+  if (resto > 0) {
+    texto += `\n\ne mais ${resto}. Diga 'mostrar mais' ou peça um período.`;
+  }
+  texto += avisoTeto;
+  return {
+    texto,
+    proximoOffset: resto > 0 ? opcoes.offset + fatia.length : null,
+  };
 }

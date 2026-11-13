@@ -474,3 +474,107 @@ describe("interpretador — duração da viagem", () => {
     });
   });
 });
+
+describe("interpretador — listagem por tipo e busca livre", () => {
+  const agora = DateTime.fromObject(
+    { year: 2026, month: 11, day: 13, hour: 10 },
+    { zone: FUSO_DONO },
+  );
+
+  it("reconhece pedidos de viagens e reuniões da V1", () => {
+    expect(interpretarMensagem("Mostrar viagens", agora)).toMatchObject({
+      tipo: "consulta_tipo",
+      filtro: "viagens",
+      futuro: true,
+    });
+    expect(interpretarMensagem("Viagens marcadas", agora)).toMatchObject({
+      tipo: "consulta_tipo",
+      filtro: "viagens",
+    });
+    expect(interpretarMensagem("Quais viagens tenho", agora)).toMatchObject({
+      tipo: "consulta_tipo",
+      filtro: "viagens",
+    });
+    expect(interpretarMensagem("Minhas reuniões", agora)).toMatchObject({
+      tipo: "consulta_tipo",
+      filtro: "reunioes",
+      futuro: true,
+    });
+    expect(interpretarMensagem("Mostrar reuniões", agora)).toMatchObject({
+      tipo: "consulta_tipo",
+      filtro: "reunioes",
+    });
+  });
+
+  it("reuniões desta semana e viagens de dezembro reaproveitam o período falado", () => {
+    expect(interpretarMensagem("reuniões desta semana", agora)).toMatchObject({
+      tipo: "consulta_tipo",
+      filtro: "reunioes",
+      futuro: false,
+      primeiroDia: "2026-11-09",
+      ultimoDia: "2026-11-15",
+      rotuloPeriodo: "desta semana",
+    });
+    expect(interpretarMensagem("viagens de dezembro", agora)).toMatchObject({
+      tipo: "consulta_tipo",
+      filtro: "viagens",
+      futuro: false,
+      rotuloPeriodo: "de dezembro",
+    });
+  });
+
+  it("busca livre só dispara com gatilho explícito", () => {
+    expect(interpretarMensagem("mostrar eventos com dentista", agora)).toMatchObject({
+      tipo: "busca_livre",
+      termo: "dentista",
+      futuro: true,
+    });
+    expect(interpretarMensagem("eventos com joao", agora)).toMatchObject({
+      tipo: "busca_livre",
+      termo: "joao",
+    });
+    expect(interpretarMensagem("eventos com João em dezembro", agora)).toMatchObject({
+      tipo: "busca_livre",
+      termo: "joão",
+      futuro: false,
+      rotuloPeriodo: "em dezembro",
+    });
+    expect(interpretarMensagem("buscar pilates", agora)).toMatchObject({
+      tipo: "busca_livre",
+      termo: "pilates",
+    });
+    expect(interpretarMensagem("eventos com", agora)).toEqual({
+      tipo: "busca_termo_invalido",
+    });
+    expect(interpretarMensagem("eventos com a", agora)).toEqual({
+      tipo: "busca_termo_invalido",
+    });
+  });
+
+  it("tipo desconhecido e mostrar mais", () => {
+    expect(interpretarMensagem("Mostrar aniversários", agora)).toEqual({
+      tipo: "tipo_nao_reconhecido",
+    });
+    expect(interpretarMensagem("Mostrar festas", agora)).toEqual({
+      tipo: "tipo_nao_reconhecido",
+    });
+    expect(interpretarMensagem("mostrar mais", agora)).toEqual({
+      tipo: "mostrar_mais",
+    });
+    expect(interpretarMensagem("mais", agora)).toEqual({ tipo: "mostrar_mais" });
+  });
+
+  it("não confunde com Consultar, Marcar e Cancelar (CA17–CA19)", () => {
+    expect(interpretarMensagem("Consultar amanhã", agora)).toEqual({
+      tipo: "consulta_dia",
+      dia: "2026-11-14",
+    });
+    expect(
+      interpretarMensagem("Marcar reunião com João amanhã às 10h", agora),
+    ).toMatchObject({ tipo: "marcar_pontual", titulo: "Reunião com João" });
+    expect(interpretarMensagem("Cancelar reunião com João", agora)).toMatchObject({
+      tipo: "cancelar",
+      termo: "reunião com joão",
+    });
+  });
+});

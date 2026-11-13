@@ -1,8 +1,8 @@
-import type { Calendario, IntervaloCalendario } from "@/domain/calendario";
+import type { Calendario, IntervaloCalendario, ListagemDetalhada } from "@/domain/calendario";
 import type { Compromisso, NovoCompromisso } from "@/domain/compromisso";
 import { FalhaDoCalendario } from "@/domain/falha-calendario";
 import { FUSO_DONO } from "@/domain/fuso";
-import { LIMITE_AGENDAS_VISIVEIS } from "@/lib/limites";
+import { LIMITE_AGENDAS_VISIVEIS, LIMITE_EVENTOS_POR_AGENDA } from "@/lib/limites";
 import { DateTime } from "luxon";
 
 export type AgendaGoogle = {
@@ -18,6 +18,8 @@ export type EventoGoogle = {
   summary?: string;
   status?: string;
   recurringEventId?: string;
+  /** Já vem no recurso do events.list com calendar.events; só para casar localmente. */
+  description?: string;
   start?: { date?: string; dateTime?: string; timeZone?: string };
   end?: { date?: string; dateTime?: string; timeZone?: string };
 };
@@ -120,6 +122,21 @@ function novoParaEvento(compromisso: NovoCompromisso): EventoParaGravar {
   );
 }
 
+function descricaoLocal(evento: EventoGoogle): string | undefined {
+  const texto = evento.description?.trim();
+  return texto ? texto : undefined;
+}
+
+function diaCivilDoEvento(evento: EventoGoogle): string | undefined {
+  if (evento.start?.date) return evento.start.date;
+  if (evento.start?.dateTime) {
+    return DateTime.fromISO(evento.start.dateTime, { setZone: true })
+      .setZone(FUSO_DONO)
+      .toISODate() ?? undefined;
+  }
+  return undefined;
+}
+
 export function eventoGoogleParaCompromisso(
   calendarId: string,
   evento: EventoGoogle,
@@ -127,6 +144,7 @@ export function eventoGoogleParaCompromisso(
   if (!evento.id || evento.status === "cancelled") return null;
   const titulo = evento.summary?.trim() || "(sem título)";
   const id = idDoCompromisso(calendarId, evento.id);
+  const descricao = descricaoLocal(evento);
 
   if (evento.start?.date && evento.end?.date) {
     const ultimoDia = DateTime.fromISO(evento.end.date, { zone: FUSO_DONO })
@@ -138,6 +156,7 @@ export function eventoGoogleParaCompromisso(
       tipo: "periodo",
       primeiroDia: evento.start.date,
       ultimoDia: ultimoDia!,
+      ...(descricao ? { descricao } : {}),
     };
   }
 
@@ -148,6 +167,7 @@ export function eventoGoogleParaCompromisso(
       tipo: "pontual",
       inicio: evento.start.dateTime,
       fim: evento.end.dateTime,
+      ...(descricao ? { descricao } : {}),
     };
   }
 
@@ -175,24 +195,47 @@ export async function autorizarAgendaEEvento(
   return evento;
 }
 
+async function listarDetalhadoGoogle(
+  cliente: ClienteCalendarioGoogle,
+  intervalo: IntervaloCalendario,
+): Promise<ListagemDetalhada> {
+  const agendas = await cliente.listarAgendas();
+  const visiveis = agendas
+    .filter((a) => agendaVisivel(a) && !ehCalendarioDeFeriado(a))
+    .slice(0, LIMITE_AGENDAS_VISIVEIS);
+  let truncadoAte: string | undefined;
+  const listas = await Promise.all(
+    visiveis.map(async (agenda) => {
+      const eventos = await cliente.listarEventos(agenda.id, intervalo);
+      if (eventos.length >= LIMITE_EVENTOS_POR_AGENDA) {
+        const ultimo = eventos[eventos.length - 1];
+        const dia = diaCivilDoEvento(ultimo);
+        if (dia && (!truncadoAte || dia > truncadoAte)) {
+          truncadoAte = dia;
+        }
+      }
+      return eventos
+        .map((evento) => eventoGoogleParaCompromisso(agenda.id, evento))
+        .filter((c): c is Compromisso => c !== null);
+    }),
+  );
+  return {
+    compromissos: listas.flat(),
+    ...(truncadoAte ? { truncadoAte } : {}),
+  };
+}
+
 export function criarCalendarioGoogle(
   cliente: ClienteCalendarioGoogle,
 ): Calendario {
   return {
     async listar(intervalo) {
-      const agendas = await cliente.listarAgendas();
-      const visiveis = agendas
-        .filter((a) => agendaVisivel(a) && !ehCalendarioDeFeriado(a))
-        .slice(0, LIMITE_AGENDAS_VISIVEIS);
-      const listas = await Promise.all(
-        visiveis.map(async (agenda) => {
-          const eventos = await cliente.listarEventos(agenda.id, intervalo);
-          return eventos
-            .map((evento) => eventoGoogleParaCompromisso(agenda.id, evento))
-            .filter((c): c is Compromisso => c !== null);
-        }),
-      );
-      return listas.flat();
+      const detalhada = await listarDetalhadoGoogle(cliente, intervalo);
+      return detalhada.compromissos;
+    },
+
+    async listarDetalhado(intervalo) {
+      return listarDetalhadoGoogle(cliente, intervalo);
     },
 
     async criar(compromisso) {
