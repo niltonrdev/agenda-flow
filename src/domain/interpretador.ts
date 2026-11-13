@@ -1,8 +1,11 @@
 import {
   FUSO_DONO,
   MESES_PT,
+  NOMES_MESES_PT,
+  recorteEstaSemana,
   recorteFeriado,
   recorteFimDeSemana,
+  recorteMes,
   resolverAnoDaData,
   resolverDiaMesConsulta,
 } from "./fuso";
@@ -117,6 +120,42 @@ export type FiltrosEscolha = {
   termo: string;
 };
 
+export type PeriodoFalado = {
+  primeiroDia: string;
+  ultimoDia: string;
+  rotulo: string;
+};
+
+export type IntencaoConsultaTipo = {
+  tipo: "consulta_tipo";
+  filtro: "viagens" | "reunioes";
+  futuro: boolean;
+  primeiroDia?: string;
+  ultimoDia?: string;
+  rotuloPeriodo?: string;
+};
+
+export type IntencaoBuscaLivre = {
+  tipo: "busca_livre";
+  termo: string;
+  futuro: boolean;
+  primeiroDia?: string;
+  ultimoDia?: string;
+  rotuloPeriodo?: string;
+};
+
+export type IntencaoBuscaTermoInvalido = {
+  tipo: "busca_termo_invalido";
+};
+
+export type IntencaoMostrarMais = {
+  tipo: "mostrar_mais";
+};
+
+export type IntencaoTipoNaoReconhecido = {
+  tipo: "tipo_nao_reconhecido";
+};
+
 export type Intencao =
   | IntencaoConsultaDia
   | IntencaoConsultaIntervalo
@@ -130,6 +169,11 @@ export type Intencao =
   | IntencaoAlterar
   | IntencaoAlterarSemDestino
   | IntencaoCancelar
+  | IntencaoConsultaTipo
+  | IntencaoBuscaLivre
+  | IntencaoBuscaTermoInvalido
+  | IntencaoMostrarMais
+  | IntencaoTipoNaoReconhecido
   | IntencaoDesconhecida;
 
 const GRUPO_MES =
@@ -154,6 +198,24 @@ const RE_FERIADO = new RegExp(
 
 const RE_FIM_DE_SEMANA =
   /\b(?:(?:esse|este|neste)\s+)?(?:fim|final)\s+de\s+semana\b/u;
+
+const RE_ESTA_SEMANA =
+  /\b(?:d?esta|dessa|essa|nesta)\s+semana\b/u;
+
+const RE_MES_SOLTO = new RegExp(
+  String.raw`\b((?:em|de|no)\s+(${GRUPO_MES}))\b`,
+  "u",
+);
+
+const RE_MOSTRAR_MAIS = /^(?:mostrar\s+)?mais\s*[.!?]?$/u;
+
+const RE_BUSCA_EVENTOS =
+  /(?:(?:mostrar|listar|ver|buscar|procurar)\s+)?(?:os\s+)?(?:eventos|compromissos)\s+(?:com|de|sobre)(?:\s+|$)(.*)/iu;
+
+const RE_BUSCA_CURTA = /^(?:buscar|procurar)\s*(.*)$/iu;
+
+const RE_MOSTRAR_COISA =
+  /^(?:mostrar|listar|ver)\s+(?:os\s+|as\s+|meus\s+|minhas\s+)?([\p{L}\p{N}'-]+)\s*[.!?]?$/iu;
 
 const RE_DATA = new RegExp(
   String.raw`(?:^|\b)(?:dia\s+)?(\d{1,2})\s+de\s+(${GRUPO_MES})(?:\s+de\s+(\d{4}))?\b`,
@@ -1120,6 +1182,215 @@ export function completarMarcacaoPontual(
   };
 }
 
+function rotuloDeIntervaloFalado(
+  primeiroDia: string,
+  ultimoDia: string,
+): string {
+  if (primeiroDia === ultimoDia) {
+    const dt = DateTime.fromISO(primeiroDia, { zone: FUSO_DONO });
+    return `${dt.day} de ${NOMES_MESES_PT[dt.month]}`;
+  }
+  const a = DateTime.fromISO(primeiroDia, { zone: FUSO_DONO });
+  const b = DateTime.fromISO(ultimoDia, { zone: FUSO_DONO });
+  if (a.month === b.month && a.year === b.year) {
+    return `de ${a.day} a ${b.day} de ${NOMES_MESES_PT[a.month]}`;
+  }
+  return `de ${a.day} de ${NOMES_MESES_PT[a.month]} a ${b.day} de ${NOMES_MESES_PT[b.month]}`;
+}
+
+export function extrairPeriodoFalado(
+  texto: string,
+  agora: DateTime,
+): PeriodoFalado | null {
+  const intervalo = extrairIntervalo(texto, agora);
+  if (intervalo?.tipo === "consulta_intervalo") {
+    return {
+      primeiroDia: intervalo.primeiroDia,
+      ultimoDia: intervalo.ultimoDia,
+      rotulo: rotuloDeIntervaloFalado(intervalo.primeiroDia, intervalo.ultimoDia),
+    };
+  }
+  if (RE_FIM_DE_SEMANA.test(texto)) {
+    const recorte = recorteFimDeSemana(agora);
+    return { ...recorte, rotulo: "neste fim de semana" };
+  }
+  if (RE_ESTA_SEMANA.test(texto)) {
+    const recorte = recorteEstaSemana(agora);
+    return { ...recorte, rotulo: "desta semana" };
+  }
+  const dia = diaExplicitoNaMensagem(texto, agora);
+  if (dia) {
+    let rotulo = rotuloDeIntervaloFalado(dia, dia);
+    if (new RegExp(`${PALAVRA}depois de amanh[aã]${FIM_PALAVRA}`, "u").test(texto)) {
+      rotulo = "depois de amanhã";
+    } else if (new RegExp(`${PALAVRA}amanh[aã]${FIM_PALAVRA}`, "u").test(texto)) {
+      rotulo = "amanhã";
+    } else if (new RegExp(`${PALAVRA}hoje${FIM_PALAVRA}`, "u").test(texto)) {
+      rotulo = "hoje";
+    }
+    return { primeiroDia: dia, ultimoDia: dia, rotulo };
+  }
+  const matchMes = RE_MES_SOLTO.exec(texto);
+  if (matchMes) {
+    const mes = mesDe(matchMes[2]);
+    if (mes) {
+      const recorte = recorteMes(mes, agora);
+      const prep = /^\s*em\b/u.test(matchMes[1]) ? "em" : "de";
+      return { ...recorte, rotulo: `${prep} ${NOMES_MESES_PT[mes]}` };
+    }
+  }
+  return null;
+}
+
+function removerPeriodoDoTermo(resto: string): string {
+  return resto
+    .replace(new RegExp(RE_INTERVALO_NUM.source, "giu"), " ")
+    .replace(new RegExp(RE_INTERVALO.source, "giu"), " ")
+    .replace(new RegExp(RE_FIM_DE_SEMANA.source, "giu"), " ")
+    .replace(new RegExp(RE_ESTA_SEMANA.source, "giu"), " ")
+    .replace(new RegExp(RE_DATA.source, "giu"), " ")
+    .replace(new RegExp(RE_DATA_NUM.source, "giu"), " ")
+    .replace(new RegExp(RE_MES_SOLTO.source, "giu"), " ")
+    .replace(
+      new RegExp(
+        `${PALAVRA}(?:depois de amanh[aã]|amanh[aã]|hoje)${FIM_PALAVRA}`,
+        "giu",
+      ),
+      " ",
+    )
+    .replace(/[?!]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function comPeriodo<T extends { futuro: boolean }>(
+  base: T,
+  periodo: PeriodoFalado | null,
+): T & {
+  primeiroDia?: string;
+  ultimoDia?: string;
+  rotuloPeriodo?: string;
+} {
+  if (!periodo) return base;
+  return {
+    ...base,
+    futuro: false,
+    primeiroDia: periodo.primeiroDia,
+    ultimoDia: periodo.ultimoDia,
+    rotuloPeriodo: periodo.rotulo,
+  };
+}
+
+function detectarFiltroTipo(
+  texto: string,
+): "viagens" | "reunioes" | null {
+  const gatilho =
+    /\b(?:mostrar|listar|ver|quais|minhas|meus)\b/u.test(texto) ||
+    /\bmarcadas\b/u.test(texto);
+  if (/\bviagens\b/u.test(texto) || (gatilho && /\bviagem\b/u.test(texto))) {
+    return "viagens";
+  }
+  if (
+    /\breuni[oõ]es\b/u.test(texto) ||
+    (gatilho && /\breuni[aã]o\b/u.test(texto))
+  ) {
+    return "reunioes";
+  }
+  return null;
+}
+
+function interpretarBuscaLivre(
+  texto: string,
+  agora: DateTime,
+): IntencaoBuscaLivre | IntencaoBuscaTermoInvalido | null {
+  const eventos = RE_BUSCA_EVENTOS.exec(texto);
+  let bruto: string | null = null;
+  if (eventos) {
+    bruto = (eventos[1] ?? "").trim();
+  } else {
+    const curta = RE_BUSCA_CURTA.exec(texto);
+    if (!curta) return null;
+    bruto = (curta[1] ?? "").trim();
+  }
+  const periodo = extrairPeriodoFalado(texto, agora);
+  const termo = removerPeriodoDoTermo(bruto);
+  if (termo.length < 2 || termo.length > 50) {
+    return { tipo: "busca_termo_invalido" };
+  }
+  return comPeriodo(
+    { tipo: "busca_livre" as const, termo, futuro: true },
+    periodo,
+  );
+}
+
+function interpretarConsultaTipo(
+  texto: string,
+  agora: DateTime,
+): IntencaoConsultaTipo | IntencaoTipoNaoReconhecido | null {
+  const filtro = detectarFiltroTipo(texto);
+  if (filtro) {
+    const periodo = extrairPeriodoFalado(texto, agora);
+    return comPeriodo(
+      { tipo: "consulta_tipo" as const, filtro, futuro: true },
+      periodo,
+    );
+  }
+  const mostrar = RE_MOSTRAR_COISA.exec(texto);
+  if (mostrar) {
+    const coisa = mostrar[1]
+      .normalize("NFD")
+      .replace(/\p{M}/gu, "")
+      .toLowerCase();
+    if (
+      coisa === "viagem" ||
+      coisa === "viagens" ||
+      coisa === "reuniao" ||
+      coisa === "reunioes"
+    ) {
+      return null;
+    }
+    return { tipo: "tipo_nao_reconhecido" };
+  }
+  return null;
+}
+
+function interpretarConsultaComVerbo(
+  texto: string,
+  agora: DateTime,
+): Intencao | null {
+  const match = /^(?:consultar|consulta)\s+(.+)$/u.exec(texto);
+  if (!match) return null;
+  const resto = match[1].trim();
+  const dia = diaExplicitoNaMensagem(resto, agora);
+  if (dia) return { tipo: "consulta_dia", dia };
+  const consultaDia = interpretarConsultaDia(resto, agora);
+  if (consultaDia) return consultaDia;
+  const intervalo = extrairIntervalo(resto, agora);
+  if (intervalo) return intervalo;
+  if (RE_FIM_DE_SEMANA.test(resto)) {
+    return { tipo: "consulta_intervalo", ...recorteFimDeSemana(agora) };
+  }
+  return { tipo: "desconhecida" };
+}
+
+/**
+ * Pedidos de listagem por tipo, busca livre, "mostrar mais" e verbo consultar.
+ * Chamado depois de Marcação/Alteração/Cancelamento, para não roubar esses fluxos.
+ */
+export function interpretarListagem(
+  texto: string,
+  agora: DateTime,
+): Intencao | null {
+  if (RE_MOSTRAR_MAIS.test(texto)) {
+    return { tipo: "mostrar_mais" };
+  }
+  const busca = interpretarBuscaLivre(texto, agora);
+  if (busca) return busca;
+  const tipo = interpretarConsultaTipo(texto, agora);
+  if (tipo) return tipo;
+  return interpretarConsultaComVerbo(texto, agora);
+}
+
 /**
  * Interpretador por regras (PT-BR).
  * Consulta, Marcação, Alteração e Cancelamento por regras (PT-BR). Sem LLM.
@@ -1159,6 +1430,11 @@ export function interpretarMensagem(
       primeiroDia: recorteIntervalo.primeiroDia,
       ultimoDia: recorteIntervalo.ultimoDia,
     };
+  }
+
+  const listagem = interpretarListagem(texto, agora);
+  if (listagem) {
+    return listagem;
   }
 
   if (recorteIntervalo) {

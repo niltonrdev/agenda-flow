@@ -10,14 +10,16 @@ import {
 } from "./conflito";
 import type { Compromisso, NovoCompromisso } from "./compromisso";
 import {
+  candidatosDoContexto,
   ehConfirmacaoMarcacao,
   ehConfirmacaoPendente,
+  ehContextoListagem,
+  ehListagemPaginada,
   TTL_CONTEXTO_MS,
   type ConfirmacaoAlterarPeriodo,
   type ConfirmacaoAlterarPontual,
   type ConfirmacaoCancelarPeriodo,
   type ConfirmacaoCancelarPontual,
-  type ConfirmacaoContextoListagem,
   type ConfirmacaoEscolherAlteracao,
   type ConfirmacaoEscolherCancelamento,
   type ConfirmacaoMarcacao,
@@ -73,6 +75,7 @@ import {
   type DiaRecorte,
   type Intencao,
 } from "./interpretador";
+import { processarIntencaoListagem } from "./listagem-filtrada";
 import { DateTime } from "luxon";
 
 /**
@@ -217,6 +220,7 @@ function pendenteExpirado(
 ): boolean {
   if (
     pendente.acao !== "contexto_listagem" &&
+    pendente.acao !== "listagem_paginada" &&
     pendente.acao !== "escolher_cancelamento" &&
     pendente.acao !== "escolher_alteracao"
   ) {
@@ -315,12 +319,6 @@ function ehMutacaoCurta(intencao: Intencao): boolean {
     return !intencao.termo && intencao.dia == null;
   }
   return false;
-}
-
-function ehContextoListagem(
-  pendente: ConfirmacaoPendente,
-): pendente is ConfirmacaoContextoListagem {
-  return pendente.acao === "contexto_listagem";
 }
 
 function relistarCandidatos(
@@ -980,9 +978,10 @@ async function processarTurnoInterno(
     }
   }
 
-  if (pendente && ehContextoListagem(pendente) && ehMutacaoCurta(intencao)) {
+  const itensDoContexto = pendente ? candidatosDoContexto(pendente) : null;
+  if (pendente && itensDoContexto && ehMutacaoCurta(intencao)) {
     const pares = await paresDosCandidatos(
-      pendente.candidatos,
+      itensDoContexto,
       calendario,
       entrada.agora,
     );
@@ -1033,7 +1032,8 @@ async function processarTurnoInterno(
       ehCompletarMarcacao(pendente) ||
       ehCompletarAlteracao(pendente) ||
       ehCompletarDuracaoPeriodo(pendente) ||
-      ehCompletarDiasPeriodo(pendente)
+      ehCompletarDiasPeriodo(pendente) ||
+      ehListagemPaginada(pendente)
     ) {
       return comDiaConsultado(
         { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: pendente },
@@ -1255,6 +1255,16 @@ async function processarTurnoInterno(
       };
     }
     return confirmacaoDeCancelamento(candidatos[0]);
+  }
+
+  const saidaListagem = await processarIntencaoListagem(
+    intencao,
+    pendente,
+    entrada.agora,
+    calendario,
+  );
+  if (saidaListagem) {
+    return comDiaConsultado(saidaListagem, diaAnterior);
   }
 
   if (intencao.tipo === "desconhecida" || intencao.tipo === "recusar") {

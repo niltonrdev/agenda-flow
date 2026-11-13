@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { pedeSimOuNao, type ConfirmacaoPendente } from "./confirmacao";
+import {
+  candidatosDoContexto,
+  ehConfirmacaoQueBloqueiaListagem,
+  pedeSimOuNao,
+  type ConfirmacaoPendente,
+} from "./confirmacao";
 
 const pontual: ConfirmacaoPendente = {
   acao: "marcar_pontual",
@@ -48,5 +53,56 @@ describe("pede sim ou não", () => {
       }),
     ).toBe(false);
     expect(pedeSimOuNao(null)).toBe(false);
+    expect(
+      pedeSimOuNao({
+        acao: "listagem_paginada",
+        filtro: "viagens",
+        futuro: true,
+        offset: 15,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("listagem vs Confirmação", () => {
+  const contexto: ConfirmacaoPendente = {
+    acao: "contexto_listagem",
+    candidatos: [{ id: "1", rotulo: "Voo GRU-REC" }],
+    em: "2026-11-13T12:41:00.000-03:00",
+  };
+  const paginada: ConfirmacaoPendente = {
+    acao: "listagem_paginada",
+    filtro: "viagens",
+    futuro: true,
+    offset: 15,
+    candidatos: [{ id: "1", rotulo: "Voo GRU-REC" }],
+    em: "2026-11-13T12:41:00.000-03:00",
+  };
+
+  it("Confirmação, completar e desambiguar bloqueiam a listagem", () => {
+    expect(ehConfirmacaoQueBloqueiaListagem(pontual)).toBe(true);
+    expect(
+      ehConfirmacaoQueBloqueiaListagem({
+        acao: "escolher_cancelamento",
+        candidatos: [{ id: "1", rotulo: "Voo GRU-REC" }],
+      }),
+    ).toBe(true);
+    expect(
+      ehConfirmacaoQueBloqueiaListagem({
+        acao: "completar_marcacao",
+        titulo: "Dentista",
+      }),
+    ).toBe(true);
+  });
+
+  it("contexto de consulta e paginação não bloqueiam um pedido novo de listagem", () => {
+    expect(ehConfirmacaoQueBloqueiaListagem(contexto)).toBe(false);
+    expect(ehConfirmacaoQueBloqueiaListagem(paginada)).toBe(false);
+  });
+
+  it("Cancelar curto lê os candidatos da página visível", () => {
+    expect(candidatosDoContexto(contexto)?.map((c) => c.id)).toEqual(["1"]);
+    expect(candidatosDoContexto(paginada)?.map((c) => c.id)).toEqual(["1"]);
+    expect(candidatosDoContexto(pontual)).toBeNull();
   });
 });

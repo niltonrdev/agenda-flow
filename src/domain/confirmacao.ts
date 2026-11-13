@@ -119,6 +119,25 @@ export type ConfirmacaoCompletarDiasPeriodo = {
   dia?: string;
 };
 
+/**
+ * Continuação de "mostrar mais": filtro, offset e a página visível
+ * (id+rótulo, sem descrição) para um Cancelar/Alterar curto.
+ */
+export type ConfirmacaoListagemPaginada = {
+  acao: "listagem_paginada";
+  filtro: "viagens" | "reunioes" | "busca";
+  termo?: string;
+  futuro: boolean;
+  primeiroDia?: string;
+  ultimoDia?: string;
+  rotuloPeriodo?: string;
+  offset: number;
+  truncadoAte?: string;
+  /** Página visível: "Cancelar"/"Alterar" curto usa estes ids+rótulos, sem descrição. */
+  candidatos?: CandidatoAlteracao[];
+  em?: string;
+};
+
 export type ConfirmacaoPendente =
   | ConfirmacaoPontual
   | ConfirmacaoPeriodo
@@ -132,7 +151,8 @@ export type ConfirmacaoPendente =
   | ConfirmacaoCompletarAlteracao
   | ConfirmacaoCompletarDuracaoPeriodo
   | ConfirmacaoCompletarDiasPeriodo
-  | ConfirmacaoContextoListagem;
+  | ConfirmacaoContextoListagem
+  | ConfirmacaoListagemPaginada;
 
 export type ConfirmacaoMarcacao = ConfirmacaoPontual | ConfirmacaoPeriodo;
 
@@ -299,5 +319,81 @@ export function ehConfirmacaoPendente(valor: unknown): valor is ConfirmacaoPende
       (proposta.dia === undefined || typeof proposta.dia === "string")
     );
   }
+  if (proposta.acao === "listagem_paginada") {
+    const filtroOk =
+      proposta.filtro === "viagens" ||
+      proposta.filtro === "reunioes" ||
+      proposta.filtro === "busca";
+    const termoOk =
+      proposta.filtro !== "busca" ||
+      (typeof proposta.termo === "string" && proposta.termo.length >= 2);
+    return (
+      filtroOk &&
+      termoOk &&
+      typeof proposta.futuro === "boolean" &&
+      typeof proposta.offset === "number" &&
+      proposta.offset >= 0 &&
+      (proposta.primeiroDia === undefined ||
+        typeof proposta.primeiroDia === "string") &&
+      (proposta.ultimoDia === undefined ||
+        typeof proposta.ultimoDia === "string") &&
+      (proposta.rotuloPeriodo === undefined ||
+        typeof proposta.rotuloPeriodo === "string") &&
+      (proposta.truncadoAte === undefined ||
+        typeof proposta.truncadoAte === "string") &&
+      (proposta.termo === undefined || typeof proposta.termo === "string") &&
+      (proposta.em === undefined || typeof proposta.em === "string") &&
+      (proposta.candidatos === undefined ||
+        (Array.isArray(proposta.candidatos) &&
+          proposta.candidatos.every(
+            (c) =>
+              c &&
+              typeof c.id === "string" &&
+              typeof c.rotulo === "string",
+          )))
+    );
+  }
   return false;
+}
+
+export function ehListagemPaginada(
+  valor: ConfirmacaoPendente,
+): valor is ConfirmacaoListagemPaginada {
+  return valor.acao === "listagem_paginada";
+}
+
+export function ehContextoListagem(
+  valor: ConfirmacaoPendente,
+): valor is ConfirmacaoContextoListagem {
+  return valor.acao === "contexto_listagem";
+}
+
+/**
+ * Confirmação (Sim/Não), completar ou desambiguar: a listagem não interrompe.
+ * Contexto de consulta e paginação de "mostrar mais" não bloqueiam um
+ * pedido novo de viagens/reuniões/busca.
+ */
+export function ehConfirmacaoQueBloqueiaListagem(
+  pendente: ConfirmacaoPendente,
+): boolean {
+  return (
+    pendente.acao !== "listagem_paginada" &&
+    pendente.acao !== "contexto_listagem"
+  );
+}
+
+export function candidatosDoContexto(
+  pendente: ConfirmacaoPendente,
+): CandidatoAlteracao[] | null {
+  if (pendente.acao === "contexto_listagem") {
+    return pendente.candidatos;
+  }
+  if (
+    pendente.acao === "listagem_paginada" &&
+    Array.isArray(pendente.candidatos) &&
+    pendente.candidatos.length > 0
+  ) {
+    return pendente.candidatos;
+  }
+  return null;
 }

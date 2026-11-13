@@ -35,6 +35,20 @@ describe("conversão Período ↔ dia inteiro no Google", () => {
       ultimoDia: "2025-09-07",
     });
   });
+
+  it("lê a descrição só para casar localmente, no mesmo events.list", () => {
+    const compromisso = eventoGoogleParaCompromisso("primary", {
+      id: "evt-desc",
+      summary: "Consulta",
+      description: "dentista na clínica",
+      start: { dateTime: "2026-11-20T15:00:00-03:00" },
+      end: { dateTime: "2026-11-20T16:00:00-03:00" },
+    });
+    expect(compromisso).toMatchObject({
+      titulo: "Consulta",
+      descricao: "dentista na clínica",
+    });
+  });
 });
 
 describe("calendário de feriados nacionais", () => {
@@ -289,6 +303,49 @@ describe("adaptador Google — porta Calendário", () => {
         fim: "2025-09-07T23:59:59.999-03:00",
       }),
     ).rejects.toBeInstanceOf(FalhaDoCalendario);
+  });
+});
+
+describe("teto de uma página por agenda", () => {
+  it("marca truncadoAte quando a agenda devolve 500 eventos", async () => {
+    const eventos = Array.from({ length: 500 }, (_, i) => ({
+      id: `e${i}`,
+      summary: "Reunião",
+      start: { dateTime: `2026-03-01T10:00:00-03:00` },
+      end: { dateTime: `2026-03-01T11:00:00-03:00` },
+    }));
+    eventos[499] = {
+      id: "ultimo",
+      summary: "Reunião",
+      start: { dateTime: "2026-06-15T10:00:00-03:00" },
+      end: { dateTime: "2026-06-15T11:00:00-03:00" },
+    };
+    const calendario = criarCalendarioGoogle({
+      async listarAgendas() {
+        return [{ id: "primary", summary: "Principal", primary: true, selected: true }];
+      },
+      async listarEventos() {
+        return eventos;
+      },
+      async obterEvento() {
+        throw new Error("não obter");
+      },
+      async criarEvento() {
+        throw new Error("não criar");
+      },
+      async alterarEvento() {
+        throw new Error("não alterar");
+      },
+      async cancelarEvento() {
+        throw new Error("não cancelar");
+      },
+    });
+    const detalhada = await calendario.listarDetalhado!({
+      inicio: "2026-01-01T00:00:00.000-03:00",
+      fim: "2026-12-31T23:59:59.999-03:00",
+    });
+    expect(detalhada.compromissos).toHaveLength(500);
+    expect(detalhada.truncadoAte).toBe("2026-06-15");
   });
 });
 
