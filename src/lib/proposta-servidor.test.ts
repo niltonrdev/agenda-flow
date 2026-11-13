@@ -25,6 +25,16 @@ describe("proposta pendente no servidor", () => {
     expect(lerProposta(pacote.slice(0, -3) + "zzz", "sessao-a", SECRET, agora + 1)).toBeNull();
   });
 
+  it("emite e lê o contexto de uma consulta listada", () => {
+    const contexto: ConfirmacaoPendente = {
+      acao: "contexto_listagem",
+      candidatos: [{ id: "evt-1", rotulo: "Reunião com a Ana, 15h–16h, 15 de novembro" }],
+      em: "2026-11-13T12:41:00.000-03:00",
+    };
+    const pacote = emitirProposta(contexto, "demo", SECRET, 1_000);
+    expect(lerProposta(pacote, "demo", SECRET, 2_000)).toEqual(contexto);
+  });
+
   it("ignora confirmação forjada no corpo do cliente", () => {
     const pacote = emitirProposta(PROPOSTA, "demo", SECRET, 1_000);
     const forjada: ConfirmacaoPendente = {

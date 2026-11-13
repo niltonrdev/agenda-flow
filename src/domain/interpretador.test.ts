@@ -1,6 +1,7 @@
 import { FUSO_DONO } from "@/domain/fuso";
 import {
   interpretarDestinoAlteracao,
+  interpretarEscolhaLista,
   interpretarMensagem,
   interpretarRespostaDuracao,
   mensagemFalaDeViagem,
@@ -471,6 +472,74 @@ describe("interpretador — duração da viagem", () => {
       tipo: "intervalo",
       primeiroDia: "2026-11-07",
       ultimoDia: "2026-11-10",
+    });
+  });
+});
+
+describe("interpretador — Cancelamento e Alteração curtos", () => {
+  it.each(["Cancelar", "Cancela", "Apagar", "Cancelar esse"])(
+    "%s é Cancelamento sem termo, para usar o contexto",
+    (mensagem) => {
+      expect(interpretarMensagem(mensagem, AGORA)).toEqual({
+        tipo: "cancelar",
+        termo: "",
+      });
+    },
+  );
+
+  it("Alterar sozinho pede o contexto, sem destino", () => {
+    expect(interpretarMensagem("Alterar", AGORA)).toEqual({
+      tipo: "alterar_sem_destino",
+      termo: "",
+    });
+  });
+
+  it("cancela a reunião da Ana continua com o termo", () => {
+    expect(interpretarMensagem("cancela a reunião da Ana", AGORA)).toEqual({
+      tipo: "cancelar",
+      termo: "reunião da ana",
+    });
+  });
+});
+
+describe("interpretador — escolha na lista", () => {
+  const agora = DateTime.fromObject(
+    { year: 2026, month: 11, day: 13, hour: 12, minute: 41 },
+    { zone: FUSO_DONO },
+  );
+
+  it("lê posição por ordinal e por número", () => {
+    expect(interpretarEscolhaLista("a segunda", agora)).toEqual({
+      posicao: 2,
+      termo: "",
+    });
+    expect(interpretarEscolhaLista("2", agora)).toEqual({
+      posicao: 2,
+      termo: "",
+    });
+  });
+
+  it("lê data no estilo do dia 15/11 ou a do dia 15", () => {
+    expect(interpretarEscolhaLista("Viagem do dia 15/11", agora)).toEqual({
+      dia: { dia: 15, mes: 11 },
+      termo: "viagem",
+    });
+    expect(interpretarEscolhaLista("a do dia 15", agora)).toEqual({
+      dia: { dia: 15 },
+      termo: "",
+    });
+  });
+
+  it("lê trecho do título e hora", () => {
+    expect(interpretarEscolhaLista("a com a Tamires", agora)).toMatchObject({
+      termo: "tamires",
+    });
+    expect(interpretarEscolhaLista("Rio de Janeiro", agora)).toMatchObject({
+      termo: "rio de janeiro",
+    });
+    expect(interpretarEscolhaLista("9h", agora)).toEqual({
+      hora: { hour: 9, minute: 0 },
+      termo: "",
     });
   });
 });

@@ -52,6 +52,7 @@ export type ConfirmacaoEscolherAlteracao = {
   candidatos: CandidatoAlteracao[];
   /** Ausente quando o Dono ainda não disse para quando alterar. */
   destino?: DestinoAlteracao;
+  em?: string;
 };
 
 export type ConfirmacaoCancelarPontual = {
@@ -75,7 +76,19 @@ export type ConfirmacaoCancelarPeriodo = {
 export type ConfirmacaoEscolherCancelamento = {
   acao: "escolher_cancelamento";
   candidatos: CandidatoAlteracao[];
+  /** Instantâneo ISO; o contexto de escolha expira depois de TTL_CONTEXTO_MS. */
+  em?: string;
 };
+
+/** Compromissos acabados de listar numa Consulta; "Cancelar"/"Alterar" curto usa esta lista. */
+export type ConfirmacaoContextoListagem = {
+  acao: "contexto_listagem";
+  candidatos: CandidatoAlteracao[];
+  em: string;
+};
+
+/** 15 min: mesmo prazo do cookie da proposta. */
+export const TTL_CONTEXTO_MS = 15 * 60 * 1000;
 
 /** Marcação iniciada sem horário (e às vezes sem dia): a Conversa completa no próximo turno. */
 export type ConfirmacaoCompletarMarcacao = {
@@ -118,7 +131,8 @@ export type ConfirmacaoPendente =
   | ConfirmacaoCompletarMarcacao
   | ConfirmacaoCompletarAlteracao
   | ConfirmacaoCompletarDuracaoPeriodo
-  | ConfirmacaoCompletarDiasPeriodo;
+  | ConfirmacaoCompletarDiasPeriodo
+  | ConfirmacaoContextoListagem;
 
 export type ConfirmacaoMarcacao = ConfirmacaoPontual | ConfirmacaoPeriodo;
 
@@ -223,7 +237,8 @@ export function ehConfirmacaoPendente(valor: unknown): valor is ConfirmacaoPende
           typeof c.id === "string" &&
           typeof c.rotulo === "string",
       ) &&
-      (proposta.destino === undefined || destinoValido(proposta.destino))
+      (proposta.destino === undefined || destinoValido(proposta.destino)) &&
+      (proposta.em === undefined || typeof proposta.em === "string")
     );
   }
   if (proposta.acao === "cancelar_pontual") {
@@ -250,7 +265,20 @@ export function ehConfirmacaoPendente(valor: unknown): valor is ConfirmacaoPende
           c &&
           typeof c.id === "string" &&
           typeof c.rotulo === "string",
-      )
+      ) &&
+      (proposta.em === undefined || typeof proposta.em === "string")
+    );
+  }
+  if (proposta.acao === "contexto_listagem") {
+    return (
+      Array.isArray(proposta.candidatos) &&
+      proposta.candidatos.every(
+        (c) =>
+          c &&
+          typeof c.id === "string" &&
+          typeof c.rotulo === "string",
+      ) &&
+      typeof proposta.em === "string"
     );
   }
   if (proposta.acao === "completar_marcacao") {

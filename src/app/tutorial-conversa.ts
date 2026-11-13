@@ -56,7 +56,7 @@ export const PASSOS_TUTORIAL: PassoTutorial[] = [
     id: "agenda",
     titulo: "Ver a agenda e o Google",
     texto:
-      "Para ver um dia, escreva por exemplo 15 de novembro e toque em Enviar. Com o Google conectado, um ícone de calendário pode aparecer na resposta para abrir a agenda. Na tela inicial use Continuar com Google. Na demonstração, Conectar Google fica no alto.",
+      "Para ver um dia, escreva por exemplo 15 de novembro e toque em Enviar. Com o Google conectado, um ícone de calendário pode aparecer na resposta para abrir a agenda. Na tela inicial use Continuar com Google. Na demonstração, toque no indicador da conta no alto para Conectar Google.",
     alvo: "topo",
   },
 ];

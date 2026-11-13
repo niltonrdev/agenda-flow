@@ -832,7 +832,7 @@ describe("entrada de conversa — Marcação de Período", () => {
     );
 
     expect(saida.texto.match(/Pescaria/g)).toHaveLength(1);
-    expect(saida.confirmacaoPendente).toBeNull();
+    expect(saida.confirmacaoPendente?.acao).toBe("contexto_listagem");
     expect(calendario.listarTodos()).toHaveLength(1);
   });
 
@@ -2063,6 +2063,367 @@ describe("entrada de conversa — data certa e viagem informal", () => {
       primeiroDia: "2026-11-07",
       ultimoDia: "2026-11-10",
     });
+  });
+});
+
+describe("entrada de conversa — contexto de cancelar, alterar e desambiguar", () => {
+  const AGORA_NOV = DateTime.fromObject(
+    { year: 2026, month: 11, day: 13, hour: 12, minute: 41 },
+    { zone: FUSO_DONO },
+  );
+
+  function quatroViagens() {
+    const tamires = DateTime.fromObject(
+      { year: 2026, month: 11, day: 15, hour: 9 },
+      { zone: FUSO_DONO },
+    );
+    return criarCalendarioEmMemoria([
+      {
+        id: "qg",
+        titulo: "Viagem para Quartel Geral dos dias",
+        tipo: "periodo" as const,
+        primeiroDia: "2026-10-31",
+        ultimoDia: "2026-11-02",
+      },
+      {
+        id: "tamires-nov",
+        titulo: "Viagem com a delícia Tamires",
+        tipo: "pontual" as const,
+        inicio: tamires.toISO()!,
+        fim: tamires.plus({ hours: 1 }).toISO()!,
+      },
+      {
+        id: "rio",
+        titulo: "Viagem no para o Rio de Janeiro",
+        tipo: "periodo" as const,
+        primeiroDia: "2026-11-17",
+        ultimoDia: "2026-11-22",
+      },
+      {
+        id: "tamires-dez",
+        titulo: "Viagem com tamires",
+        tipo: "periodo" as const,
+        primeiroDia: "2026-12-22",
+        ultimoDia: "2027-01-04",
+      },
+    ]);
+  }
+
+  async function listarViagens() {
+    const calendario = quatroViagens();
+    const lista = await processarTurno(
+      { mensagem: "Cancelar viagem", agora: AGORA_NOV },
+      calendario,
+    );
+    expect(lista.confirmacaoPendente?.acao).toBe("escolher_cancelamento");
+    expect(calendario.listarTodos()).toHaveLength(4);
+    return { calendario, lista };
+  }
+
+  it("depois da desambiguação, 'Viagem do dia 15/11' vai para a Confirmação daquele Compromisso", async () => {
+    const { calendario, lista } = await listarViagens();
+    const antes = calendario.listarTodos();
+
+    const escolha = await processarTurno(
+      {
+        mensagem: "Viagem do dia 15/11",
+        agora: AGORA_NOV,
+        confirmacaoPendente: lista.confirmacaoPendente,
+      },
+      calendario,
+    );
+
+    expect(escolha.texto).toMatch(/Confirmação/i);
+    expect(escolha.texto).toMatch(/delícia Tamires/i);
+    expect(escolha.texto).toMatch(/15 de novembro/i);
+    expect(escolha.texto).not.toMatch(/Qual você quer cancelar/i);
+    expect(escolha.texto).not.toMatch(/^Em 15 de novembro/m);
+    expect(escolha.confirmacaoPendente?.acao).toBe("cancelar_pontual");
+    expect(calendario.listarTodos()).toEqual(antes);
+  });
+
+  it("escolhe pela posição (a segunda / 2) e não grava sem o Sim", async () => {
+    const { calendario, lista } = await listarViagens();
+    const antes = calendario.listarTodos();
+
+    const segunda = await processarTurno(
+      {
+        mensagem: "a segunda",
+        agora: AGORA_NOV,
+        confirmacaoPendente: lista.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(segunda.confirmacaoPendente?.acao).toBe("cancelar_pontual");
+    expect(segunda.texto).toMatch(/delícia Tamires/i);
+    expect(calendario.listarTodos()).toEqual(antes);
+
+    const deNovo = await processarTurno(
+      { mensagem: "Cancelar viagem", agora: AGORA_NOV },
+      calendario,
+    );
+    const porNumero = await processarTurno(
+      {
+        mensagem: "2",
+        agora: AGORA_NOV,
+        confirmacaoPendente: deNovo.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(porNumero.confirmacaoPendente?.acao).toBe("cancelar_pontual");
+    expect(porNumero.texto).toMatch(/delícia Tamires/i);
+
+    const recusa = await processarTurno(
+      {
+        mensagem: "não",
+        agora: AGORA_NOV,
+        confirmacaoPendente: porNumero.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(recusa.texto).toMatch(/o que mudar/i);
+    expect(calendario.listarTodos()).toEqual(antes);
+  });
+
+  it("escolhe por trecho do título e relista se ainda houver mais de um", async () => {
+    const { calendario, lista } = await listarViagens();
+
+    const rio = await processarTurno(
+      {
+        mensagem: "Rio de Janeiro",
+        agora: AGORA_NOV,
+        confirmacaoPendente: lista.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(rio.texto).toMatch(/Confirmação/i);
+    expect(rio.texto).toMatch(/Rio de Janeiro/i);
+    expect(rio.confirmacaoPendente?.acao).toBe("cancelar_periodo");
+    expect(calendario.listarTodos()).toHaveLength(4);
+
+    const lista2 = await processarTurno(
+      { mensagem: "Cancelar viagem", agora: AGORA_NOV },
+      calendario,
+    );
+    const tamires = await processarTurno(
+      {
+        mensagem: "a com a Tamires",
+        agora: AGORA_NOV,
+        confirmacaoPendente: lista2.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(tamires.texto).toMatch(/Qual você quer cancelar/i);
+    expect(tamires.texto).toMatch(/delícia Tamires/i);
+    expect(tamires.texto).toMatch(/Viagem com tamires/i);
+    expect(tamires.texto).not.toMatch(/Rio de Janeiro/i);
+    expect(tamires.confirmacaoPendente?.acao).toBe("escolher_cancelamento");
+    expect(calendario.listarTodos()).toHaveLength(4);
+  });
+
+  it("escolhe pela hora", async () => {
+    const { calendario, lista } = await listarViagens();
+    const escolha = await processarTurno(
+      {
+        mensagem: "9h",
+        agora: AGORA_NOV,
+        confirmacaoPendente: lista.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(escolha.confirmacaoPendente?.acao).toBe("cancelar_pontual");
+    expect(escolha.texto).toMatch(/delícia Tamires/i);
+    expect(calendario.listarTodos()).toHaveLength(4);
+  });
+
+  it("Cancelar depois de uma consulta com um evento vai para a Confirmação", async () => {
+    const calendario = quatroViagens();
+    const consulta = await processarTurno(
+      { mensagem: "15 de novembro", agora: AGORA_NOV },
+      calendario,
+    );
+    expect(consulta.texto).toMatch(/delícia Tamires/i);
+    expect(consulta.confirmacaoPendente?.acao).toBe("contexto_listagem");
+
+    const cancelar = await processarTurno(
+      {
+        mensagem: "Cancelar",
+        agora: AGORA_NOV,
+        confirmacaoPendente: consulta.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(cancelar.texto).toMatch(/Confirmação/i);
+    expect(cancelar.texto).toMatch(/delícia Tamires/i);
+    expect(cancelar.confirmacaoPendente?.acao).toBe("cancelar_pontual");
+    expect(calendario.listarTodos()).toHaveLength(4);
+  });
+
+  it("Cancelar depois de uma consulta com vários pergunta qual", async () => {
+    const calendario = quatroViagens();
+    const intervalo = await processarTurno(
+      { mensagem: "1/11/2026 a 30/11/2026", agora: AGORA_NOV },
+      calendario,
+    );
+    expect(intervalo.confirmacaoPendente?.acao).toBe("contexto_listagem");
+    expect(intervalo.texto).toMatch(/delícia Tamires/i);
+    expect(intervalo.texto).toMatch(/Rio de Janeiro/i);
+
+    const cancelar = await processarTurno(
+      {
+        mensagem: "Cancela",
+        agora: AGORA_NOV,
+        confirmacaoPendente: intervalo.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(cancelar.texto).toMatch(/Qual você quer cancelar/i);
+    expect(cancelar.confirmacaoPendente?.acao).toBe("escolher_cancelamento");
+    expect(calendario.listarTodos()).toHaveLength(4);
+  });
+
+  it("Alterar depois de uma consulta com um evento pede o destino, sem gravar", async () => {
+    const calendario = quatroViagens();
+    const consulta = await processarTurno(
+      { mensagem: "15 de novembro", agora: AGORA_NOV },
+      calendario,
+    );
+    const alterar = await processarTurno(
+      {
+        mensagem: "Alterar",
+        agora: AGORA_NOV,
+        confirmacaoPendente: consulta.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(alterar.texto).toMatch(/diga o novo dia/i);
+    expect(alterar.confirmacaoPendente?.acao).toBe("completar_alteracao");
+    expect(calendario.listarTodos()).toHaveLength(4);
+  });
+
+  it("o contexto expira com um pedido novo sem relação", async () => {
+    const calendario = quatroViagens();
+    const consulta = await processarTurno(
+      { mensagem: "15 de novembro", agora: AGORA_NOV },
+      calendario,
+    );
+    const outro = await processarTurno(
+      {
+        mensagem: "20 de dezembro",
+        agora: AGORA_NOV,
+        confirmacaoPendente: consulta.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(outro.texto).toMatch(/livre/i);
+    expect(outro.confirmacaoPendente).toBeNull();
+
+    const cancelar = await processarTurno(
+      {
+        mensagem: "Cancelar",
+        agora: AGORA_NOV,
+        confirmacaoPendente: outro.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(cancelar.texto).toMatch(/não entendi/i);
+    expect(calendario.listarTodos()).toHaveLength(4);
+  });
+
+  it("o contexto expira depois de concluir ou desistir", async () => {
+    const { calendario, lista } = await listarViagens();
+    const escolha = await processarTurno(
+      {
+        mensagem: "Rio de Janeiro",
+        agora: AGORA_NOV,
+        confirmacaoPendente: lista.confirmacaoPendente,
+      },
+      calendario,
+    );
+    const gravado = await processarTurno(
+      {
+        mensagem: "sim",
+        agora: AGORA_NOV,
+        confirmacaoPendente: escolha.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(gravado.texto).toMatch(/cancelei/i);
+    expect(gravado.confirmacaoPendente).toBeNull();
+    expect(calendario.listarTodos().some((c) => c.id === "rio")).toBe(false);
+
+    const cancelar = await processarTurno(
+      {
+        mensagem: "Cancelar",
+        agora: AGORA_NOV,
+        confirmacaoPendente: gravado.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(cancelar.texto).toMatch(/não entendi/i);
+
+    const lista2 = await processarTurno(
+      { mensagem: "Cancelar viagem", agora: AGORA_NOV },
+      calendario,
+    );
+    const desistiu = await processarTurno(
+      {
+        mensagem: "não",
+        agora: AGORA_NOV,
+        confirmacaoPendente: lista2.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(desistiu.texto).toMatch(/deixo pra lá/i);
+    expect(desistiu.confirmacaoPendente).toBeNull();
+  });
+
+  it("o contexto expira depois de algum tempo", async () => {
+    const calendario = quatroViagens();
+    const consulta = await processarTurno(
+      { mensagem: "15 de novembro", agora: AGORA_NOV },
+      calendario,
+    );
+    expect(consulta.confirmacaoPendente?.acao).toBe("contexto_listagem");
+
+    const tarde = AGORA_NOV.plus({ minutes: 16 });
+    const cancelar = await processarTurno(
+      {
+        mensagem: "Cancelar",
+        agora: tarde,
+        confirmacaoPendente: consulta.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(cancelar.texto).toMatch(/não entendi/i);
+    expect(calendario.listarTodos()).toHaveLength(4);
+  });
+
+  it("nada é gravado sem o Sim, inclusive no fluxo da escolha", async () => {
+    const { calendario, lista } = await listarViagens();
+    const escolha = await processarTurno(
+      {
+        mensagem: "Viagem do dia 15/11",
+        agora: AGORA_NOV,
+        confirmacaoPendente: lista.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(escolha.confirmacaoPendente?.acao).toBe("cancelar_pontual");
+    expect(calendario.listarTodos()).toHaveLength(4);
+
+    const sim = await processarTurno(
+      {
+        mensagem: "sim",
+        agora: AGORA_NOV,
+        confirmacaoPendente: escolha.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(sim.texto).toMatch(/cancelei/i);
+    expect(
+      calendario.listarTodos().some((c) => c.id === "tamires-nov"),
+    ).toBe(false);
   });
 });
 

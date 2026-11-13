@@ -12,10 +12,12 @@ import type { Compromisso, NovoCompromisso } from "./compromisso";
 import {
   ehConfirmacaoMarcacao,
   ehConfirmacaoPendente,
+  TTL_CONTEXTO_MS,
   type ConfirmacaoAlterarPeriodo,
   type ConfirmacaoAlterarPontual,
   type ConfirmacaoCancelarPeriodo,
   type ConfirmacaoCancelarPontual,
+  type ConfirmacaoContextoListagem,
   type ConfirmacaoEscolherAlteracao,
   type ConfirmacaoEscolherCancelamento,
   type ConfirmacaoMarcacao,
@@ -63,6 +65,7 @@ import { FUSO_DONO, diaCivil, fimDoDia, inicioDoDia } from "./fuso";
 import {
   completarMarcacaoPontual,
   interpretarDestinoAlteracao,
+  interpretarEscolhaLista,
   interpretarMensagem,
   interpretarRespostaDuracao,
   periodoAPartirDaDuracao,
@@ -127,13 +130,15 @@ function normalizar(texto: string): string {
 }
 
 function casaComTermo(titulo: string, termo: string): boolean {
+  const termoN = normalizar(termo).trim();
+  if (!termoN) return false;
   const tituloN = normalizar(titulo);
-  const palavras = normalizar(termo)
+  const palavras = termoN
     .split(/\s+/u)
     .filter(
       (p) => p.length > 1 && !["de", "da", "do", "com", "as", "os", "a"].includes(p),
     );
-  if (palavras.length === 0) return tituloN.includes(normalizar(termo));
+  if (palavras.length === 0) return tituloN.includes(termoN);
   return palavras.every((p) => tituloN.includes(p));
 }
 
@@ -183,15 +188,172 @@ function filtrarCandidatos(
   return porTermo.filter((c) => casaComDiaRecorte(c, dia));
 }
 
+function instanteDe(compromisso: Compromisso): string {
+  if (compromisso.tipo === "pontual") return compromisso.inicio;
+  return inicioDoDia(compromisso.primeiroDia).toISO()!;
+}
+
+function ordenarCompromissos(itens: Compromisso[]): Compromisso[] {
+  return [...itens].sort((a, b) => instanteDe(a).localeCompare(instanteDe(b)));
+}
+
+function candidatosDe(
+  compromissos: Compromisso[],
+  agora: DateTime,
+): ConfirmacaoEscolherAlteracao["candidatos"] {
+  return ordenarCompromissos(compromissos).map((c) => ({
+    id: c.id,
+    rotulo: rotuloCandidato(c, agora),
+  }));
+}
+
+function emIso(agora: DateTime): string {
+  return agora.toISO()!;
+}
+
+function pendenteExpirado(
+  pendente: ConfirmacaoPendente,
+  agora: DateTime,
+): boolean {
+  if (
+    pendente.acao !== "contexto_listagem" &&
+    pendente.acao !== "escolher_cancelamento" &&
+    pendente.acao !== "escolher_alteracao"
+  ) {
+    return false;
+  }
+  const em = "em" in pendente ? pendente.em : undefined;
+  if (!em) return false;
+  const inicio = DateTime.fromISO(em, { setZone: true });
+  if (!inicio.isValid) return true;
+  return agora.toMillis() - inicio.toMillis() > TTL_CONTEXTO_MS;
+}
+
+function casaComHora(
+  compromisso: Compromisso,
+  hora: { hour: number; minute: number },
+): boolean {
+  if (compromisso.tipo !== "pontual") return false;
+  const dt = DateTime.fromISO(compromisso.inicio, { setZone: true }).setZone(
+    FUSO_DONO,
+  );
+  return dt.hour === hora.hour && dt.minute === hora.minute;
+}
+
+type ParCandidato = {
+  id: string;
+  rotulo: string;
+  compromisso?: Compromisso;
+};
+
+async function paresDosCandidatos(
+  candidatos: ConfirmacaoEscolherAlteracao["candidatos"],
+  calendario: Calendario,
+  agora: DateTime,
+): Promise<ParCandidato[]> {
+  const todos = await calendario.listar(janelaDeBusca(agora));
+  return candidatos.map((c) => ({
+    ...c,
+    compromisso: todos.find((t) => t.id === c.id),
+  }));
+}
+
 function casarEscolha(
   mensagem: string,
-  candidatos: ConfirmacaoEscolherAlteracao["candidatos"] | ConfirmacaoEscolherCancelamento["candidatos"],
-): ConfirmacaoEscolherAlteracao["candidatos"] {
+  pares: ParCandidato[],
+  agora: DateTime,
+): ParCandidato[] {
+  if (pares.length === 0) return [];
+  const filtros = interpretarEscolhaLista(mensagem, agora);
+
+  if (filtros.ultima) {
+    return pares.slice(-1);
+  }
+  if (filtros.posicao != null) {
+    const indice = filtros.posicao - 1;
+    if (indice >= 0 && indice < pares.length) {
+      return [pares[indice]];
+    }
+  }
+
+  let restantes = pares;
+  if (filtros.dia) {
+    restantes = restantes.filter(
+      (p) => p.compromisso != null && casaComDiaRecorte(p.compromisso, filtros.dia!),
+    );
+  }
+  if (filtros.hora) {
+    restantes = restantes.filter(
+      (p) => p.compromisso != null && casaComHora(p.compromisso, filtros.hora!),
+    );
+  }
+  if (filtros.termo) {
+    restantes = restantes.filter((p) => {
+      if (p.compromisso && casaComTermo(p.compromisso.titulo, filtros.termo)) {
+        return true;
+      }
+      return normalizar(p.rotulo).includes(normalizar(filtros.termo));
+    });
+  }
+  if ((filtros.dia || filtros.hora || filtros.termo) && restantes.length > 0) {
+    return restantes;
+  }
+
   const bruto = normalizar(mensagem).replace(
     /^(?:a|o|essa|esse|este|quero)\s+(?:de\s+)?/u,
     "",
   );
-  return candidatos.filter((c) => normalizar(c.rotulo).includes(bruto));
+  if (!bruto) return [];
+  return pares.filter((c) => normalizar(c.rotulo).includes(bruto));
+}
+
+function ehMutacaoCurta(intencao: Intencao): boolean {
+  if (intencao.tipo === "cancelar") {
+    return !intencao.termo && intencao.dia == null;
+  }
+  if (intencao.tipo === "alterar_sem_destino") {
+    return !intencao.termo && intencao.dia == null;
+  }
+  return false;
+}
+
+function ehContextoListagem(
+  pendente: ConfirmacaoPendente,
+): pendente is ConfirmacaoContextoListagem {
+  return pendente.acao === "contexto_listagem";
+}
+
+function relistarCandidatos(
+  pares: ParCandidato[],
+  acao: "cancelar" | "alterar",
+  agora: DateTime,
+  destino?: DestinoAlteracao,
+): SaidaConversa {
+  const lista = pares.map((p) => ({ id: p.id, rotulo: p.rotulo }));
+  if (acao === "cancelar") {
+    const proposta: ConfirmacaoEscolherCancelamento = {
+      acao: "escolher_cancelamento",
+      candidatos: lista,
+      em: emIso(agora),
+    };
+    return {
+      texto: formatarListaCandidatos(
+        lista.map((c) => c.rotulo),
+        "cancelar",
+      ),
+      confirmacaoPendente: proposta,
+    };
+  }
+  const proposta: ConfirmacaoEscolherAlteracao = {
+    acao: "escolher_alteracao",
+    candidatos: lista,
+    em: emIso(agora),
+    ...(destino ? { destino } : {}),
+  };
+  return {
+    texto: formatarListaCandidatos(lista.map((c) => c.rotulo)),
+    confirmacaoPendente: proposta,
+  };
 }
 
 function ehAlteracao(
@@ -549,9 +711,13 @@ async function processarTurnoInterno(
   calendario: Calendario,
 ): Promise<SaidaConversa> {
   const intencao = interpretarMensagem(entrada.mensagem, entrada.agora);
-  const pendente = ehConfirmacaoPendente(entrada.confirmacaoPendente)
+  const pendenteBruto = ehConfirmacaoPendente(entrada.confirmacaoPendente)
     ? entrada.confirmacaoPendente
     : null;
+  const pendente =
+    pendenteBruto && !pendenteExpirado(pendenteBruto, entrada.agora)
+      ? pendenteBruto
+      : null;
   const diaAnterior = entrada.ultimoDiaConsultado ?? null;
 
   if (pendente && ehCompletarAlteracao(pendente)) {
@@ -724,11 +890,21 @@ async function processarTurnoInterno(
     }
   }
 
-  if (pendente?.acao === "escolher_cancelamento" && intencao.tipo !== "cancelar") {
-    const escolhidos = casarEscolha(entrada.mensagem, pendente.candidatos);
+  if (pendente?.acao === "escolher_cancelamento") {
+    if (intencao.tipo === "recusar") {
+      return comDiaConsultado(
+        { texto: RESPOSTA_DEIXO_PRA_LA, confirmacaoPendente: null },
+        diaAnterior,
+      );
+    }
+    const pares = await paresDosCandidatos(
+      pendente.candidatos,
+      calendario,
+      entrada.agora,
+    );
+    const escolhidos = casarEscolha(entrada.mensagem, pares, entrada.agora);
     if (escolhidos.length === 1) {
-      const todos = await calendario.listar(janelaDeBusca(entrada.agora));
-      const compromisso = todos.find((c) => c.id === escolhidos[0].id);
+      const compromisso = escolhidos[0].compromisso;
       if (!compromisso) {
         return {
           texto: formatarNaoEncontrado(escolhidos[0].rotulo),
@@ -738,25 +914,31 @@ async function processarTurnoInterno(
       return confirmacaoDeCancelamento(compromisso);
     }
     if (escolhidos.length > 1) {
-      return {
-        texto: formatarListaCandidatos(
-          escolhidos.map((c) => c.rotulo),
-          "cancelar",
-        ),
-        confirmacaoPendente: { ...pendente, candidatos: escolhidos },
-      };
+      return relistarCandidatos(escolhidos, "cancelar", entrada.agora);
+    }
+    if (
+      ehMutacaoCurta(intencao) ||
+      (!ehPedidoNovo(intencao, entrada.mensagem) && intencao.tipo !== "cancelar")
+    ) {
+      return relistarCandidatos(pares, "cancelar", entrada.agora);
     }
   }
 
-  if (
-    pendente?.acao === "escolher_alteracao" &&
-    intencao.tipo !== "alterar" &&
-    intencao.tipo !== "alterar_sem_destino"
-  ) {
-    const escolhidos = casarEscolha(entrada.mensagem, pendente.candidatos);
+  if (pendente?.acao === "escolher_alteracao") {
+    if (intencao.tipo === "recusar") {
+      return comDiaConsultado(
+        { texto: RESPOSTA_DEIXO_PRA_LA, confirmacaoPendente: null },
+        diaAnterior,
+      );
+    }
+    const pares = await paresDosCandidatos(
+      pendente.candidatos,
+      calendario,
+      entrada.agora,
+    );
+    const escolhidos = casarEscolha(entrada.mensagem, pares, entrada.agora);
     if (escolhidos.length === 1) {
-      const todos = await calendario.listar(janelaDeBusca(entrada.agora));
-      const compromisso = todos.find((c) => c.id === escolhidos[0].id);
+      const compromisso = escolhidos[0].compromisso;
       if (!compromisso) {
         return {
           texto: formatarNaoEncontrado(escolhidos[0].rotulo),
@@ -776,17 +958,78 @@ async function processarTurnoInterno(
       return montarAlteracao(compromisso, pendente.destino, calendario);
     }
     if (escolhidos.length > 1) {
-      return {
-        texto: formatarListaCandidatos(escolhidos.map((c) => c.rotulo)),
-        confirmacaoPendente: { ...pendente, candidatos: escolhidos },
-      };
+      return relistarCandidatos(
+        escolhidos,
+        "alterar",
+        entrada.agora,
+        pendente.destino,
+      );
     }
+    if (
+      ehMutacaoCurta(intencao) ||
+      (!ehPedidoNovo(intencao, entrada.mensagem) &&
+        intencao.tipo !== "alterar" &&
+        intencao.tipo !== "alterar_sem_destino")
+    ) {
+      return relistarCandidatos(
+        pares,
+        "alterar",
+        entrada.agora,
+        pendente.destino,
+      );
+    }
+  }
+
+  if (pendente && ehContextoListagem(pendente) && ehMutacaoCurta(intencao)) {
+    const pares = await paresDosCandidatos(
+      pendente.candidatos,
+      calendario,
+      entrada.agora,
+    );
+    const vivos = pares.filter((p) => p.compromisso);
+    if (vivos.length === 0) {
+      return comDiaConsultado(
+        { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: null },
+        diaAnterior,
+      );
+    }
+    if (intencao.tipo === "cancelar") {
+      if (vivos.length === 1) {
+        return comDiaConsultado(
+          confirmacaoDeCancelamento(vivos[0].compromisso!),
+          diaAnterior,
+        );
+      }
+      return comDiaConsultado(
+        relistarCandidatos(vivos, "cancelar", entrada.agora),
+        diaAnterior,
+      );
+    }
+    if (vivos.length === 1) {
+      const compromisso = vivos[0].compromisso!;
+      return comDiaConsultado(
+        {
+          texto: formatarPedirDestinoAlteracao(compromisso.titulo),
+          confirmacaoPendente: {
+            acao: "completar_alteracao",
+            id: compromisso.id,
+            titulo: compromisso.titulo,
+          },
+        },
+        diaAnterior,
+      );
+    }
+    return comDiaConsultado(
+      relistarCandidatos(vivos, "alterar", entrada.agora),
+      diaAnterior,
+    );
   }
 
   if (intencao.tipo === "confirmar") {
     if (
       !pendente ||
       ehEscolha(pendente) ||
+      ehContextoListagem(pendente) ||
       ehCompletarMarcacao(pendente) ||
       ehCompletarAlteracao(pendente) ||
       ehCompletarDuracaoPeriodo(pendente) ||
@@ -918,6 +1161,12 @@ async function processarTurnoInterno(
   }
 
   if (intencao.tipo === "alterar" || intencao.tipo === "alterar_sem_destino") {
+    if (!intencao.termo && intencao.tipo === "alterar_sem_destino") {
+      return comDiaConsultado(
+        { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: null },
+        diaAnterior,
+      );
+    }
     const existentes = await calendario.listar(janelaDeBusca(entrada.agora));
     const candidatos = filtrarCandidatos(
       existentes,
@@ -932,15 +1181,13 @@ async function processarTurnoInterno(
     }
     if (intencao.tipo === "alterar_sem_destino") {
       if (candidatos.length > 1) {
-        const lista = candidatos.map((c) => ({
-          id: c.id,
-          rotulo: rotuloCandidato(c),
-        }));
+        const lista = candidatosDe(candidatos, entrada.agora);
         return {
           texto: formatarListaCandidatos(lista.map((c) => c.rotulo)),
           confirmacaoPendente: {
             acao: "escolher_alteracao",
             candidatos: lista,
+            em: emIso(entrada.agora),
           },
         };
       }
@@ -954,14 +1201,12 @@ async function processarTurnoInterno(
       };
     }
     if (candidatos.length > 1) {
-      const lista = candidatos.map((c) => ({
-        id: c.id,
-        rotulo: rotuloCandidato(c),
-      }));
+      const lista = candidatosDe(candidatos, entrada.agora);
       const proposta: ConfirmacaoEscolherAlteracao = {
         acao: "escolher_alteracao",
         candidatos: lista,
         destino: intencao.destino,
+        em: emIso(entrada.agora),
       };
       return {
         texto: formatarListaCandidatos(lista.map((c) => c.rotulo)),
@@ -972,6 +1217,12 @@ async function processarTurnoInterno(
   }
 
   if (intencao.tipo === "cancelar") {
+    if (!intencao.termo && intencao.dia == null) {
+      return comDiaConsultado(
+        { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: null },
+        diaAnterior,
+      );
+    }
     const existentes = await calendario.listar(janelaDeBusca(entrada.agora));
     const porTermo = existentes.filter((c) =>
       casaComTermo(c.titulo, intencao.termo),
@@ -992,13 +1243,11 @@ async function processarTurnoInterno(
       };
     }
     if (candidatos.length > 1) {
-      const lista = candidatos.map((c) => ({
-        id: c.id,
-        rotulo: rotuloCandidato(c),
-      }));
+      const lista = candidatosDe(candidatos, entrada.agora);
       const proposta: ConfirmacaoEscolherCancelamento = {
         acao: "escolher_cancelamento",
         candidatos: lista,
+        em: emIso(entrada.agora),
       };
       return {
         texto: formatarListaCandidatos(lista.map((c) => c.rotulo), "cancelar"),
@@ -1019,7 +1268,14 @@ async function processarTurnoInterno(
     });
     return {
       texto: formatarConsultaDia(intencao.dia, compromissos, entrada.agora),
-      confirmacaoPendente: null,
+      confirmacaoPendente:
+        compromissos.length > 0
+          ? {
+              acao: "contexto_listagem",
+              candidatos: candidatosDe(compromissos, entrada.agora),
+              em: emIso(entrada.agora),
+            }
+          : null,
       ultimoDiaConsultado: intencao.dia,
       diaParaCalendario: intencao.dia,
     };
@@ -1037,7 +1293,14 @@ async function processarTurnoInterno(
         compromissos,
         entrada.agora,
       ),
-      confirmacaoPendente: null,
+      confirmacaoPendente:
+        compromissos.length > 0
+          ? {
+              acao: "contexto_listagem",
+              candidatos: candidatosDe(compromissos, entrada.agora),
+              em: emIso(entrada.agora),
+            }
+          : null,
       ultimoDiaConsultado: intencao.primeiroDia,
       diaParaCalendario: intencao.primeiroDia,
     };

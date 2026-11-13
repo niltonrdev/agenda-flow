@@ -40,6 +40,13 @@ describe("pede sim ou não", () => {
         candidatos: [{ id: "1", rotulo: "Dentista" }],
       }),
     ).toBe(false);
+    expect(
+      pedeSimOuNao({
+        acao: "contexto_listagem",
+        candidatos: [{ id: "1", rotulo: "Dentista" }],
+        em: "2026-11-13T12:41:00.000-03:00",
+      }),
+    ).toBe(false);
     expect(pedeSimOuNao(null)).toBe(false);
   });
 });
