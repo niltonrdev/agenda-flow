@@ -25,7 +25,9 @@ describe("entrada de conversa — Consulta de um dia", () => {
 
     expect(saida.texto).toBe("15 de outubro está livre.");
     expect(saida.diaParaCalendario).toBe("2025-10-15");
-    expect(calendario.listarTodos()).toHaveLength(3);
+    expect(calendario.listarTodos()).toHaveLength(
+      compromissosDeDemonstracao(AGORA).length,
+    );
   });
 
   it("um dia ocupado lista cada Compromisso com título e horário", async () => {
@@ -1478,7 +1480,9 @@ describe("entrada de conversa — Alteração", () => {
     expect(saida.texto).toMatch(/Alerta de conflito/i);
     expect(saida.texto).toMatch(/Cirurgia/);
     expect(saida.texto).toMatch(/7 de setembro/);
-    expect(calendario.listarTodos()).toHaveLength(3);
+    expect(calendario.listarTodos()).toHaveLength(
+      compromissosDeDemonstracao(AGORA_SETEMBRO).length,
+    );
   });
 
   it("só o sim grava a Alteração; o não pergunta o que mudar e a correção reapresenta a Confirmação", async () => {

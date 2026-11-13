@@ -37,7 +37,7 @@ Compromisso de dias inteiros, do primeiro ao último dia inclusive (pescaria do 
 _Avoid_: all-day (como nome nosso), viagem (é um exemplo, não o tipo), bloco
 
 **Consulta**:
-Pedido para saber se um dia ou um Período está livre ou ocupado, sem gravar nada. Uma data solta (“15 de novembro”) é só aquele dia. Fala de feriado, fim de semana, viagem ou pescaria consulta o intervalo desse recorte.
+Pedido para saber se um dia ou um Período está livre ou ocupado, sem gravar nada. Uma data solta (“15 de novembro”) é só aquele dia. Fala de feriado, fim de semana, viagem ou pescaria consulta o intervalo desse recorte. Também lista Compromissos futuros de um tipo (viagens, reuniões) ou que contenham um termo falado, sem gravar nada.
 _Avoid_: search, listagem, report
 
 **Marcação**:

@@ -12,6 +12,7 @@ import type { Compromisso, NovoCompromisso } from "./compromisso";
 import {
   ehConfirmacaoMarcacao,
   ehConfirmacaoPendente,
+  ehListagemPaginada,
   type ConfirmacaoAlterarPeriodo,
   type ConfirmacaoAlterarPontual,
   type ConfirmacaoCancelarPeriodo,
@@ -70,6 +71,7 @@ import {
   type DiaRecorte,
   type Intencao,
 } from "./interpretador";
+import { processarIntencaoListagem } from "./listagem-filtrada";
 import { DateTime } from "luxon";
 
 /**
@@ -790,7 +792,8 @@ async function processarTurnoInterno(
       ehCompletarMarcacao(pendente) ||
       ehCompletarAlteracao(pendente) ||
       ehCompletarDuracaoPeriodo(pendente) ||
-      ehCompletarDiasPeriodo(pendente)
+      ehCompletarDiasPeriodo(pendente) ||
+      ehListagemPaginada(pendente)
     ) {
       return comDiaConsultado(
         { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: pendente },
@@ -1006,6 +1009,16 @@ async function processarTurnoInterno(
       };
     }
     return confirmacaoDeCancelamento(candidatos[0]);
+  }
+
+  const saidaListagem = await processarIntencaoListagem(
+    intencao,
+    pendente,
+    entrada.agora,
+    calendario,
+  );
+  if (saidaListagem) {
+    return comDiaConsultado(saidaListagem, diaAnterior);
   }
 
   if (intencao.tipo === "desconhecida" || intencao.tipo === "recusar") {

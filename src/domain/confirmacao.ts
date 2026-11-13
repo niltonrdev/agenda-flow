@@ -106,6 +106,22 @@ export type ConfirmacaoCompletarDiasPeriodo = {
   dia?: string;
 };
 
+/**
+ * Continuação de "mostrar mais": só o filtro e o offset.
+ * Sem descrição de evento, sem lista completa.
+ */
+export type ConfirmacaoListagemPaginada = {
+  acao: "listagem_paginada";
+  filtro: "viagens" | "reunioes" | "busca";
+  termo?: string;
+  futuro: boolean;
+  primeiroDia?: string;
+  ultimoDia?: string;
+  rotuloPeriodo?: string;
+  offset: number;
+  truncadoAte?: string;
+};
+
 export type ConfirmacaoPendente =
   | ConfirmacaoPontual
   | ConfirmacaoPeriodo
@@ -118,7 +134,8 @@ export type ConfirmacaoPendente =
   | ConfirmacaoCompletarMarcacao
   | ConfirmacaoCompletarAlteracao
   | ConfirmacaoCompletarDuracaoPeriodo
-  | ConfirmacaoCompletarDiasPeriodo;
+  | ConfirmacaoCompletarDiasPeriodo
+  | ConfirmacaoListagemPaginada;
 
 export type ConfirmacaoMarcacao = ConfirmacaoPontual | ConfirmacaoPeriodo;
 
@@ -271,5 +288,36 @@ export function ehConfirmacaoPendente(valor: unknown): valor is ConfirmacaoPende
       (proposta.dia === undefined || typeof proposta.dia === "string")
     );
   }
+  if (proposta.acao === "listagem_paginada") {
+    const filtroOk =
+      proposta.filtro === "viagens" ||
+      proposta.filtro === "reunioes" ||
+      proposta.filtro === "busca";
+    const termoOk =
+      proposta.filtro !== "busca" ||
+      (typeof proposta.termo === "string" && proposta.termo.length >= 2);
+    return (
+      filtroOk &&
+      termoOk &&
+      typeof proposta.futuro === "boolean" &&
+      typeof proposta.offset === "number" &&
+      proposta.offset >= 0 &&
+      (proposta.primeiroDia === undefined ||
+        typeof proposta.primeiroDia === "string") &&
+      (proposta.ultimoDia === undefined ||
+        typeof proposta.ultimoDia === "string") &&
+      (proposta.rotuloPeriodo === undefined ||
+        typeof proposta.rotuloPeriodo === "string") &&
+      (proposta.truncadoAte === undefined ||
+        typeof proposta.truncadoAte === "string") &&
+      (proposta.termo === undefined || typeof proposta.termo === "string")
+    );
+  }
   return false;
+}
+
+export function ehListagemPaginada(
+  valor: ConfirmacaoPendente,
+): valor is ConfirmacaoListagemPaginada {
+  return valor.acao === "listagem_paginada";
 }

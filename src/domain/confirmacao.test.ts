@@ -41,5 +41,13 @@ describe("pede sim ou não", () => {
       }),
     ).toBe(false);
     expect(pedeSimOuNao(null)).toBe(false);
+    expect(
+      pedeSimOuNao({
+        acao: "listagem_paginada",
+        filtro: "viagens",
+        futuro: true,
+        offset: 15,
+      }),
+    ).toBe(false);
   });
 });

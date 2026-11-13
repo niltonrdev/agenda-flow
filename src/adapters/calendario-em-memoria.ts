@@ -160,6 +160,23 @@ export function compromissosDeDemonstracao(agora: DateTime): Compromisso[] {
       primeiroDia: `${anoCirurgia}-09-04`,
       ultimoDia: `${anoCirurgia}-09-06`,
     },
+    {
+      id: "demo-voo",
+      titulo: "Voo GRU-REC",
+      tipo: "pontual",
+      inicio: agora.setZone(FUSO_DONO).plus({ days: 10 }).set({
+        hour: 9,
+        minute: 0,
+        second: 0,
+        millisecond: 0,
+      }).toISO()!,
+      fim: agora.setZone(FUSO_DONO).plus({ days: 10 }).set({
+        hour: 12,
+        minute: 0,
+        second: 0,
+        millisecond: 0,
+      }).toISO()!,
+    },
   ];
 }
 
