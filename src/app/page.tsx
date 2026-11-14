@@ -1,479 +1,87 @@
-"use client";
-
-import { CompositorMensagem } from "@/app/compositor-mensagem";
-import { ROTULO_VER_NO_CALENDARIO } from "@/app/conversa-campo";
-import { SeletorDiasPeriodo } from "@/app/seletor-dias";
-import { ehAparelhoIos, urlAbrirCalendario } from "@/lib/link-calendario";
-import {
-  deveZerarRolagemLayout,
-  propriedadesViewportVisual,
-} from "@/lib/viewport-visual";
-import {
-  pedeSimOuNao,
-  type ConfirmacaoPendente,
-} from "@/domain/confirmacao";
-import { mensagemAPartirDoCampo } from "@/domain/transcritor";
-import { obterTranscritor } from "@/lib/transcritor-app";
-import { CabecalhoConversa } from "@/app/cabecalho-conversa";
-import { AvisoRascunho, RodapeLegal } from "@/app/legal";
+import { ContatoPublico } from "@/app/contato-publico";
+import { RodapeLegal } from "@/app/legal";
 import { MarcaCartao } from "@/app/marca";
-import { ControleTutorial } from "@/app/tutorial-painel";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { ESCOPOS_OAUTH, ESCOPOS_OAUTH_USO } from "@/lib/google-oauth";
+import {
+  CAMINHO_CONVERSA,
+  CAMINHO_PRIVACIDADE,
+  CAMINHO_TERMOS,
+  NOME_DO_APP,
+} from "@/lib/urls-app";
+import type { Metadata } from "next";
+import Link from "next/link";
 
-type MensagemNaTela = {
-  id: string;
-  papel: "dono" | "agenda";
-  texto: string;
-  diaParaCalendario?: string | null;
+export const metadata: Metadata = {
+  title: `${NOME_DO_APP} — conversa com o seu Google Agenda`,
+  description:
+    "Ferramenta pessoal para consultar disponibilidade e, depois de Confirmação, marcar, alterar ou cancelar compromissos no Google Agenda do Dono.",
 };
 
-type StatusGoogle = {
-  credencialConfigurada: boolean;
-  conectado: boolean;
-  email: string | null;
-  motivo: string | null;
-};
-
-const CHAVE_DEMO = "agenda-demo";
-
-export default function ConversaPage() {
-  const [mensagens, setMensagens] = useState<MensagemNaTela[]>([
-    {
-      id: "boas-vindas",
-      papel: "agenda",
-      texto:
-        "Olá. Consulte um dia (“15/10”, “15 de novembro”) ou marque com horário (“reunião com a Ana amanhã às 15h”) e toque em Sim na Confirmação. Sem horário, eu peço. Sem ano, uso a próxima data futura.",
-    },
-  ]);
-  const [rascunho, setRascunho] = useState("");
-  const [carregando, setCarregando] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
-  const [confirmacaoPendente, setConfirmacaoPendente] =
-    useState<ConfirmacaoPendente | null>(null);
-  const [ultimoDiaConsultado, setUltimoDiaConsultado] = useState<string | null>(
-    null,
-  );
-  const [google, setGoogle] = useState<StatusGoogle | null>(null);
-  const [demoLocal, setDemoLocal] = useState(false);
-  const [avisoAuth, setAvisoAuth] = useState<string | null>(null);
-  const [dicaVoz, setDicaVoz] = useState<string | null>(null);
-  const [desconectando, setDesconectando] = useState(false);
-  const [geracaoCampo, setGeracaoCampo] = useState(0);
-  const fimRef = useRef<HTMLDivElement>(null);
-  const campoRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    fimRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [mensagens, carregando, erro, confirmacaoPendente]);
-
-  useEffect(() => {
-    try {
-      setDemoLocal(sessionStorage.getItem(CHAVE_DEMO) === "1");
-    } catch {
-      setDemoLocal(false);
-    }
-
-    const params = new URLSearchParams(window.location.search);
-    const googleParam = params.get("google");
-    if (googleParam === "falha" || googleParam === "negado" || googleParam === "host") {
-      setAvisoAuth(
-        googleParam === "negado"
-          ? "A conexão com o Google foi cancelada. Tente de novo quando quiser."
-          : googleParam === "host"
-            ? "Este endereço não pode usar o redirect configurado no servidor (aponta para outro host). No Preview, deixe GOOGLE_REDIRECT_URI vazio e cadastre no Google Cloud a URI exata deste host."
-            : "Não foi possível conectar ao Google. Confira o redirect URI no Console e tente de novo.",
-      );
-    }
-    if (googleParam) {
-      window.history.replaceState({}, "", "/");
-    }
-
-    void fetch("/api/auth/google/status")
-      .then((r) => r.json())
-      .then(
-        (dados: {
-          credencialConfigurada?: boolean;
-          conectado?: boolean;
-          email?: string | null;
-          motivo?: string | null;
-        }) => {
-          setGoogle({
-            credencialConfigurada: Boolean(dados.credencialConfigurada),
-            conectado: Boolean(dados.conectado),
-            email: typeof dados.email === "string" ? dados.email : null,
-            motivo: typeof dados.motivo === "string" ? dados.motivo : null,
-          });
-          if (dados.motivo === "reconectar" || dados.motivo === "permissao") {
-            setAvisoAuth(
-              dados.motivo === "permissao"
-                ? "Esta conta não autorizou o Calendário com as permissões necessárias. Entre de novo e aceite o acesso à agenda."
-                : "A conexão com o Google expirou ou não vale mais. Entre de novo.",
-            );
-          } else if (dados.motivo === "temporaria" && !dados.conectado) {
-            setAvisoAuth(
-              "Não foi possível confirmar a conexão com o Google agora. Tente de novo em instantes.",
-            );
-          }
-        },
-      )
-      .catch(() => {
-        setGoogle({
-          credencialConfigurada: false,
-          conectado: false,
-          email: null,
-          motivo: "configuracao",
-        });
-      });
-  }, []);
-
-  function entrarEmDemonstracao() {
-    try {
-      sessionStorage.setItem(CHAVE_DEMO, "1");
-    } catch {
-      /* ignore */
-    }
-    setDemoLocal(true);
-    setAvisoAuth(null);
-  }
-
-  async function desconectarGoogle() {
-    if (desconectando) return;
-    setDesconectando(true);
-    try {
-      await fetch("/api/auth/google/logout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
-    } catch {
-      /* o recarregamento limpa o estado local */
-    }
-    window.location.assign("/");
-  }
-
-  const naConversa = google != null && (google.conectado || demoLocal);
-  const indiceUltimaAgenda = mensagens.findLastIndex(
-    (item) => item.papel === "agenda",
-  );
-
-  useEffect(() => {
-    if (!naConversa) {
-      document.documentElement.classList.remove("conversa-aberta");
-      document.documentElement.style.removeProperty("--vvh");
-      document.documentElement.style.removeProperty("--vvo");
-      return;
-    }
-
-    document.documentElement.classList.add("conversa-aberta");
-    const viewport = window.visualViewport;
-    const alinharViewport = () => {
-      const { altura, deslocamento } = propriedadesViewportVisual(
-        viewport,
-        window.innerHeight,
-      );
-      document.documentElement.style.setProperty("--vvh", altura);
-      document.documentElement.style.setProperty("--vvo", deslocamento);
-      if (deveZerarRolagemLayout(window.scrollX, window.scrollY)) {
-        window.scrollTo(0, 0);
-      }
-    };
-    alinharViewport();
-    viewport?.addEventListener("resize", alinharViewport);
-    viewport?.addEventListener("scroll", alinharViewport);
-    window.addEventListener("resize", alinharViewport);
-    return () => {
-      document.documentElement.classList.remove("conversa-aberta");
-      document.documentElement.style.removeProperty("--vvh");
-      document.documentElement.style.removeProperty("--vvo");
-      viewport?.removeEventListener("resize", alinharViewport);
-      viewport?.removeEventListener("scroll", alinharViewport);
-      window.removeEventListener("resize", alinharViewport);
-    };
-  }, [naConversa]);
-
-  async function enviar(textoPronto?: string) {
-    const texto =
-      textoPronto ??
-      (await mensagemAPartirDoCampo(obterTranscritor(), rascunho));
-    if (!texto || carregando) return;
-
-    setDicaVoz(null);
-    setErro(null);
-    setRascunho("");
-    setGeracaoCampo((atual) => atual + 1);
-    const idDono = `dono-${Date.now()}`;
-    setMensagens((atual) => [
-      ...atual,
-      { id: idDono, papel: "dono", texto },
-    ]);
-    setCarregando(true);
-
-    try {
-      const resposta = await fetch("/api/conversa", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mensagem: texto,
-          confirmacaoPendente,
-          ultimoDiaConsultado,
-        }),
-      });
-      const dados = (await resposta.json()) as {
-        texto?: string;
-        erro?: string;
-        falha?: string | null;
-        confirmacaoPendente?: ConfirmacaoPendente | null;
-        ultimoDiaConsultado?: string | null;
-        diaParaCalendario?: string | null;
-      };
-
-      if (dados.falha === "reconectar" || resposta.status === 401) {
-        setGoogle((atual) =>
-          atual
-            ? { ...atual, conectado: false, email: null, motivo: "reconectar" }
-            : atual,
-        );
-      }
-
-      if (!resposta.ok) {
-        throw new Error(dados.erro ?? "Falha ao falar com a agenda.");
-      }
-
-      setConfirmacaoPendente(dados.confirmacaoPendente ?? null);
-      setUltimoDiaConsultado(dados.ultimoDiaConsultado ?? null);
-      setMensagens((atual) => [
-        ...atual,
-        {
-          id: `agenda-${Date.now()}`,
-          papel: "agenda",
-          texto: dados.texto ?? "",
-          diaParaCalendario: dados.diaParaCalendario ?? null,
-        },
-      ]);
-    } catch (e) {
-      setErro(
-        e instanceof Error
-          ? e.message
-          : "Não foi possível obter a resposta. Tente de novo.",
-      );
-    } finally {
-      setCarregando(false);
-      campoRef.current?.focus({ preventScroll: true });
-    }
-  }
-
-  if (google == null) {
-    return (
-      <div className="entrada-shell">
-        <MarcaCartao />
-        <p className="entrada-aguarde">Preparando…</p>
-      </div>
-    );
-  }
-
-  if (!naConversa) {
-    return (
-      <div className="entrada-shell entrada-shell-home">
-        <AvisoRascunho />
-        <MarcaCartao />
-        <header className="entrada-hero">
-          <h1 className="entrada-titulo">Agenda Inteligente</h1>
-          <p className="entrada-texto">
-            Conversa pessoal para consultar a disponibilidade no seu Google
-            Calendar e, depois de uma Confirmação, marcar, alterar ou cancelar
-            um compromisso. Não há outras contas no produto: só o calendário
-            do Dono.
-          </p>
-          <p className="entrada-texto">
-            A Consulta lê as agendas visíveis. A Marcação grava só na agenda
-            principal. O histórico da conversa não é guardado. A sessão Google
-            fica num cookie cifrado neste aparelho por até 7 dias (ou 24 horas
-            sem uso), fora de aba anônima.
-          </p>
-          <p className="entrada-texto entrada-texto-voz">
-            O ditado usa o reconhecimento de voz do navegador. Em alguns
-            aparelhos o áudio pode ser processado fora do dispositivo. A
-            Agenda não envia o áudio a um modelo de linguagem próprio.
-          </p>
-        </header>
-
-        {avisoAuth ? (
-          <p className="entrada-aviso" role="alert">
-            {avisoAuth}
-          </p>
-        ) : null}
-
-        <div className="entrada-acoes">
-          {google.credencialConfigurada ? (
-            <a className="entrada-botao-google" href="/api/auth/google">
-              Continuar com Google
-            </a>
-          ) : (
-            <p className="entrada-sem-oauth">
-              OAuth do Google ainda não está configurado neste servidor. Você
-              pode entrar em demonstração com um calendário de exemplo
-              somente leitura.
-            </p>
-          )}
-          <button
-            type="button"
-            className="entrada-botao-demo"
-            onClick={entrarEmDemonstracao}
-          >
-            Continuar em demonstração (só consulta)
-          </button>
-          <ControleTutorial variante="texto" />
-        </div>
-        <RodapeLegal />
-      </div>
-    );
-  }
-
+export default function PaginaInicial() {
   return (
-    <div className="conversa-shell">
-      <CabecalhoConversa
-        conectado={google.conectado}
-        email={google.email}
-        credencialConfigurada={google.credencialConfigurada}
-        desconectando={desconectando}
-        onDesconectar={() => void desconectarGoogle()}
-        ajuda={<ControleTutorial abrirAutomatico />}
-      />
+    <article className="pagina-inicio">
+      <MarcaCartao />
+      <header className="entrada-hero">
+        <h1 className="entrada-titulo">{NOME_DO_APP}</h1>
+        <p className="entrada-texto">
+          Ferramenta pessoal do Dono: uma conversa em português do Brasil que
+          consulta a disponibilidade no Google Agenda e, depois de uma
+          Confirmação com «Sim», cria, altera ou cancela um compromisso. Não há
+          outras contas no produto — só o calendário do Dono.
+        </p>
+      </header>
 
-      <main className="conversa-fio" aria-live="polite" data-tutorial="fio">
-        {mensagens.map((m, indice) => {
-          const ultimaAgenda =
-            m.papel === "agenda" && indice === indiceUltimaAgenda;
-          return (
-            <Fragment key={m.id}>
-          <div
-            className={
-              m.papel === "dono" ? "balao balao-dono" : "balao balao-agenda"
-            }
-          >
-            <p className="balao-texto">{m.texto}</p>
-            {google.conectado && m.diaParaCalendario ? (
-              <a
-                className="balao-calendario"
-                href={urlAbrirCalendario(
-                  m.diaParaCalendario,
-                  typeof navigator === "undefined" ? "" : navigator.userAgent,
-                )}
-                target={
-                  typeof navigator !== "undefined" &&
-                  ehAparelhoIos(navigator.userAgent)
-                    ? undefined
-                    : "_blank"
-                }
-                rel="noopener noreferrer"
-                aria-label={ROTULO_VER_NO_CALENDARIO}
-                title={ROTULO_VER_NO_CALENDARIO}
-              >
-                <svg
-                  className="balao-calendario-icone"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <rect x="3" y="5" width="18" height="16" rx="2" />
-                  <path d="M3 10h18" />
-                  <path d="M8 3v4" />
-                  <path d="M16 3v4" />
-                </svg>
-              </a>
-            ) : null}
-          </div>
-            {ultimaAgenda && pedeSimOuNao(confirmacaoPendente) && !carregando ? (
-              <div
-                className="conversa-sim-nao"
-                role="group"
-                aria-label="Confirmação"
-              >
-                <button
-                  type="button"
-                  className="conversa-sim"
-                  onClick={() => void enviar("sim")}
-                >
-                  Sim
-                </button>
-                <button
-                  type="button"
-                  className="conversa-nao"
-                  onClick={() => void enviar("não")}
-                >
-                  Não
-                </button>
-              </div>
-            ) : null}
-            {ultimaAgenda &&
-            confirmacaoPendente?.acao === "completar_duracao_periodo" &&
-            !carregando ? (
-              <div
-                className="conversa-sim-nao"
-                role="group"
-                aria-label="Duração da viagem"
-              >
-                <button
-                  type="button"
-                  className="conversa-sim"
-                  onClick={() => void enviar("1 dia")}
-                >
-                  1 dia
-                </button>
-                <button
-                  type="button"
-                  className="conversa-nao"
-                  onClick={() => void enviar("mais dias")}
-                >
-                  Mais dias
-                </button>
-              </div>
-            ) : null}
-            {ultimaAgenda &&
-            confirmacaoPendente?.acao === "completar_dias_periodo" &&
-            !carregando ? (
-              <SeletorDiasPeriodo
-                diaSugerido={confirmacaoPendente.dia}
-                onConfirmar={(mensagem) => void enviar(mensagem)}
-              />
-            ) : null}
-            </Fragment>
-          );
-        })}
+      <nav className="inicio-links-legais" aria-label="Documentos legais">
+        <Link href={CAMINHO_PRIVACIDADE}>Privacidade</Link>
+        <Link href={CAMINHO_TERMOS}>Termos de uso</Link>
+      </nav>
 
-        {carregando ? (
-          <div className="balao balao-agenda balao-carregando" role="status">
-            <span className="ponto" />
-            <span className="ponto" />
-            <span className="ponto" />
-            <span className="sr-only">Preparando a resposta…</span>
-          </div>
-        ) : null}
+      <section>
+        <h2>Como usa o Google Agenda</h2>
+        <p>
+          A Consulta lê as agendas visíveis da conta para dizer se um dia ou um
+          período está livre. A Marcação, a Alteração e o Cancelamento só
+          acontecem depois que o Dono confirma com «Sim»; a gravação vai só na
+          agenda principal.
+        </p>
+        <p>
+          O aplicativo pede exatamente estes escopos OAuth — nenhum além
+          destes:
+        </p>
+        <ul className="inicio-escopos">
+          {ESCOPOS_OAUTH.map((escopo) => (
+            <li key={escopo}>
+              <code>{escopo}</code> — {ESCOPOS_OAUTH_USO[escopo]}
+            </li>
+          ))}
+        </ul>
+        <p>
+          A descrição dos eventos é lida só em memória, no servidor, para casar
+          buscas por termo. Não é armazenada, não vai para cookie nem log, não
+          aparece na conversa e não é enviada a outros serviços. O histórico da
+          conversa também não é guardado.
+        </p>
+      </section>
 
-        {erro ? (
-          <p className="conversa-erro" role="alert">
-            {erro}
-          </p>
-        ) : null}
+      <section>
+        <h2>Demonstração</h2>
+        <p>
+          Sem conectar o Google, a conversa usa um calendário de exemplo
+          somente leitura. Nada é gravado nesse modo.
+        </p>
+      </section>
 
-        <div ref={fimRef} />
-      </main>
+      <p className="inicio-contato">
+        Contato: <ContatoPublico />
+      </p>
 
-      <CompositorMensagem
-        rascunho={rascunho}
-        onRascunho={setRascunho}
-        onEnviar={(texto) => void enviar(texto)}
-        carregando={carregando}
-        dicaVoz={dicaVoz}
-        onDica={setDicaVoz}
-        onErro={setErro}
-        geracaoCampo={geracaoCampo}
-        campoRef={campoRef}
-      />
-    </div>
+      <p className="inicio-acoes">
+        <Link className="entrada-botao-google" href={CAMINHO_CONVERSA}>
+          Abrir a conversa
+        </Link>
+      </p>
+
+      <RodapeLegal />
+    </article>
   );
 }

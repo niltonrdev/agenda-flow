@@ -1,0 +1,3 @@
+# Homepage pública em `/` e origem canônica por variável de ambiente
+
+O Google exige, na verificação OAuth, uma homepage que abre sem login, mais política de privacidade e termos no mesmo domínio. A Conversa (login, demonstração e chat) ficou em `/conversa`; `/` é só a página pública. Usar `/inicio` para o texto e manter o chat em `/` falharia a verificação se o revisor abrisse a raiz. A origem de produção (`https://agendainteligente.net.br`) e o redirect URI saem de `APP_ORIGIN` / `GOOGLE_REDIRECT_URI`, sem host `vercel.app` no código. Redirect `*.vercel.app` → domínio novo é opt-in, só em páginas públicas GET, para não quebrar preview nem o cookie OAuth (por host).

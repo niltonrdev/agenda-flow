@@ -1,13 +1,14 @@
 import { falhaDeHttpGoogle, falhaDoCalendario } from "@/domain/falha-calendario";
 import { cifrarValor, decifrarValor } from "@/lib/criptografia";
 import { TIMEOUT_GOOGLE_MS } from "@/lib/limites";
+import { CAMINHO_CALLBACK_OAUTH } from "@/lib/urls-app";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 const COOKIE_SESSAO = "agenda_google";
 const COOKIE_STATE = "agenda_google_oauth_state";
 const COOKIE_PROPOSTA = "agenda_proposta";
 
-export const CAMINHO_CALLBACK_OAUTH = "/api/auth/google/callback";
+export { CAMINHO_CALLBACK_OAUTH };
 
 export const ESCOPOS_OAUTH = [
   "openid",
@@ -15,6 +16,18 @@ export const ESCOPOS_OAUTH = [
   "https://www.googleapis.com/auth/calendar.events",
   "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
 ] as const;
+
+/** Texto humano de cada escopo pedido — sem acrescentar escopo novo. */
+export const ESCOPOS_OAUTH_USO: Record<(typeof ESCOPOS_OAUTH)[number], string> = {
+  openid:
+    "identifica a conta Google do Dono no login (OpenID Connect).",
+  "https://www.googleapis.com/auth/userinfo.email":
+    "lê o e-mail da conta para mostrar quem está conectado.",
+  "https://www.googleapis.com/auth/calendar.events":
+    "lê eventos no recorte pedido e, depois da Confirmação, cria, altera ou exclui eventos na agenda principal.",
+  "https://www.googleapis.com/auth/calendar.calendarlist.readonly":
+    "lista as agendas visíveis da conta, sem administrá-las nem alterar compartilhamento.",
+};
 
 const ESCOPO = ESCOPOS_OAUTH.join(" ");
 

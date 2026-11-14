@@ -5,6 +5,7 @@ import {
   desserializarSessao,
   emailPublicavel,
   ESCOPOS_OAUTH,
+  ESCOPOS_OAUTH_USO,
   lerValorAssinado,
   MAX_AGE_SESSAO_S,
   MENSAGEM_OAUTH_HOST,
@@ -69,6 +70,7 @@ describe("sessão Google persistida", () => {
   });
 
   it("pede identidade + events + calendarlist, sem o escopo amplo de administrar agendas", () => {
+    expect(Object.keys(ESCOPOS_OAUTH_USO)).toEqual([...ESCOPOS_OAUTH]);
     const url = urlDeAutorizacao({
       clientId: "id",
       redirectUri: "http://localhost:3000/api/auth/google/callback",
@@ -108,7 +110,7 @@ describe("sessão Google persistida", () => {
   it("preview sem GOOGLE_REDIRECT_URI usa callback same-origin; variável de outro host é recusada", () => {
     const preview = "https://agenda-flow-git-x-nilteras-projects.vercel.app";
     const producao =
-      "https://agenda-flow-mu.vercel.app/api/auth/google/callback";
+      "https://agendainteligente.net.br/api/auth/google/callback";
     expect(decidirRedirectOAuth(preview, { VERCEL_ENV: "preview" })).toEqual({
       ok: true,
       uri: `${preview}/api/auth/google/callback`,
@@ -126,7 +128,7 @@ describe("sessão Google persistida", () => {
       decidirRedirectOAuth(preview, { GOOGLE_REDIRECT_URI: producao }),
     ).toEqual({ ok: false, motivo: "host_divergente" });
     expect(
-      decidirRedirectOAuth("https://agenda-flow-mu.vercel.app", {
+      decidirRedirectOAuth("https://agendainteligente.net.br", {
         GOOGLE_REDIRECT_URI: producao,
       }),
     ).toEqual({ ok: true, uri: producao });

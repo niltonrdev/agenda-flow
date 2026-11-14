@@ -6,6 +6,7 @@ import {
   opcoesCookieStateAgora,
   urlDeAutorizacao,
 } from "@/lib/google-oauth";
+import { caminhoOAuthResultado } from "@/lib/urls-app";
 import { RATE_OAUTH_POR_MINUTO } from "@/lib/limites";
 import { chaveCliente, consumirRateLimit } from "@/lib/rate-limit";
 import { randomBytes } from "node:crypto";
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
   const decisao = decidirRedirectOAuth(origem);
   if (!decisao.ok) {
     return comCachePrivado(
-      NextResponse.redirect(new URL("/?google=host", origem)),
+      NextResponse.redirect(new URL(caminhoOAuthResultado("host"), origem)),
     );
   }
 
