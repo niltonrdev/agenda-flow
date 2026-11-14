@@ -10,6 +10,7 @@ import {
   serializarSessao,
   trocarCodigoPorTokens,
 } from "@/lib/google-oauth";
+import { caminhoOAuthResultado } from "@/lib/urls-app";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -21,20 +22,20 @@ export async function GET(request: Request) {
   const erroAuth = url.searchParams.get("error");
   if (erroAuth) {
     return comCachePrivado(
-      NextResponse.redirect(new URL("/?google=negado", origem)),
+      NextResponse.redirect(new URL(caminhoOAuthResultado("negado"), origem)),
     );
   }
 
   if (!credencialGoogleConfigurada()) {
     return comCachePrivado(
-      NextResponse.redirect(new URL("/?google=falha", origem)),
+      NextResponse.redirect(new URL(caminhoOAuthResultado("falha"), origem)),
     );
   }
 
   const decisao = decidirRedirectOAuth(origem);
   if (!decisao.ok) {
     return comCachePrivado(
-      NextResponse.redirect(new URL("/?google=host", origem)),
+      NextResponse.redirect(new URL(caminhoOAuthResultado("host"), origem)),
     );
   }
 
@@ -45,7 +46,7 @@ export async function GET(request: Request) {
 
   if (!code || !state || !stateEsperado || state !== stateEsperado) {
     return comCachePrivado(
-      NextResponse.redirect(new URL("/?google=falha", origem)),
+      NextResponse.redirect(new URL(caminhoOAuthResultado("falha"), origem)),
     );
   }
 
@@ -69,7 +70,9 @@ export async function GET(request: Request) {
       email = null;
     }
 
-    const resposta = NextResponse.redirect(new URL("/?google=ok", origem));
+    const resposta = NextResponse.redirect(
+      new URL(caminhoOAuthResultado("ok"), origem),
+    );
     resposta.cookies.set(
       cookiesOAuth.sessao,
       serializarSessao({ ...tokens, email }, segredoDaSessao()),
@@ -83,7 +86,7 @@ export async function GET(request: Request) {
     return comCachePrivado(resposta);
   } catch {
     return comCachePrivado(
-      NextResponse.redirect(new URL("/?google=falha", origem)),
+      NextResponse.redirect(new URL(caminhoOAuthResultado("falha"), origem)),
     );
   }
 }

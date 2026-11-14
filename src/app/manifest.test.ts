@@ -15,7 +15,7 @@ describe("app na tela inicial", () => {
 
     expect(web.name).toBe("Agenda Inteligente");
     expect(web.short_name).toBe("Agenda");
-    expect(web.start_url).toBe("/");
+    expect(web.start_url).toBe("/conversa");
     expect(web.display).toBe("standalone");
     expect(web.icons?.length).toBeGreaterThanOrEqual(2);
     expect(web.icons?.some((i) => i.sizes === "192x192")).toBe(true);

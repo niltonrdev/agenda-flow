@@ -54,6 +54,8 @@ describe("cabeçalho compacto da Conversa", () => {
     expect(painel?.textContent).toMatch(/Consulta lê as agendas visíveis/i);
     expect(painel?.textContent).toMatch(/Desconectar/i);
     expect(painel?.textContent).toMatch(/Privacidade/i);
+    expect(painel?.textContent).toMatch(/Termos/i);
+    expect(painel?.textContent).toMatch(/Início/i);
 
     act(() => {
       botao?.dispatchEvent(new MouseEvent("click", { bubbles: true }));

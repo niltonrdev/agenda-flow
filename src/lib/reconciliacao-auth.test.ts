@@ -208,7 +208,7 @@ describe("reconciliação autenticação real + cookie AES", () => {
   it("Preview sem GOOGLE_REDIRECT_URI usa callback same-origin; host divergente é recusado", () => {
     const preview = "https://agenda-flow-git-pr7-nilteras-projects.vercel.app";
     const producao =
-      "https://agenda-flow-mu.vercel.app/api/auth/google/callback";
+      "https://agendainteligente.net.br/api/auth/google/callback";
     expect(
       decidirRedirectOAuth(preview, {
         VERCEL_ENV: "preview",
@@ -224,14 +224,14 @@ describe("reconciliação autenticação real + cookie AES", () => {
   });
 
   it("escrita da conversa e do logout exige JSON same-origin", () => {
-    const url = "https://agenda-flow-mu.vercel.app/api/conversa";
+    const url = "https://agendainteligente.net.br/api/conversa";
     expect(
       pedidoDeEscritaSeguro(
         new Request(url, {
           method: "POST",
           headers: {
             "content-type": "application/json",
-            origin: "https://agenda-flow-mu.vercel.app",
+            origin: "https://agendainteligente.net.br",
             "sec-fetch-site": "same-origin",
           },
         }),

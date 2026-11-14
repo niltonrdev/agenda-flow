@@ -837,25 +837,87 @@ body {
   font-size: 0.92rem;
 }
 
-.aviso-rascunho {
-  margin: 0;
-  padding: 0.55rem 0.75rem;
-  border-radius: 0.7rem;
-  background: color-mix(in oklab, #f4e7c5 80%, white);
-  color: #5a3d12;
-  font-size: 0.85rem;
-  line-height: 1.4;
-}
-
 .rodape-legal {
   margin-top: 0.5rem;
   font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.rodape-legal-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.55rem;
+  align-items: center;
+}
+
+.rodape-legal-contato,
+.inicio-contato {
+  margin: 0;
+  color: var(--texto-suave);
+  font-size: 0.9rem;
+}
+
+.contato-placeholder {
+  display: inline-block;
+  padding: 0.05rem 0.35rem;
+  border-radius: 0.35rem;
+  background: color-mix(in oklab, #f4e7c5 80%, white);
+  color: #5a3d12;
+  font-size: 0.88em;
 }
 
 .rodape-legal a,
 .pagina-legal a,
+.pagina-inicio a,
 .conversa-google-link {
   color: var(--enviar);
+}
+
+.pagina-inicio {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding:
+    calc(1.5rem + env(safe-area-inset-top)) 1.35rem
+    calc(2rem + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.pagina-inicio h2 {
+  margin: 0 0 0.45rem;
+  font-size: 1.05rem;
+}
+
+.pagina-inicio section,
+.pagina-inicio p {
+  margin: 0;
+  color: var(--texto-suave);
+  line-height: 1.55;
+}
+
+.inicio-links-legais {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  font-weight: 600;
+}
+
+.inicio-escopos,
+.pagina-legal ul {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--texto-suave);
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.inicio-acoes {
+  margin: 0;
 }
 
 .conversa-aviso-voz {

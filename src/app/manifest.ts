@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Agenda",
     description:
       "Conversa pessoal para consultar Disponibilidade no Calendário do Dono.",
-    start_url: "/",
+    start_url: "/conversa",
     scope: "/",
     display: "standalone",
     background_color: "#e8efe9",

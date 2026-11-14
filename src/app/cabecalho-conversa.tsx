@@ -1,6 +1,11 @@
 "use client";
 
 import { MarcaCompacta } from "@/app/marca";
+import {
+  CAMINHO_INICIO,
+  CAMINHO_PRIVACIDADE,
+  CAMINHO_TERMOS,
+} from "@/lib/urls-app";
 import Link from "next/link";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 
@@ -127,8 +132,14 @@ export function CabecalhoConversa({
               Conectar Google
             </a>
           ) : null}
-          <Link className="conversa-google-link" href="/privacidade">
+          <Link className="conversa-google-link" href={CAMINHO_INICIO}>
+            Início
+          </Link>
+          <Link className="conversa-google-link" href={CAMINHO_PRIVACIDADE}>
             Privacidade
+          </Link>
+          <Link className="conversa-google-link" href={CAMINHO_TERMOS}>
+            Termos
           </Link>
         </div>
       </div>
