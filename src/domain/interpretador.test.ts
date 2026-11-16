@@ -683,6 +683,34 @@ describe("interpretador — listagem por tipo e busca livre", () => {
     });
   });
 
+  it("aceita o mês sem 'de', 'do mês de', agenda e maiúsculas", () => {
+    const esperado = {
+      tipo: "consulta_todos",
+      futuro: false,
+      primeiroDia: "2026-12-01",
+      ultimoDia: "2026-12-31",
+      rotuloPeriodo: "de dezembro",
+    };
+    for (const mensagem of [
+      "Mostrar compromissos dezembro",
+      "Mostrar eventos dezembro",
+      "mostrar compromissos do mês de dezembro",
+      "mostrar eventos do mes de dezembro",
+      "mostrar agenda dezembro",
+      "mostrar a agenda de dezembro",
+      "MOSTRAR COMPROMISSOS DEZEMBRO",
+      "mostrar compromissos dezemobro",
+    ]) {
+      expect(interpretarMensagem(mensagem, agora), mensagem).toMatchObject(
+        esperado,
+      );
+    }
+    expect(interpretarMensagem("mostrar eventos com dentista", agora)).toMatchObject({
+      tipo: "busca_livre",
+      termo: "dentista",
+    });
+  });
+
   it("só o ano pede o mês; busca+mês e tipo+mês continuam iguais", () => {
     expect(interpretarMensagem("mostrar compromissos de 2026", agora)).toEqual({
       tipo: "pedir_mes",

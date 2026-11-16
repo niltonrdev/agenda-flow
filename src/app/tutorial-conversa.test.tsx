@@ -66,6 +66,8 @@ describe("tutorial na tela", () => {
     expect(dialogAberto()).not.toBeNull();
     expect(dialogAberto()?.className).toContain("tutorial-cartao");
     expect(dialogAberto()?.className).not.toContain("tutorial-cartao-topo");
+    expect(document.querySelector("[data-tutorial-overlay='escuro']")).not.toBeNull();
+    expect(document.querySelector(".tutorial-holofote")).toBeNull();
     expect(dialogAberto()?.textContent).toContain(PASSOS_TUTORIAL[0]?.titulo);
     expect(dialogAberto()?.textContent).toContain("1 de 5");
     expect(dialogAberto()?.textContent).toContain("Dentista amanhã às 15h");
@@ -73,6 +75,15 @@ describe("tutorial na tela", () => {
     clicar(ROTULO_PROXIMO);
     expect(dialogAberto()?.textContent).toContain(PASSOS_TUTORIAL[1]?.titulo);
     expect(dialogAberto()?.textContent).toContain("2 de 5");
+    expect(dialogAberto()?.textContent).toMatch(/No celular/i);
+
+    clicar(ROTULO_PROXIMO);
+    expect(dialogAberto()?.textContent).toContain(PASSOS_TUTORIAL[2]?.titulo);
+    expect(dialogAberto()?.textContent).toContain("3 de 5");
+    expect(document.querySelector("[data-tutorial-overlay='escuro']")).not.toBeNull();
+    expect(document.querySelector(".tutorial-holofote")).toBeNull();
+
+    clicar(ROTULO_VOLTAR);
 
     clicar(ROTULO_VOLTAR);
     expect(dialogAberto()?.textContent).toContain(PASSOS_TUTORIAL[0]?.titulo);

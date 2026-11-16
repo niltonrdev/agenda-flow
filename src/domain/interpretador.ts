@@ -244,8 +244,13 @@ const RE_BUSCA_CURTA = /^(?:buscar|procurar)\s*(.*)$/iu;
 const RE_MOSTRAR_COISA =
   /^(?:mostrar|listar|ver)\s+(?:os\s+|as\s+|meus\s+|minhas\s+)?([\p{L}\p{N}'-]+)\s*[.!?]?$/iu;
 
-const RE_LISTAR_MES =
-  /^(?:(?:mostrar|listar|ver|quais)\s+)?(?:os\s+|as\s+|meus\s+|minhas\s+)?(?:eventos|compromissos)(?:\s+(?:de|em|no|do|da))\s+(.+)$/iu;
+const RE_PREP_MES =
+  String.raw`(?:do\s+m[eê]s(?:\s+de)?|m[eê]s(?:\s+de)?|de|em|no|do|da|na)`;
+
+const RE_LISTAR_MES = new RegExp(
+  String.raw`^(?:(?:mostrar|listar|ver|quais)\s+)?(?:os\s+|as\s+|a\s+|o\s+|meus\s+|minhas\s+|minha\s+)?(?:eventos|compromissos|agenda)(?:\s+${RE_PREP_MES})?\s+(.+)$`,
+  "iu",
+);
 
 const RE_DATA = new RegExp(
   String.raw`(?:^|\b)(?:dia\s+)?(\d{1,2})\s+de\s+(${GRUPO_MES})(?:\s+de\s+(\d{4}))?\b`,
@@ -362,7 +367,8 @@ export function interpretarMesOuAno(
   const semAno = limpo
     .replace(/\bde\s+20\d{2}\b/g, " ")
     .replace(/\b20\d{2}\b/g, " ")
-    .replace(/\b(?:em|de|no|do|da)\b/g, " ")
+    .replace(/\b(?:o\s+)?m[eê]s(?:\s+de)?\b/g, " ")
+    .replace(/\b(?:em|de|no|do|da|na)\b/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   if (!semAno) {

@@ -35,7 +35,7 @@ export const PASSOS_TUTORIAL: PassoTutorial[] = [
     id: "ditado",
     titulo: "Falar no microfone",
     texto:
-      "Toque no microfone para falar com as mãos livres: a gravação continua depois que você solta, com Enviar e Cancelar visíveis. Segure para gravar enquanto o dedo estiver na tela e solte para o texto ficar na caixa — ainda não envia. Arraste para cima para travar (continua depois de soltar). Arraste para a esquerda para cancelar.",
+      "No celular, toque no microfone para gravar com as mãos livres: Enviar e Cancelar aparecem e a fala continua. Segure e solte para o texto ficar na caixa — ainda não envia. Arraste para cima para travar. Arraste para a esquerda para cancelar.",
     alvo: "microfone",
   },
   {

@@ -13,7 +13,6 @@ import {
   indiceAposProximo,
   indiceAposVoltar,
   textoProgresso,
-  type AlvoTutorial,
 } from "@/app/tutorial-conversa";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -25,41 +24,16 @@ type TutorialConversaProps = {
   onFechar: () => void;
 };
 
-function retanguloDoAlvo(alvo: AlvoTutorial | undefined): DOMRect | null {
-  if (!alvo || typeof document === "undefined") return null;
-  const no = document.querySelector(`[data-tutorial="${alvo}"]`);
-  if (!(no instanceof HTMLElement)) return null;
-  const rect = no.getBoundingClientRect();
-  if (rect.width < 8 || rect.height < 8) return null;
-  return rect;
-}
-
 export function TutorialConversa({ aberto, onFechar }: TutorialConversaProps) {
   const [indice, setIndice] = useState(0);
-  const [holofote, setHolofote] = useState<DOMRect | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const tituloId = useId();
   const passo = PASSOS_TUTORIAL[indice] ?? PASSOS_TUTORIAL[0];
   const ultimo = ehUltimoPasso(indice);
 
   useEffect(() => {
-    if (!aberto) {
-      setIndice(0);
-      setHolofote(null);
-      return;
-    }
-
-    function medir() {
-      setHolofote(retanguloDoAlvo(PASSOS_TUTORIAL[indice]?.alvo));
-    }
-    medir();
-    window.addEventListener("resize", medir);
-    window.visualViewport?.addEventListener("resize", medir);
-    return () => {
-      window.removeEventListener("resize", medir);
-      window.visualViewport?.removeEventListener("resize", medir);
-    };
-  }, [aberto, indice]);
+    if (!aberto) setIndice(0);
+  }, [aberto]);
 
   useEffect(() => {
     if (!aberto) return;
@@ -100,19 +74,7 @@ export function TutorialConversa({ aberto, onFechar }: TutorialConversaProps) {
   if (!aberto || !passo) return null;
 
   const camada = (
-    <div className="tutorial-camada">
-      {holofote ? (
-        <div
-          className="tutorial-holofote"
-          aria-hidden="true"
-          style={{
-            top: holofote.top - 6,
-            left: holofote.left - 6,
-            width: holofote.width + 12,
-            height: holofote.height + 12,
-          }}
-        />
-      ) : null}
+    <div className="tutorial-camada" data-tutorial-overlay="escuro">
       <div
         ref={dialogRef}
         className="tutorial-cartao"

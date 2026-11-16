@@ -1046,20 +1046,9 @@ body {
   align-items: center;
   justify-content: center;
   padding: 0.85rem 0.85rem calc(0.85rem + env(safe-area-inset-bottom));
-  background: rgba(16, 24, 20, 0.5);
-}
-
-.tutorial-camada:has(.tutorial-holofote) {
-  background: transparent;
-}
-
-.tutorial-holofote {
-  position: fixed;
-  z-index: 51;
-  border: 2px solid #fff;
-  border-radius: 1rem;
-  box-shadow: 0 0 0 9999px rgba(16, 24, 20, 0.55);
-  pointer-events: none;
+  background: rgba(16, 24, 20, 0.62);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .tutorial-cartao {

@@ -733,6 +733,23 @@ describe("entrada de conversa — todos os compromissos do mês", () => {
     expect(em.texto).not.toMatch(/não entendi/i);
   });
 
+  it("lista o mês sem 'de' e com 'do mês de' / agenda", async () => {
+    const calendario = criarCalendarioEmMemoria([
+      pontual("dent", "Dentista", 20, 15),
+    ]);
+    for (const mensagem of [
+      "Mostrar compromissos dezembro",
+      "Mostrar eventos dezembro",
+      "mostrar compromissos do mês de dezembro",
+      "mostrar agenda dezembro",
+    ]) {
+      const saida = await processarTurno({ mensagem, agora: AGORA }, calendario);
+      expect(saida.texto, mensagem).toContain("Dentista");
+      expect(saida.texto, mensagem).toMatch(/Compromissos de dezembro/);
+      expect(saida.texto, mensagem).not.toMatch(/não entendi/i);
+    }
+  });
+
   it("só o ano pergunta o mês; a resposta com o mês lista", async () => {
     const calendario = criarCalendarioEmMemoria([
       pontual("dent", "Dentista", 20, 15),
