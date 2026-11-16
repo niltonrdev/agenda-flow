@@ -69,4 +69,27 @@ describe("porta Calendário — adaptador em memória", () => {
       FalhaDoCalendario,
     );
   });
+
+  it("o seed de demonstração tem 12/12 e outros compromissos de dezembro", async () => {
+    const agora = DateTime.fromObject(
+      { year: 2026, month: 11, day: 16, hour: 10 },
+      { zone: FUSO_DONO },
+    );
+    const { criarCalendarioDeDemonstracao, compromissosDeDemonstracao } =
+      await import("@/adapters/calendario-em-memoria");
+    const seed = compromissosDeDemonstracao(agora);
+    expect(seed.some((c) => c.titulo === "Almoço de equipe")).toBe(true);
+    expect(seed.some((c) => c.titulo === "Viagem de Natal")).toBe(true);
+    const calendario = criarCalendarioDeDemonstracao(agora);
+    const dia = await calendario.listar({
+      inicio: "2026-12-12T00:00:00.000-03:00",
+      fim: "2026-12-12T23:59:59.999-03:00",
+    });
+    expect(dia.some((c) => c.titulo === "Almoço de equipe")).toBe(true);
+    const dezembro = await calendario.listar({
+      inicio: "2026-12-01T00:00:00.000-03:00",
+      fim: "2026-12-31T23:59:59.999-03:00",
+    });
+    expect(dezembro.some((c) => c.titulo === "Viagem de Natal")).toBe(true);
+  });
 });

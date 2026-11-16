@@ -25,6 +25,17 @@ describe("pede sim ou não", () => {
         ultimoDia: "2026-12-10",
       }),
     ).toBe(true);
+    expect(
+      pedeSimOuNao({
+        acao: "alterar_titulo",
+        id: "1",
+        titulo: "Viagem",
+        tituloNovo: "Viagem para Itacaré",
+        tipo: "periodo",
+        primeiroDia: "2026-01-05",
+        ultimoDia: "2026-01-08",
+      }),
+    ).toBe(true);
   });
 
   it("esconde os botões enquanto espera correção, horário ou escolha", () => {

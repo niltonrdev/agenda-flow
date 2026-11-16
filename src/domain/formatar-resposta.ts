@@ -2,6 +2,7 @@ import type { Compromisso } from "./compromisso";
 import type {
   ConfirmacaoAlterarPeriodo,
   ConfirmacaoAlterarPontual,
+  ConfirmacaoAlterarTitulo,
   ConfirmacaoCancelarPeriodo,
   ConfirmacaoCancelarPontual,
   ConfirmacaoMarcacao,
@@ -121,7 +122,27 @@ export function formatarPedirDiasPeriodo(titulo: string): string {
 }
 
 export function formatarPedirDestinoAlteracao(titulo: string): string {
-  return `Para alterar ${titulo}, diga o novo dia, horário ou intervalo — por exemplo “para o dia 30” ou “para os dias 29 a 31 de novembro”.`;
+  return `Para alterar “${titulo}”, diga o novo dia, horário ou intervalo — por exemplo “para o dia 30” ou “para os dias 29 a 31 de novembro”.`;
+}
+
+export function formatarPedirNovoNome(titulo: string): string {
+  return `Para mudar o nome de “${titulo}”, diga o novo nome — por exemplo “para Viagem para Itacaré”.`;
+}
+
+export function formatarPedirMesDoAno(ano: number): string {
+  return `Qual mês de ${ano} você quer ver? Ex.: 'compromissos de março'.`;
+}
+
+export function formatarConfirmacaoAlterarTitulo(
+  proposta: ConfirmacaoAlterarTitulo,
+): string {
+  return `Confirmação: “${proposta.titulo}” passa a se chamar “${proposta.tituloNovo}”. Diga sim para alterar.`;
+}
+
+export function formatarTituloAlterado(
+  proposta: ConfirmacaoAlterarTitulo,
+): string {
+  return `Alterei o nome para ${proposta.tituloNovo}.`;
 }
 
 function avisoConflitos(conflitos: Compromisso[]): string {
@@ -317,6 +338,16 @@ export function escaparTermoExibicao(termo: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+export function cabecalhoListagemTodos(rotuloPeriodo?: string): string {
+  if (!rotuloPeriodo) return "Compromissos futuros:";
+  return `Compromissos ${rotuloPeriodo}:`;
+}
+
+export function mensagemVaziaTodos(rotuloPeriodo?: string): string {
+  if (!rotuloPeriodo) return "Nenhum compromisso futuro.";
+  return `Nenhum compromisso ${rotuloPeriodo}.`;
 }
 
 export function cabecalhoListagemTipo(

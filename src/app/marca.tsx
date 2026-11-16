@@ -2,10 +2,10 @@ export function MarcaCartao() {
   return (
     <img
       className="marca-cartao"
-      src="/marca.png"
+      src="/logo-agenda.svg"
       alt="Agenda Inteligente"
-      width={338}
-      height={349}
+      width={512}
+      height={512}
     />
   );
 }
@@ -15,10 +15,10 @@ export function MarcaCompacta() {
     <div className="marca-linha">
       <img
         className="marca-linha-icone"
-        src="/marca-icone.png"
+        src="/logo-agenda-pequeno.svg"
         alt=""
         width={48}
-        height={53}
+        height={48}
       />
       <p className="marca-linha-nome">Agenda Inteligente</p>
     </div>

@@ -64,6 +64,8 @@ describe("tutorial na tela", () => {
     });
 
     expect(dialogAberto()).not.toBeNull();
+    expect(dialogAberto()?.className).toContain("tutorial-cartao");
+    expect(dialogAberto()?.className).not.toContain("tutorial-cartao-topo");
     expect(dialogAberto()?.textContent).toContain(PASSOS_TUTORIAL[0]?.titulo);
     expect(dialogAberto()?.textContent).toContain("1 de 5");
     expect(dialogAberto()?.textContent).toContain("Dentista amanhã às 15h");

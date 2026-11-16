@@ -692,41 +692,132 @@ describe("entrada de conversa — Cancelar e mostrar mais na listagem", () => {
     expect(viagens.confirmacaoPendente?.acao).toBe("contexto_listagem");
   });
 
-  it("na demonstração, Sim depois de Cancelar a viagem listada não grava", async () => {
-    const { criarCalendarioDeDemonstracaoSomenteLeitura } = await import(
+});
+
+describe("entrada de conversa — todos os compromissos do mês", () => {
+  it("mostrar compromissos de dezembro lista tudo do mês, não busca o termo dezembro", async () => {
+    const calendario = criarCalendarioEmMemoria([
+      pontual("dent", "Dentista", 20, 15),
+      pontual("reun", "Reunião time", 22, 10),
+      periodo("via", "Viagem Recife", 25, 28),
+      pontual("jan", "Fora do mês", 50, 9),
+    ]);
+    const saida = await processarTurno(
+      { mensagem: "mostrar compromissos de dezembro", agora: AGORA },
+      calendario,
+    );
+    expect(saida.texto).toMatch(/^Compromissos de dezembro:/);
+    expect(saida.texto).toContain("Dentista");
+    expect(saida.texto).toContain("Reunião time");
+    expect(saida.texto).toContain("Viagem Recife");
+    expect(saida.texto).not.toContain("Fora do mês");
+    expect(saida.texto).not.toMatch(/evento com "dezembro"/i);
+  });
+
+  it("dezemobro e 'eventos em dezembro' também listam o mês", async () => {
+    const calendario = criarCalendarioEmMemoria([
+      pontual("dent", "Dentista", 20, 15),
+    ]);
+    const typo = await processarTurno(
+      { mensagem: "mostrar eventos de dezemobro", agora: AGORA },
+      calendario,
+    );
+    expect(typo.texto).toContain("Dentista");
+    expect(typo.texto).toMatch(/Compromissos de dezembro/);
+
+    const em = await processarTurno(
+      { mensagem: "mostrar eventos em dezembro", agora: AGORA },
+      calendario,
+    );
+    expect(em.texto).toContain("Dentista");
+    expect(em.texto).not.toMatch(/não entendi/i);
+  });
+
+  it("só o ano pergunta o mês; a resposta com o mês lista", async () => {
+    const calendario = criarCalendarioEmMemoria([
+      pontual("dent", "Dentista", 20, 15),
+    ]);
+    const pedindo = await processarTurno(
+      { mensagem: "mostrar compromissos de 2026", agora: AGORA },
+      calendario,
+    );
+    expect(pedindo.texto).toMatch(/Qual mês de 2026/i);
+    expect(pedindo.confirmacaoPendente).toMatchObject({
+      acao: "completar_mes",
+      ano: 2026,
+    });
+
+    const listado = await processarTurno(
+      {
+        mensagem: "dezembro",
+        agora: AGORA,
+        confirmacaoPendente: pedindo.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(listado.texto).toContain("Dentista");
+    expect(listado.texto).toMatch(/Compromissos de dezembro/);
+  });
+});
+
+describe("entrada de conversa — demonstração com seed de dezembro", () => {
+  const agora = DateTime.fromObject(
+    { year: 2026, month: 11, day: 16, hour: 10 },
+    { zone: FUSO_DONO },
+  );
+
+  it("consulta 12/12 e lista dezembro no calendário de exemplo", async () => {
+    const { criarCalendarioDeDemonstracao } = await import(
       "@/adapters/calendario-em-memoria"
     );
-    const agora = DateTime.fromObject(
-      { year: 2025, month: 8, day: 1, hour: 10 },
-      { zone: FUSO_DONO },
-    );
-    const demo = criarCalendarioDeDemonstracaoSomenteLeitura(agora);
-    const listagem = await processarTurno(
-      { mensagem: "Mostrar viagens", agora },
+    const demo = criarCalendarioDeDemonstracao(agora);
+    const dia = await processarTurno(
+      { mensagem: "dia 12/12", agora },
       demo,
     );
-    const cancelar = await processarTurno(
+    expect(dia.texto).not.toMatch(/servidor ainda não está pronto/i);
+    expect(dia.texto).toContain("Almoço de equipe");
+
+    const mes = await processarTurno(
+      { mensagem: "mostrar eventos de dezembro", agora },
+      demo,
+    );
+    expect(mes.texto).toMatch(/Compromissos de dezembro/);
+    expect(mes.texto).toContain("Almoço de equipe");
+    expect(mes.texto).toContain("Viagem de Natal");
+  });
+
+  it("renomear a Viagem de Natal pede Confirmação e o Sim simula sem persistir", async () => {
+    const { criarCalendarioDeDemonstracao } = await import(
+      "@/adapters/calendario-em-memoria"
+    );
+    const demo = criarCalendarioDeDemonstracao(agora);
+    const proposta = await processarTurno(
       {
-        mensagem: "Cancelar",
+        mensagem:
+          "alterar o nome da Viagem de Natal para Viagem para Itacaré",
         agora,
-        confirmacaoPendente: listagem.confirmacaoPendente,
       },
       demo,
     );
-    expect(cancelar.confirmacaoPendente?.acao).toBe("cancelar_pontual");
+    expect(proposta.texto).toMatch(/Confirmação/i);
+    expect(proposta.confirmacaoPendente?.acao).toBe("alterar_titulo");
     const sim = await processarTurno(
       {
         mensagem: "sim",
         agora,
-        confirmacaoPendente: cancelar.confirmacaoPendente,
+        confirmacaoPendente: proposta.confirmacaoPendente,
       },
       demo,
     );
-    expect(sim.texto).toMatch(/só consulta/i);
-    const ainda = await demo.listar({
-      inicio: agora.toISO()!,
-      fim: agora.plus({ years: 1 }).toISO()!,
+    expect(sim.texto).toMatch(/Alterei o nome para Viagem para Itacaré/);
+    expect(sim.texto).not.toMatch(/servidor ainda não está pronto/i);
+    const fresco = criarCalendarioDeDemonstracao(agora);
+    const dezembro = await fresco.listar({
+      inicio: "2026-12-01T00:00:00.000-03:00",
+      fim: "2026-12-31T23:59:59.999-03:00",
     });
-    expect(ainda.some((c) => c.titulo === "Voo GRU-REC")).toBe(true);
+    expect(dezembro.some((c) => c.titulo === "Viagem de Natal")).toBe(true);
   });
 });
+

@@ -130,9 +130,17 @@ export function compromissosDeDemonstracao(agora: DateTime): Compromisso[] {
   const diaCirurgia = resolverAnoDaData(7, 9, agora);
   const anoCirurgia = DateTime.fromISO(diaCirurgia, { zone: FUSO_DONO }).year;
   const diaAna = resolverAnoDaData(15, 11, agora);
+  const dia12Dez = resolverAnoDaData(12, 12, agora);
+  const anoDezembro = DateTime.fromISO(dia12Dez, { zone: FUSO_DONO }).year;
 
   const inicioAna = DateTime.fromISO(diaAna, { zone: FUSO_DONO }).set({
     hour: 15,
+    minute: 0,
+    second: 0,
+    millisecond: 0,
+  });
+  const inicioAlmoco = DateTime.fromISO(dia12Dez, { zone: FUSO_DONO }).set({
+    hour: 12,
     minute: 0,
     second: 0,
     millisecond: 0,
@@ -176,6 +184,20 @@ export function compromissosDeDemonstracao(agora: DateTime): Compromisso[] {
         second: 0,
         millisecond: 0,
       }).toISO()!,
+    },
+    {
+      id: "demo-almoco-12-12",
+      titulo: "Almoço de equipe",
+      tipo: "pontual",
+      inicio: inicioAlmoco.toISO()!,
+      fim: inicioAlmoco.plus({ hours: 1 }).toISO()!,
+    },
+    {
+      id: "demo-natal",
+      titulo: "Viagem de Natal",
+      tipo: "periodo",
+      primeiroDia: `${anoDezembro}-12-24`,
+      ultimoDia: `${anoDezembro}-12-26`,
     },
   ];
 }

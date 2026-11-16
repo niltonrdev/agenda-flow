@@ -18,6 +18,7 @@ import {
   TTL_CONTEXTO_MS,
   type ConfirmacaoAlterarPeriodo,
   type ConfirmacaoAlterarPontual,
+  type ConfirmacaoAlterarTitulo,
   type ConfirmacaoCancelarPeriodo,
   type ConfirmacaoCancelarPontual,
   type ConfirmacaoEscolherAlteracao,
@@ -40,6 +41,7 @@ import {
   formatarConfirmacao,
   formatarConfirmacaoAlterarPeriodo,
   formatarConfirmacaoAlterarPontual,
+  formatarConfirmacaoAlterarTitulo,
   formatarConfirmacaoCancelarPeriodo,
   formatarConfirmacaoCancelarPontual,
   formatarConsultaDia,
@@ -51,24 +53,28 @@ import {
   formatarPedirDiasPeriodo,
   formatarPedirDuracaoPeriodo,
   formatarPedirHorarioMarcacao,
+  formatarPedirMesDoAno,
+  formatarPedirNovoNome,
   formatarPeriodoAlterado,
   formatarPeriodoCancelado,
   formatarPeriodoMarcado,
   formatarPontualAlterado,
   formatarPontualCancelado,
   formatarPontualMarcado,
+  formatarTituloAlterado,
   RESPOSTA_ALTERACAO_DOS_EXTREMOS,
   RESPOSTA_DEIXO_PRA_LA,
   RESPOSTA_NAO_ENTENDI,
   RESPOSTA_O_QUE_MUDAR,
   rotuloCandidato,
 } from "./formatar-resposta";
-import { FUSO_DONO, diaCivil, fimDoDia, inicioDoDia } from "./fuso";
+import { FUSO_DONO, NOMES_MESES_PT, diaCivil, fimDoDia, inicioDoDia, recorteMes } from "./fuso";
 import {
   completarMarcacaoPontual,
   interpretarDestinoAlteracao,
   interpretarEscolhaLista,
   interpretarMensagem,
+  interpretarMesOuAno,
   interpretarRespostaDuracao,
   periodoAPartirDaDuracao,
   type DestinoAlteracao,
@@ -86,6 +92,7 @@ function ehPedidoNovo(intencao: Intencao, mensagem: string): boolean {
   if (
     intencao.tipo === "alterar" ||
     intencao.tipo === "alterar_sem_destino" ||
+    intencao.tipo === "alterar_titulo" ||
     intencao.tipo === "cancelar" ||
     intencao.tipo === "consulta_dia" ||
     intencao.tipo === "consulta_intervalo" ||
@@ -381,6 +388,18 @@ function ehCompletarAlteracao(
   return pendente.acao === "completar_alteracao";
 }
 
+function ehCompletarTitulo(
+  pendente: ConfirmacaoPendente,
+): pendente is Extract<ConfirmacaoPendente, { acao: "completar_titulo" }> {
+  return pendente.acao === "completar_titulo";
+}
+
+function ehCompletarMes(
+  pendente: ConfirmacaoPendente,
+): pendente is Extract<ConfirmacaoPendente, { acao: "completar_mes" }> {
+  return pendente.acao === "completar_mes";
+}
+
 function ehCompletarDuracaoPeriodo(
   pendente: ConfirmacaoPendente,
 ): pendente is Extract<ConfirmacaoPendente, { acao: "completar_duracao_periodo" }> {
@@ -406,6 +425,7 @@ function ehConfirmacaoCorrigivel(
     pendente.acao === "marcar_periodo" ||
     pendente.acao === "alterar_pontual" ||
     pendente.acao === "alterar_periodo" ||
+    pendente.acao === "alterar_titulo" ||
     pendente.acao === "cancelar_pontual" ||
     pendente.acao === "cancelar_periodo"
   );
@@ -624,6 +644,66 @@ async function montarAlteracao(
   return confirmarAlteracao(compromisso, proposto, calendario);
 }
 
+function propostaDeTitulo(
+  compromisso: Compromisso,
+  tituloNovo: string,
+): ConfirmacaoAlterarTitulo {
+  if (compromisso.tipo === "pontual") {
+    return {
+      acao: "alterar_titulo",
+      id: compromisso.id,
+      titulo: compromisso.titulo,
+      tituloNovo,
+      tipo: "pontual",
+      inicio: compromisso.inicio,
+      fim: compromisso.fim,
+    };
+  }
+  return {
+    acao: "alterar_titulo",
+    id: compromisso.id,
+    titulo: compromisso.titulo,
+    tituloNovo,
+    tipo: "periodo",
+    primeiroDia: compromisso.primeiroDia,
+    ultimoDia: compromisso.ultimoDia,
+  };
+}
+
+function confirmacaoDeTitulo(
+  compromisso: Compromisso,
+  tituloNovo: string,
+): SaidaConversa {
+  const proposta = propostaDeTitulo(compromisso, tituloNovo);
+  return {
+    texto: formatarConfirmacaoAlterarTitulo(proposta),
+    confirmacaoPendente: proposta,
+  };
+}
+
+function pedirNovoNome(compromisso: Compromisso): SaidaConversa {
+  return {
+    texto: formatarPedirNovoNome(compromisso.titulo),
+    confirmacaoPendente: {
+      acao: "completar_titulo",
+      id: compromisso.id,
+      titulo: compromisso.titulo,
+    },
+  };
+}
+
+const RE_PREFIXO_TITULO =
+  /^(?:quero\s+)?(?:alterar\s+)?(?:o\s+|a\s+)?(?:nome|t[ií]tulo)(?:\s+d[aeo]\s+\w+)?(?:\s+para)?\s+/iu;
+
+function tituloNovoDaMensagem(mensagem: string): string | null {
+  let t = mensagem.trim();
+  t = t.replace(RE_PREFIXO_TITULO, "");
+  t = t.replace(/^(?:para\s+)/iu, "");
+  t = t.replace(/^[?“"']+|[?”"']+$/g, "").trim();
+  if (!t) return null;
+  return t.charAt(0).toLocaleUpperCase("pt-BR") + t.slice(1);
+}
+
 async function corrigirAlteracao(
   pendente: ConfirmacaoAlterarPontual | ConfirmacaoAlterarPeriodo,
   destino: DestinoAlteracao,
@@ -734,6 +814,26 @@ async function processarTurnoInterno(
         diaAnterior,
       );
     }
+    if (intencao.tipo === "alterar_titulo") {
+      const todos = await calendario.listar(janelaDeBusca(entrada.agora));
+      const compromisso = todos.find((c) => c.id === pendente.id);
+      if (!compromisso) {
+        return comDiaConsultado(
+          {
+            texto: formatarNaoEncontrado(pendente.titulo),
+            confirmacaoPendente: null,
+          },
+          diaAnterior,
+        );
+      }
+      if (!intencao.novoTitulo) {
+        return comDiaConsultado(pedirNovoNome(compromisso), diaAnterior);
+      }
+      return comDiaConsultado(
+        confirmacaoDeTitulo(compromisso, intencao.novoTitulo),
+        diaAnterior,
+      );
+    }
     if (
       intencao.tipo !== "alterar" &&
       intencao.tipo !== "alterar_sem_destino" &&
@@ -763,6 +863,96 @@ async function processarTurnoInterno(
       return comDiaConsultado(
         {
           texto: formatarPedirDestinoAlteracao(pendente.titulo),
+          confirmacaoPendente: pendente,
+        },
+        diaAnterior,
+      );
+    }
+  }
+
+  if (pendente && ehCompletarTitulo(pendente)) {
+    if (intencao.tipo === "recusar") {
+      return comDiaConsultado(
+        { texto: "Ok, não altero.", confirmacaoPendente: null },
+        diaAnterior,
+      );
+    }
+    if (
+      intencao.tipo === "alterar" ||
+      intencao.tipo === "alterar_sem_destino" ||
+      intencao.tipo === "cancelar"
+    ) {
+      /* pedido novo cai no fluxo principal */
+    } else {
+      const novoTitulo =
+        intencao.tipo === "alterar_titulo"
+          ? intencao.novoTitulo
+          : tituloNovoDaMensagem(entrada.mensagem);
+      if (!novoTitulo) {
+        return comDiaConsultado(
+          {
+            texto: formatarPedirNovoNome(pendente.titulo),
+            confirmacaoPendente: pendente,
+          },
+          diaAnterior,
+        );
+      }
+      const todos = await calendario.listar(janelaDeBusca(entrada.agora));
+      const compromisso = todos.find((c) => c.id === pendente.id);
+      if (!compromisso) {
+        return comDiaConsultado(
+          {
+            texto: formatarNaoEncontrado(pendente.titulo),
+            confirmacaoPendente: null,
+          },
+          diaAnterior,
+        );
+      }
+      return comDiaConsultado(
+        confirmacaoDeTitulo(compromisso, novoTitulo),
+        diaAnterior,
+      );
+    }
+  }
+
+  if (pendente && ehCompletarMes(pendente)) {
+    if (intencao.tipo === "recusar") {
+      return comDiaConsultado(
+        { texto: "Ok, deixo pra lá.", confirmacaoPendente: null },
+        diaAnterior,
+      );
+    }
+    if (intencao.tipo === "consulta_todos" || intencao.tipo === "pedir_mes") {
+      /* listagem nova substitui */
+    } else if (
+      intencao.tipo !== "alterar" &&
+      intencao.tipo !== "alterar_sem_destino" &&
+      intencao.tipo !== "alterar_titulo" &&
+      intencao.tipo !== "cancelar"
+    ) {
+      const parsed = interpretarMesOuAno(entrada.mensagem);
+      if (parsed?.mes) {
+        const recorte = recorteMes(parsed.mes, entrada.agora, pendente.ano);
+        const nome = NOMES_MESES_PT[parsed.mes];
+        const listagemMes = await processarIntencaoListagem(
+          {
+            tipo: "consulta_todos",
+            futuro: false,
+            primeiroDia: recorte.primeiroDia,
+            ultimoDia: recorte.ultimoDia,
+            rotuloPeriodo: `de ${nome} de ${pendente.ano}`,
+          },
+          null,
+          entrada.agora,
+          calendario,
+        );
+        if (listagemMes) {
+          return comDiaConsultado(listagemMes, diaAnterior);
+        }
+      }
+      return comDiaConsultado(
+        {
+          texto: formatarPedirMesDoAno(pendente.ano),
           confirmacaoPendente: pendente,
         },
         diaAnterior,
@@ -943,6 +1133,9 @@ async function processarTurnoInterno(
           confirmacaoPendente: null,
         };
       }
+      if (pendente.tituloNovo) {
+        return confirmacaoDeTitulo(compromisso, pendente.tituloNovo);
+      }
       if (!pendente.destino) {
         return {
           texto: formatarPedirDestinoAlteracao(compromisso.titulo),
@@ -1031,6 +1224,8 @@ async function processarTurnoInterno(
       ehContextoListagem(pendente) ||
       ehCompletarMarcacao(pendente) ||
       ehCompletarAlteracao(pendente) ||
+      ehCompletarTitulo(pendente) ||
+      ehCompletarMes(pendente) ||
       ehCompletarDuracaoPeriodo(pendente) ||
       ehCompletarDiasPeriodo(pendente) ||
       ehListagemPaginada(pendente)
@@ -1092,6 +1287,27 @@ async function processarTurnoInterno(
         confirmacaoPendente: null,
       };
     }
+    if (pendente.acao === "alterar_titulo") {
+      if (pendente.tipo === "periodo") {
+        await calendario.alterar(pendente.id, {
+          tipo: "periodo",
+          titulo: pendente.tituloNovo,
+          primeiroDia: pendente.primeiroDia ?? "",
+          ultimoDia: pendente.ultimoDia ?? "",
+        });
+      } else {
+        await calendario.alterar(pendente.id, {
+          tipo: "pontual",
+          titulo: pendente.tituloNovo,
+          inicio: pendente.inicio ?? "",
+          fim: pendente.fim ?? "",
+        });
+      }
+      return {
+        texto: formatarTituloAlterado(pendente),
+        confirmacaoPendente: null,
+      };
+    }
     if (pendente.acao === "cancelar_periodo") {
       await calendario.cancelar(pendente.id);
       return {
@@ -1117,6 +1333,33 @@ async function processarTurnoInterno(
     return {
       texto: RESPOSTA_DEIXO_PRA_LA,
       confirmacaoPendente: null,
+    };
+  }
+
+  if (
+    pendente &&
+    pendente.acao === "alterar_titulo" &&
+    (pendente.aguardandoCorrecao || temPrefixoDeRecusa(entrada.mensagem)) &&
+    !ehPedidoNovo(intencao, entrada.mensagem)
+  ) {
+    const novoTitulo =
+      intencao.tipo === "alterar_titulo"
+        ? intencao.novoTitulo
+        : tituloNovoDaMensagem(entrada.mensagem);
+    if (novoTitulo) {
+      const proposta: ConfirmacaoAlterarTitulo = {
+        ...pendente,
+        tituloNovo: novoTitulo,
+        aguardandoCorrecao: false,
+      };
+      return {
+        texto: formatarConfirmacaoAlterarTitulo(proposta),
+        confirmacaoPendente: proposta,
+      };
+    }
+    return {
+      texto: RESPOSTA_O_QUE_MUDAR,
+      confirmacaoPendente: { ...pendente, aguardandoCorrecao: true },
     };
   }
 
@@ -1158,6 +1401,43 @@ async function processarTurnoInterno(
       { ...corrigida, aguardandoCorrecao: false },
       calendario,
     );
+  }
+
+  if (intencao.tipo === "alterar_titulo") {
+    if (!intencao.termo && intencao.dia == null) {
+      return comDiaConsultado(
+        { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: null },
+        diaAnterior,
+      );
+    }
+    const existentes = await calendario.listar(janelaDeBusca(entrada.agora));
+    const candidatos = filtrarCandidatos(
+      existentes,
+      intencao.termo,
+      intencao.dia,
+    );
+    if (candidatos.length === 0) {
+      return {
+        texto: formatarNaoEncontrado(intencao.termo),
+        confirmacaoPendente: null,
+      };
+    }
+    if (candidatos.length > 1) {
+      const lista = candidatosDe(candidatos, entrada.agora);
+      return {
+        texto: formatarListaCandidatos(lista.map((c) => c.rotulo)),
+        confirmacaoPendente: {
+          acao: "escolher_alteracao",
+          candidatos: lista,
+          em: emIso(entrada.agora),
+          ...(intencao.novoTitulo ? { tituloNovo: intencao.novoTitulo } : {}),
+        },
+      };
+    }
+    if (!intencao.novoTitulo) {
+      return pedirNovoNome(candidatos[0]);
+    }
+    return confirmacaoDeTitulo(candidatos[0], intencao.novoTitulo);
   }
 
   if (intencao.tipo === "alterar" || intencao.tipo === "alterar_sem_destino") {

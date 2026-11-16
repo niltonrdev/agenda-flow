@@ -42,6 +42,19 @@ export type ConfirmacaoAlterarPeriodo = {
   aguardandoCorrecao?: boolean;
 };
 
+export type ConfirmacaoAlterarTitulo = {
+  acao: "alterar_titulo";
+  id: string;
+  titulo: string;
+  tituloNovo: string;
+  tipo: "pontual" | "periodo";
+  inicio?: string;
+  fim?: string;
+  primeiroDia?: string;
+  ultimoDia?: string;
+  aguardandoCorrecao?: boolean;
+};
+
 export type CandidatoAlteracao = {
   id: string;
   rotulo: string;
@@ -52,6 +65,7 @@ export type ConfirmacaoEscolherAlteracao = {
   candidatos: CandidatoAlteracao[];
   /** Ausente quando o Dono ainda não disse para quando alterar. */
   destino?: DestinoAlteracao;
+  tituloNovo?: string;
   em?: string;
 };
 
@@ -105,6 +119,19 @@ export type ConfirmacaoCompletarAlteracao = {
   titulo: string;
 };
 
+/** Alteração de nome sem o novo título: a Conversa pede o nome. */
+export type ConfirmacaoCompletarTitulo = {
+  acao: "completar_titulo";
+  id: string;
+  titulo: string;
+};
+
+/** Listagem do mês quando só o ano foi dito. */
+export type ConfirmacaoCompletarMes = {
+  acao: "completar_mes";
+  ano: number;
+};
+
 /** Viagem sem intervalo: a Conversa pergunta se é 1 dia ou mais. */
 export type ConfirmacaoCompletarDuracaoPeriodo = {
   acao: "completar_duracao_periodo";
@@ -125,7 +152,7 @@ export type ConfirmacaoCompletarDiasPeriodo = {
  */
 export type ConfirmacaoListagemPaginada = {
   acao: "listagem_paginada";
-  filtro: "viagens" | "reunioes" | "busca";
+  filtro: "viagens" | "reunioes" | "busca" | "todos";
   termo?: string;
   futuro: boolean;
   primeiroDia?: string;
@@ -143,12 +170,15 @@ export type ConfirmacaoPendente =
   | ConfirmacaoPeriodo
   | ConfirmacaoAlterarPontual
   | ConfirmacaoAlterarPeriodo
+  | ConfirmacaoAlterarTitulo
   | ConfirmacaoEscolherAlteracao
   | ConfirmacaoCancelarPontual
   | ConfirmacaoCancelarPeriodo
   | ConfirmacaoEscolherCancelamento
   | ConfirmacaoCompletarMarcacao
   | ConfirmacaoCompletarAlteracao
+  | ConfirmacaoCompletarTitulo
+  | ConfirmacaoCompletarMes
   | ConfirmacaoCompletarDuracaoPeriodo
   | ConfirmacaoCompletarDiasPeriodo
   | ConfirmacaoContextoListagem
@@ -206,6 +236,7 @@ export function pedeSimOuNao(proposta: ConfirmacaoPendente | null): boolean {
     proposta.acao === "marcar_periodo" ||
     proposta.acao === "alterar_pontual" ||
     proposta.acao === "alterar_periodo" ||
+    proposta.acao === "alterar_titulo" ||
     proposta.acao === "cancelar_pontual" ||
     proposta.acao === "cancelar_periodo"
   );
@@ -248,6 +279,14 @@ export function ehConfirmacaoPendente(valor: unknown): valor is ConfirmacaoPende
       typeof proposta.ultimoDia === "string"
     );
   }
+  if (proposta.acao === "alterar_titulo") {
+    return (
+      tituloValido(proposta.titulo) &&
+      tituloValido(proposta.tituloNovo) &&
+      typeof proposta.id === "string" &&
+      (proposta.tipo === "pontual" || proposta.tipo === "periodo")
+    );
+  }
   if (proposta.acao === "escolher_alteracao") {
     return (
       Array.isArray(proposta.candidatos) &&
@@ -258,6 +297,7 @@ export function ehConfirmacaoPendente(valor: unknown): valor is ConfirmacaoPende
           typeof c.rotulo === "string",
       ) &&
       (proposta.destino === undefined || destinoValido(proposta.destino)) &&
+      (proposta.tituloNovo === undefined || tituloValido(proposta.tituloNovo)) &&
       (proposta.em === undefined || typeof proposta.em === "string")
     );
   }
@@ -310,6 +350,12 @@ export function ehConfirmacaoPendente(valor: unknown): valor is ConfirmacaoPende
   if (proposta.acao === "completar_alteracao") {
     return tituloValido(proposta.titulo) && typeof proposta.id === "string";
   }
+  if (proposta.acao === "completar_titulo") {
+    return tituloValido(proposta.titulo) && typeof proposta.id === "string";
+  }
+  if (proposta.acao === "completar_mes") {
+    return typeof proposta.ano === "number" && proposta.ano >= 2000 && proposta.ano <= 2100;
+  }
   if (
     proposta.acao === "completar_duracao_periodo" ||
     proposta.acao === "completar_dias_periodo"
@@ -323,7 +369,8 @@ export function ehConfirmacaoPendente(valor: unknown): valor is ConfirmacaoPende
     const filtroOk =
       proposta.filtro === "viagens" ||
       proposta.filtro === "reunioes" ||
-      proposta.filtro === "busca";
+      proposta.filtro === "busca" ||
+      proposta.filtro === "todos";
     const termoOk =
       proposta.filtro !== "busca" ||
       (typeof proposta.termo === "string" && proposta.termo.length >= 2);
@@ -378,7 +425,8 @@ export function ehConfirmacaoQueBloqueiaListagem(
 ): boolean {
   return (
     pendente.acao !== "listagem_paginada" &&
-    pendente.acao !== "contexto_listagem"
+    pendente.acao !== "contexto_listagem" &&
+    pendente.acao !== "completar_mes"
   );
 }
 

@@ -41,7 +41,6 @@ export function TutorialConversa({ aberto, onFechar }: TutorialConversaProps) {
   const tituloId = useId();
   const passo = PASSOS_TUTORIAL[indice] ?? PASSOS_TUTORIAL[0];
   const ultimo = ehUltimoPasso(indice);
-  const cartaoNoTopo = passo?.alvo === "composer" || passo?.alvo === "microfone";
 
   useEffect(() => {
     if (!aberto) {
@@ -116,9 +115,7 @@ export function TutorialConversa({ aberto, onFechar }: TutorialConversaProps) {
       ) : null}
       <div
         ref={dialogRef}
-        className={
-          cartaoNoTopo ? "tutorial-cartao tutorial-cartao-topo" : "tutorial-cartao"
-        }
+        className="tutorial-cartao"
         role="dialog"
         aria-modal="true"
         aria-labelledby={tituloId}

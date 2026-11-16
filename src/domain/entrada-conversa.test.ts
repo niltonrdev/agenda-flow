@@ -2431,3 +2431,77 @@ describe("entrada de conversa — contexto de cancelar, alterar e desambiguar", 
   });
 });
 
+describe("entrada de conversa — renomear Compromisso", () => {
+  it("alterar o nome da viagem do dia 05/01 pede Confirmação e o Sim grava", async () => {
+    const agora = DateTime.fromObject(
+      { year: 2025, month: 12, day: 20, hour: 10 },
+      { zone: FUSO_DONO },
+    );
+    const calendario = criarCalendarioEmMemoria([
+      {
+        id: "viagem-1",
+        tipo: "periodo",
+        titulo: "Viagem",
+        primeiroDia: "2026-01-05",
+        ultimoDia: "2026-01-08",
+      },
+    ]);
+
+    const proposta = await processarTurno(
+      {
+        mensagem:
+          "alterar o nome da viagem do dia 05/01 para Viagem para Itacaré",
+        agora,
+      },
+      calendario,
+    );
+    expect(proposta.texto).toMatch(/Confirmação/i);
+    expect(proposta.texto).toMatch(/Viagem para Itacaré/);
+    expect(proposta.texto).not.toMatch(/Para alterar Viagem para,/);
+    expect(proposta.confirmacaoPendente?.acao).toBe("alterar_titulo");
+    expect(calendario.listarTodos()[0]?.titulo).toBe("Viagem");
+
+    const gravada = await processarTurno(
+      {
+        mensagem: "sim",
+        agora,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(gravada.texto).toMatch(/Alterei o nome para Viagem para Itacaré/);
+    expect(calendario.listarTodos()).toEqual([
+      expect.objectContaining({
+        id: "viagem-1",
+        titulo: "Viagem para Itacaré",
+        primeiroDia: "2026-01-05",
+        ultimoDia: "2026-01-08",
+      }),
+    ]);
+  });
+
+  it("alterar nome da viagem não procura um Compromisso chamado nome da viagem", async () => {
+    const agora = DateTime.fromObject(
+      { year: 2025, month: 12, day: 20, hour: 10 },
+      { zone: FUSO_DONO },
+    );
+    const calendario = criarCalendarioEmMemoria([
+      {
+        id: "viagem-1",
+        tipo: "periodo",
+        titulo: "Viagem",
+        primeiroDia: "2026-01-05",
+        ultimoDia: "2026-01-08",
+      },
+    ]);
+    const saida = await processarTurno(
+      { mensagem: "Alterar nome da viagem", agora },
+      calendario,
+    );
+    expect(saida.texto).not.toMatch(/chamado “nome da viagem”/);
+    expect(saida.texto).toMatch(/mudar o nome/i);
+    expect(saida.confirmacaoPendente?.acao).toBe("completar_titulo");
+  });
+});
+
+

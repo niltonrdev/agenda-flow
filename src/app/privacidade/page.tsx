@@ -114,9 +114,10 @@ export default function PaginaPrivacidade() {
       <section>
         <h2>6. Modo demonstração</h2>
         <p>
-          Sem sessão Google, a conversa usa um calendário de exemplo somente
-          leitura, recriado a cada pedido. Não há isolamento de dados
-          pessoais nesse modo porque não se grava compromisso. Não use a
+          Sem sessão Google, a conversa usa um calendário de exemplo recriado
+          a cada pedido. Consultas e o fluxo de Confirmação (incluindo
+          alterar e renomear) usam só esse seed: o «Sim» simula o resultado
+          e nada é gravado no Google nem persiste no servidor. Não use a
           demonstração para dados reais.
         </p>
       </section>
@@ -168,7 +169,7 @@ export default function PaginaPrivacidade() {
         <h2>10. Segurança</h2>
         <p>
           Os tokens não trafegam em texto claro no cookie; a Confirmação é
-          revalidada no servidor; o modo demonstração não grava; há limite de
+          revalidada no servidor; o modo demonstração não grava no Google; há limite de
           frequência, verificação de origem e cabeçalhos de defesa do
           navegador. Nenhum controle elimina todo o risco.
         </p>

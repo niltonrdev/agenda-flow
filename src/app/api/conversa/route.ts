@@ -9,6 +9,7 @@ import { FUSO_DONO } from "@/domain/fuso";
 import { comCachePrivado } from "@/lib/cabecalhos-privados";
 import { obterCalendario } from "@/lib/calendario-app";
 import { pedidoDeEscritaSeguro } from "@/lib/csrf";
+import { SEGREDO_PROPOSTA_DEMO } from "@/lib/demo";
 import {
   cookiesOAuth,
   credencialGoogleConfigurada,
@@ -94,6 +95,7 @@ export async function POST(request: Request) {
       mensagem?: unknown;
       confirmacaoPendente?: unknown;
       ultimoDiaConsultado?: unknown;
+      demonstracao?: unknown;
     };
     try {
       corpo = JSON.parse(bruto) as typeof corpo;
@@ -111,10 +113,16 @@ export async function POST(request: Request) {
       return respostaJson({ erro: "Mensagem longa demais." }, { status: 400 });
     }
 
-    let secret: string;
+    const demonstracao = corpo.demonstracao === true;
+
+    let secret: string | null = null;
     try {
       secret = segredoDaSessao();
     } catch {
+      secret = null;
+    }
+
+    if (!demonstracao && secret == null && credencialGoogleConfigurada()) {
       const falha = falhaDoCalendario("configuracao");
       return respostaJson(
         { erro: falha.message, falha: falha.codigo },
@@ -122,16 +130,19 @@ export async function POST(request: Request) {
       );
     }
 
+    const secretProposta = secret ?? SEGREDO_PROPOSTA_DEMO;
     const agora = DateTime.now().setZone(FUSO_DONO);
     const jar = await cookies();
-    const tokens = credencialGoogleConfigurada()
-      ? desserializarSessao(jar.get(cookiesOAuth.sessao)?.value, secret)
-      : null;
+    const tokens =
+      !demonstracao && secret && credencialGoogleConfigurada()
+        ? desserializarSessao(jar.get(cookiesOAuth.sessao)?.value, secret)
+        : null;
 
     let tokensAtualizados: TokensGoogle | null = null;
     const calendario = obterCalendario({
       agora,
       tokens,
+      demonstracao,
       aoRenovarTokens: (renovados) => {
         tokensAtualizados = {
           ...renovados,
@@ -147,7 +158,7 @@ export async function POST(request: Request) {
       jar.get(cookiesOAuth.proposta)?.value,
       corpo.confirmacaoPendente,
       digital,
-      secret,
+      secretProposta,
     );
 
     const saida = await processarTurno(
@@ -185,7 +196,7 @@ export async function POST(request: Request) {
     if (saida.confirmacaoPendente) {
       resposta.cookies.set(
         cookiesOAuth.proposta,
-        emitirProposta(saida.confirmacaoPendente, digital, secret),
+        emitirProposta(saida.confirmacaoPendente, digital, secretProposta),
         opcoesCookiePropostaAgora(),
       );
     } else {
@@ -196,7 +207,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (tokens) {
+    if (tokens && secret) {
       const vigentes = tokensAtualizados ?? tokens;
       resposta.cookies.set(
         cookiesOAuth.sessao,

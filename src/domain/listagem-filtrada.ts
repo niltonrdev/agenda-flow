@@ -19,9 +19,12 @@ import {
 import {
   cabecalhoListagemBusca,
   cabecalhoListagemTipo,
+  cabecalhoListagemTodos,
   formatarListagemFiltrada,
+  formatarPedirMesDoAno,
   mensagemVaziaBusca,
   mensagemVaziaTipo,
+  mensagemVaziaTodos,
   rotuloCandidato,
   RESPOSTA_NAO_ENTENDI,
   RESPOSTA_TERMO_BUSCA,
@@ -32,12 +35,15 @@ import type {
   Intencao,
   IntencaoBuscaLivre,
   IntencaoConsultaTipo,
+  IntencaoConsultaTodos,
 } from "./interpretador";
 import { DateTime } from "luxon";
 
 export function ehIntencaoDeListagem(intencao: Intencao): boolean {
   return (
     intencao.tipo === "consulta_tipo" ||
+    intencao.tipo === "consulta_todos" ||
+    intencao.tipo === "pedir_mes" ||
     intencao.tipo === "busca_livre" ||
     intencao.tipo === "busca_termo_invalido" ||
     intencao.tipo === "mostrar_mais" ||
@@ -67,6 +73,7 @@ function filtrar(
     "filtro" | "termo"
   >,
 ): Compromisso[] {
+  if (consulta.filtro === "todos") return compromissos;
   if (consulta.filtro === "busca") {
     const termo = consulta.termo ?? "";
     return compromissos.filter((c) =>
@@ -124,11 +131,15 @@ async function executarListagem(
   const cabecalho =
     consulta.filtro === "busca"
       ? cabecalhoListagemBusca(consulta.termo ?? "", consulta.rotuloPeriodo)
-      : cabecalhoListagemTipo(consulta.filtro, consulta.rotuloPeriodo);
+      : consulta.filtro === "todos"
+        ? cabecalhoListagemTodos(consulta.rotuloPeriodo)
+        : cabecalhoListagemTipo(consulta.filtro, consulta.rotuloPeriodo);
   const vazia =
     consulta.filtro === "busca"
       ? mensagemVaziaBusca(consulta.termo ?? "", consulta.rotuloPeriodo)
-      : mensagemVaziaTipo(consulta.filtro, consulta.rotuloPeriodo);
+      : consulta.filtro === "todos"
+        ? mensagemVaziaTodos(consulta.rotuloPeriodo)
+        : mensagemVaziaTipo(consulta.filtro, consulta.rotuloPeriodo);
   const formatada = formatarListagemFiltrada(filtrados, agora, {
     cabecalho,
     vazia,
@@ -160,12 +171,21 @@ async function executarListagem(
 }
 
 function consultaDeIntencao(
-  intencao: IntencaoConsultaTipo | IntencaoBuscaLivre,
+  intencao: IntencaoConsultaTipo | IntencaoBuscaLivre | IntencaoConsultaTodos,
 ): Omit<ConfirmacaoListagemPaginada, "acao" | "offset"> {
   if (intencao.tipo === "busca_livre") {
     return {
       filtro: "busca",
       termo: intencao.termo,
+      futuro: intencao.futuro,
+      primeiroDia: intencao.primeiroDia,
+      ultimoDia: intencao.ultimoDia,
+      rotuloPeriodo: intencao.rotuloPeriodo,
+    };
+  }
+  if (intencao.tipo === "consulta_todos") {
+    return {
+      filtro: "todos",
       futuro: intencao.futuro,
       primeiroDia: intencao.primeiroDia,
       ultimoDia: intencao.ultimoDia,
@@ -208,13 +228,23 @@ export async function processarIntencaoListagem(
   if (intencao.tipo === "tipo_nao_reconhecido") {
     return saidaTexto(RESPOSTA_TIPO_NAO_RECONHECIDO, pendente);
   }
+  if (intencao.tipo === "pedir_mes") {
+    return {
+      texto: formatarPedirMesDoAno(intencao.ano),
+      confirmacaoPendente: { acao: "completar_mes", ano: intencao.ano },
+    };
+  }
   if (intencao.tipo === "mostrar_mais") {
     if (pendente && ehListagemPaginada(pendente)) {
       return executarListagem(calendario, agora, pendente);
     }
     return saidaTexto(RESPOSTA_TIPO_NAO_RECONHECIDO, pendente);
   }
-  if (intencao.tipo === "consulta_tipo" || intencao.tipo === "busca_livre") {
+  if (
+    intencao.tipo === "consulta_tipo" ||
+    intencao.tipo === "busca_livre" ||
+    intencao.tipo === "consulta_todos"
+  ) {
     return executarListagem(calendario, agora, {
       ...consultaDeIntencao(intencao),
       offset: 0,
