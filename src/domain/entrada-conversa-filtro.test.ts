@@ -692,43 +692,6 @@ describe("entrada de conversa — Cancelar e mostrar mais na listagem", () => {
     expect(viagens.confirmacaoPendente?.acao).toBe("contexto_listagem");
   });
 
-  it("na demonstração, Sim depois de Cancelar a viagem listada não grava", async () => {
-    const { criarCalendarioDeDemonstracaoSomenteLeitura } = await import(
-      "@/adapters/calendario-em-memoria"
-    );
-    const agora = DateTime.fromObject(
-      { year: 2025, month: 8, day: 1, hour: 10 },
-      { zone: FUSO_DONO },
-    );
-    const demo = criarCalendarioDeDemonstracaoSomenteLeitura(agora);
-    const listagem = await processarTurno(
-      { mensagem: "Mostrar viagens", agora },
-      demo,
-    );
-    const cancelar = await processarTurno(
-      {
-        mensagem: "Cancelar",
-        agora,
-        confirmacaoPendente: listagem.confirmacaoPendente,
-      },
-      demo,
-    );
-    expect(cancelar.confirmacaoPendente?.acao).toBe("cancelar_pontual");
-    const sim = await processarTurno(
-      {
-        mensagem: "sim",
-        agora,
-        confirmacaoPendente: cancelar.confirmacaoPendente,
-      },
-      demo,
-    );
-    expect(sim.texto).toMatch(/só consulta/i);
-    const ainda = await demo.listar({
-      inicio: agora.toISO()!,
-      fim: agora.plus({ years: 1 }).toISO()!,
-    });
-    expect(ainda.some((c) => c.titulo === "Voo GRU-REC")).toBe(true);
-  });
 });
 
 describe("entrada de conversa — todos os compromissos do mês", () => {
@@ -794,6 +757,67 @@ describe("entrada de conversa — todos os compromissos do mês", () => {
     );
     expect(listado.texto).toContain("Dentista");
     expect(listado.texto).toMatch(/Compromissos de dezembro/);
+  });
+});
+
+describe("entrada de conversa — demonstração com seed de dezembro", () => {
+  const agora = DateTime.fromObject(
+    { year: 2026, month: 11, day: 16, hour: 10 },
+    { zone: FUSO_DONO },
+  );
+
+  it("consulta 12/12 e lista dezembro no calendário de exemplo", async () => {
+    const { criarCalendarioDeDemonstracao } = await import(
+      "@/adapters/calendario-em-memoria"
+    );
+    const demo = criarCalendarioDeDemonstracao(agora);
+    const dia = await processarTurno(
+      { mensagem: "dia 12/12", agora },
+      demo,
+    );
+    expect(dia.texto).not.toMatch(/servidor ainda não está pronto/i);
+    expect(dia.texto).toContain("Almoço de equipe");
+
+    const mes = await processarTurno(
+      { mensagem: "mostrar eventos de dezembro", agora },
+      demo,
+    );
+    expect(mes.texto).toMatch(/Compromissos de dezembro/);
+    expect(mes.texto).toContain("Almoço de equipe");
+    expect(mes.texto).toContain("Viagem de Natal");
+  });
+
+  it("renomear a Viagem de Natal pede Confirmação e o Sim simula sem persistir", async () => {
+    const { criarCalendarioDeDemonstracao } = await import(
+      "@/adapters/calendario-em-memoria"
+    );
+    const demo = criarCalendarioDeDemonstracao(agora);
+    const proposta = await processarTurno(
+      {
+        mensagem:
+          "alterar o nome da Viagem de Natal para Viagem para Itacaré",
+        agora,
+      },
+      demo,
+    );
+    expect(proposta.texto).toMatch(/Confirmação/i);
+    expect(proposta.confirmacaoPendente?.acao).toBe("alterar_titulo");
+    const sim = await processarTurno(
+      {
+        mensagem: "sim",
+        agora,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      demo,
+    );
+    expect(sim.texto).toMatch(/Alterei o nome para Viagem para Itacaré/);
+    expect(sim.texto).not.toMatch(/servidor ainda não está pronto/i);
+    const fresco = criarCalendarioDeDemonstracao(agora);
+    const dezembro = await fresco.listar({
+      inicio: "2026-12-01T00:00:00.000-03:00",
+      fim: "2026-12-31T23:59:59.999-03:00",
+    });
+    expect(dezembro.some((c) => c.titulo === "Viagem de Natal")).toBe(true);
   });
 });
 

@@ -17,7 +17,7 @@ import {
 } from "@/lib/urls-app";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("páginas públicas sem sessão", () => {
   let container: HTMLDivElement;
@@ -28,6 +28,17 @@ describe("páginas públicas sem sessão", () => {
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        json: async () => ({
+          credencialConfigurada: true,
+          conectado: false,
+          email: null,
+          motivo: null,
+        }),
+      })),
+    );
   });
 
   afterEach(() => {
@@ -35,9 +46,10 @@ describe("páginas públicas sem sessão", () => {
       root.unmount();
     });
     container.remove();
+    vi.unstubAllGlobals();
   });
 
-  it("a homepage explica o app, usa o nome certo e liga Privacidade e Termos", () => {
+  it("a homepage é enxuta, mostra o propósito e os botões de entrar", () => {
     act(() => {
       root.render(<PaginaInicial />);
     });
@@ -46,8 +58,8 @@ describe("páginas públicas sem sessão", () => {
     expect(texto).not.toMatch(/rascunho/i);
     expect(texto).toMatch(/Google Agenda/i);
     expect(texto).toMatch(/Confirmação/i);
-    expect(texto).toContain("calendar.events");
-    expect(texto).toContain("calendar.calendarlist.readonly");
+    expect(texto).not.toContain("calendar.events");
+    expect(texto).not.toContain("calendar.calendarlist.readonly");
     expect(texto).toContain(CONTATO_EMAIL);
     expect(texto).not.toContain("[PREENCHER-EMAIL-DE-CONTATO]");
     expect(CAMINHO_PRIVACIDADE).toBe("/privacidade");
@@ -57,14 +69,13 @@ describe("páginas públicas sem sessão", () => {
     );
     expect(hrefs).toContain("/privacidade");
     expect(hrefs).toContain("/termos");
-    expect(hrefs).toContain(CAMINHO_CONVERSA);
+    expect(hrefs).toContain(`${CAMINHO_CONVERSA}?demo=1`);
+    expect(hrefs).toContain("/api/auth/google");
     expect(hrefs).toContain(`mailto:${CONTATO_EMAIL}`);
-    expect(container.querySelector("a[href='/api/auth/google']")).toBeNull();
-    const html = container.innerHTML;
-    expect(html.indexOf("Abrir a conversa")).toBeGreaterThan(-1);
-    expect(html.indexOf("Abrir a conversa")).toBeLessThan(
-      html.indexOf("calendar.events"),
-    );
+    expect(texto).toMatch(/Continuar com Google/);
+    expect(texto).toMatch(/Continuar em demonstração/);
+    const botaoGoogle = container.querySelector("a.entrada-botao-google");
+    expect(botaoGoogle?.textContent).toMatch(/Continuar com Google/);
     expect(container.querySelector("img.marca-cartao")?.getAttribute("src")).toBe(
       "/logo-agenda.svg",
     );

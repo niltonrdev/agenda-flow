@@ -788,8 +788,8 @@ body {
   min-height: 3rem;
   padding: 0.85rem 1.15rem;
   border-radius: 0.9rem;
-  background: var(--enviar);
-  color: var(--enviar-texto);
+  background: #1e5a3c;
+  color: #ffffff;
   font-weight: 600;
   font-size: 1.02rem;
   text-decoration: none;
@@ -801,6 +801,9 @@ body {
 }
 
 .entrada-botao-demo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 2.75rem;
   padding: 0.7rem 1rem;
   border: 1px solid color-mix(in oklab, var(--borda) 80%, white);
@@ -809,6 +812,7 @@ body {
   color: var(--texto);
   font: inherit;
   font-weight: 500;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -881,8 +885,18 @@ body {
   color: var(--enviar);
 }
 
+.pagina-inicio a.entrada-botao-google {
+  color: #ffffff;
+  background: #1e5a3c;
+}
+
+.pagina-inicio a.entrada-botao-demo {
+  color: var(--texto);
+  text-decoration: none;
+}
+
 .pagina-inicio {
-  max-width: 40rem;
+  max-width: 28rem;
   margin: 0 auto;
   padding:
     calc(1rem + env(safe-area-inset-top)) 1.35rem

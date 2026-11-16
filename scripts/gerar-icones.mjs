@@ -24,6 +24,27 @@ async function raster(svg, size) {
     .toBuffer();
 }
 
+async function rasterRedondo(svg, size) {
+  const inner = await sharp(svg, { density: 384 })
+    .resize(size, size, { fit: "fill" })
+    .png()
+    .toBuffer();
+  const mascara = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
+      <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="#fff"/>
+    </svg>`,
+  );
+  return sharp(inner)
+    .composite([
+      {
+        input: await sharp(mascara).png().toBuffer(),
+        blend: "dest-in",
+      },
+    ])
+    .png()
+    .toBuffer();
+}
+
 async function maskable(svg, size) {
   const innerSize = Math.round(size * 0.8);
   const inner = await sharp(svg, { density: 384 })
@@ -71,9 +92,9 @@ function icoFromPngs(pngs) {
 
 await mkdir(publicDir, { recursive: true });
 
-const fav16 = await raster(pequeno, 16);
-const fav32 = await raster(pequeno, 32);
-const fav48 = await raster(pequeno, 48);
+const fav16 = await rasterRedondo(pequeno, 16);
+const fav32 = await rasterRedondo(pequeno, 32);
+const fav48 = await rasterRedondo(pequeno, 48);
 const icon192 = await raster(completo, 192);
 const icon512 = await raster(completo, 512);
 const apple180 = await raster(completo, 180);

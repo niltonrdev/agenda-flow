@@ -48,6 +48,8 @@ describe("app na tela inicial", () => {
     expect(svgCompleto).toContain("#E0ECE1");
     expect(svgCompleto).toContain("#2C6B4E");
     expect(svgPequeno).toContain("#2C6B4E");
+    expect(svgPequeno).not.toMatch(/width="60" height="60"/);
+    expect(svgPequeno).not.toMatch(/width="118" height="118"/);
     expect(existsSync(path.join(appDir, "favicon.ico"))).toBe(true);
     expect(existsSync(path.join(raiz, "favicon-16x16.png"))).toBe(true);
     expect(existsSync(path.join(raiz, "favicon-32x32.png"))).toBe(true);

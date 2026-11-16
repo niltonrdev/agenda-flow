@@ -17,6 +17,7 @@ import { obterTranscritor } from "@/lib/transcritor-app";
 import { CabecalhoConversa } from "@/app/cabecalho-conversa";
 import { RodapeLegal } from "@/app/legal";
 import { MarcaCartao } from "@/app/marca";
+import { CHAVE_DEMO } from "@/lib/demo";
 import { CAMINHO_CONVERSA, CAMINHO_INICIO } from "@/lib/urls-app";
 import { ControleTutorial } from "@/app/tutorial-painel";
 import Link from "next/link";
@@ -35,8 +36,6 @@ type StatusGoogle = {
   email: string | null;
   motivo: string | null;
 };
-
-const CHAVE_DEMO = "agenda-demo";
 
 export default function ConversaPage() {
   const [mensagens, setMensagens] = useState<MensagemNaTela[]>([
@@ -69,13 +68,17 @@ export default function ConversaPage() {
   }, [mensagens, carregando, erro, confirmacaoPendente]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const querDemo = params.get("demo") === "1";
     try {
-      setDemoLocal(sessionStorage.getItem(CHAVE_DEMO) === "1");
+      if (querDemo) {
+        sessionStorage.setItem(CHAVE_DEMO, "1");
+      }
+      setDemoLocal(querDemo || sessionStorage.getItem(CHAVE_DEMO) === "1");
     } catch {
-      setDemoLocal(false);
+      setDemoLocal(querDemo);
     }
 
-    const params = new URLSearchParams(window.location.search);
     const googleParam = params.get("google");
     if (googleParam === "falha" || googleParam === "negado" || googleParam === "host") {
       setAvisoAuth(
@@ -86,7 +89,7 @@ export default function ConversaPage() {
             : "Não foi possível conectar ao Google. Confira o redirect URI no Console e tente de novo.",
       );
     }
-    if (googleParam) {
+    if (googleParam || querDemo) {
       window.history.replaceState({}, "", CAMINHO_CONVERSA);
     }
 
@@ -218,6 +221,7 @@ export default function ConversaPage() {
           mensagem: texto,
           confirmacaoPendente,
           ultimoDiaConsultado,
+          demonstracao: demoLocal && !google?.conectado,
         }),
       });
       const dados = (await resposta.json()) as {
@@ -309,7 +313,7 @@ export default function ConversaPage() {
             className="entrada-botao-demo"
             onClick={entrarEmDemonstracao}
           >
-            Continuar em demonstração (só consulta)
+            Continuar em demonstração
           </button>
           <ControleTutorial variante="texto" />
           <Link className="entrada-botao-ajuda" href={CAMINHO_INICIO}>
