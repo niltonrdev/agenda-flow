@@ -280,21 +280,9 @@ export default function ConversaPage() {
         <header className="entrada-hero">
           <h1 className="entrada-titulo">Agenda Inteligente</h1>
           <p className="entrada-texto">
-            Conversa pessoal para consultar a disponibilidade no seu Google
-            Calendar e, depois de uma Confirmação, marcar, alterar ou cancelar
-            um compromisso. Não há outras contas no produto: só o calendário
-            do Dono.
-          </p>
-          <p className="entrada-texto">
-            A Consulta lê as agendas visíveis. A Marcação grava só na agenda
-            principal. O histórico da conversa não é guardado. A sessão Google
-            fica num cookie cifrado neste aparelho por até 7 dias (ou 24 horas
-            sem uso), fora de aba anônima.
-          </p>
-          <p className="entrada-texto entrada-texto-voz">
-            O ditado usa o reconhecimento de voz do navegador. Em alguns
-            aparelhos o áudio pode ser processado fora do dispositivo. A
-            Agenda não envia o áudio a um modelo de linguagem próprio.
+            Conversa pessoal para consultar a disponibilidade no Google Agenda
+            e, depois de uma Confirmação com «Sim», marcar, alterar ou cancelar
+            um compromisso. Só o calendário do Dono.
           </p>
         </header>
 
@@ -328,6 +316,20 @@ export default function ConversaPage() {
             Página inicial
           </Link>
         </div>
+        <details className="entrada-detalhes">
+          <summary>Como usa o Google Agenda e o ditado</summary>
+          <p>
+            A Consulta lê as agendas visíveis. A Marcação grava só na agenda
+            principal. O histórico da conversa não é guardado. A sessão Google
+            fica num cookie cifrado neste aparelho por até 7 dias (ou 24 horas
+            sem uso), fora de aba anônima.
+          </p>
+          <p>
+            O ditado usa o reconhecimento de voz do navegador. Em alguns
+            aparelhos o áudio pode ser processado fora do dispositivo. A Agenda
+            não envia o áudio a um modelo de linguagem próprio.
+          </p>
+        </details>
         <RodapeLegal />
       </div>
     );

@@ -17,12 +17,31 @@ describe("app na tela inicial", () => {
     expect(web.short_name).toBe("Agenda");
     expect(web.start_url).toBe("/conversa");
     expect(web.display).toBe("standalone");
-    expect(web.icons?.length).toBeGreaterThanOrEqual(2);
-    expect(web.icons?.some((i) => i.sizes === "192x192")).toBe(true);
-    expect(web.icons?.some((i) => i.sizes === "512x512")).toBe(true);
+    expect(web.icons?.length).toBeGreaterThanOrEqual(4);
+    expect(web.icons?.some((i) => i.sizes === "192x192" && i.purpose === "any")).toBe(
+      true,
+    );
+    expect(web.icons?.some((i) => i.sizes === "512x512" && i.purpose === "any")).toBe(
+      true,
+    );
+    expect(
+      web.icons?.some((i) => i.sizes === "192x192" && i.purpose === "maskable"),
+    ).toBe(true);
+    expect(
+      web.icons?.some((i) => i.sizes === "512x512" && i.purpose === "maskable"),
+    ).toBe(true);
     const raiz = path.resolve(__dirname, "../../public");
+    const appDir = path.resolve(__dirname);
+    expect(existsSync(path.join(raiz, "logo-agenda.svg"))).toBe(true);
+    expect(existsSync(path.join(raiz, "logo-agenda-pequeno.svg"))).toBe(true);
+    expect(existsSync(path.join(appDir, "favicon.ico"))).toBe(true);
+    expect(existsSync(path.join(raiz, "favicon-16x16.png"))).toBe(true);
+    expect(existsSync(path.join(raiz, "favicon-32x32.png"))).toBe(true);
+    expect(existsSync(path.join(raiz, "icon-48.png"))).toBe(true);
     expect(existsSync(path.join(raiz, "icon-192.png"))).toBe(true);
     expect(existsSync(path.join(raiz, "icon-512.png"))).toBe(true);
+    expect(existsSync(path.join(raiz, "icon-192-maskable.png"))).toBe(true);
+    expect(existsSync(path.join(raiz, "icon-512-maskable.png"))).toBe(true);
     expect(existsSync(path.join(raiz, "apple-touch-icon.png"))).toBe(true);
   });
 

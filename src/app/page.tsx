@@ -24,10 +24,9 @@ export default function PaginaInicial() {
       <header className="entrada-hero">
         <h1 className="entrada-titulo">{NOME_DO_APP}</h1>
         <p className="entrada-texto">
-          Ferramenta pessoal do Dono: uma conversa em português do Brasil que
-          consulta a disponibilidade no Google Agenda e, depois de uma
-          Confirmação com «Sim», cria, altera ou cancela um compromisso. Não há
-          outras contas no produto — só o calendário do Dono.
+          Conversa em português do Brasil para consultar o Google Agenda e,
+          depois de uma Confirmação com «Sim», marcar, alterar ou cancelar um
+          compromisso. Só o calendário do Dono.
         </p>
       </header>
 
@@ -35,6 +34,12 @@ export default function PaginaInicial() {
         <Link href={CAMINHO_PRIVACIDADE}>Privacidade</Link>
         <Link href={CAMINHO_TERMOS}>Termos de uso</Link>
       </nav>
+
+      <p className="inicio-acoes">
+        <Link className="entrada-botao-google" href={CAMINHO_CONVERSA}>
+          Abrir a conversa
+        </Link>
+      </p>
 
       <section>
         <h2>Como usa o Google Agenda</h2>
@@ -73,12 +78,6 @@ export default function PaginaInicial() {
 
       <p className="inicio-contato">
         Contato: <ContatoPublico />
-      </p>
-
-      <p className="inicio-acoes">
-        <Link className="entrada-botao-google" href={CAMINHO_CONVERSA}>
-          Abrir a conversa
-        </Link>
       </p>
 
       <RodapeLegal />

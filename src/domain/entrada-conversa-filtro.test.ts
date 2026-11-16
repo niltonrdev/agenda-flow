@@ -730,3 +730,70 @@ describe("entrada de conversa — Cancelar e mostrar mais na listagem", () => {
     expect(ainda.some((c) => c.titulo === "Voo GRU-REC")).toBe(true);
   });
 });
+
+describe("entrada de conversa — todos os compromissos do mês", () => {
+  it("mostrar compromissos de dezembro lista tudo do mês, não busca o termo dezembro", async () => {
+    const calendario = criarCalendarioEmMemoria([
+      pontual("dent", "Dentista", 20, 15),
+      pontual("reun", "Reunião time", 22, 10),
+      periodo("via", "Viagem Recife", 25, 28),
+      pontual("jan", "Fora do mês", 50, 9),
+    ]);
+    const saida = await processarTurno(
+      { mensagem: "mostrar compromissos de dezembro", agora: AGORA },
+      calendario,
+    );
+    expect(saida.texto).toMatch(/^Compromissos de dezembro:/);
+    expect(saida.texto).toContain("Dentista");
+    expect(saida.texto).toContain("Reunião time");
+    expect(saida.texto).toContain("Viagem Recife");
+    expect(saida.texto).not.toContain("Fora do mês");
+    expect(saida.texto).not.toMatch(/evento com "dezembro"/i);
+  });
+
+  it("dezemobro e 'eventos em dezembro' também listam o mês", async () => {
+    const calendario = criarCalendarioEmMemoria([
+      pontual("dent", "Dentista", 20, 15),
+    ]);
+    const typo = await processarTurno(
+      { mensagem: "mostrar eventos de dezemobro", agora: AGORA },
+      calendario,
+    );
+    expect(typo.texto).toContain("Dentista");
+    expect(typo.texto).toMatch(/Compromissos de dezembro/);
+
+    const em = await processarTurno(
+      { mensagem: "mostrar eventos em dezembro", agora: AGORA },
+      calendario,
+    );
+    expect(em.texto).toContain("Dentista");
+    expect(em.texto).not.toMatch(/não entendi/i);
+  });
+
+  it("só o ano pergunta o mês; a resposta com o mês lista", async () => {
+    const calendario = criarCalendarioEmMemoria([
+      pontual("dent", "Dentista", 20, 15),
+    ]);
+    const pedindo = await processarTurno(
+      { mensagem: "mostrar compromissos de 2026", agora: AGORA },
+      calendario,
+    );
+    expect(pedindo.texto).toMatch(/Qual mês de 2026/i);
+    expect(pedindo.confirmacaoPendente).toMatchObject({
+      acao: "completar_mes",
+      ano: 2026,
+    });
+
+    const listado = await processarTurno(
+      {
+        mensagem: "dezembro",
+        agora: AGORA,
+        confirmacaoPendente: pedindo.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(listado.texto).toContain("Dentista");
+    expect(listado.texto).toMatch(/Compromissos de dezembro/);
+  });
+});
+

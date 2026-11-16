@@ -60,6 +60,14 @@ describe("páginas públicas sem sessão", () => {
     expect(hrefs).toContain(CAMINHO_CONVERSA);
     expect(hrefs).toContain(`mailto:${CONTATO_EMAIL}`);
     expect(container.querySelector("a[href='/api/auth/google']")).toBeNull();
+    const html = container.innerHTML;
+    expect(html.indexOf("Abrir a conversa")).toBeGreaterThan(-1);
+    expect(html.indexOf("Abrir a conversa")).toBeLessThan(
+      html.indexOf("calendar.events"),
+    );
+    expect(container.querySelector("img.marca-cartao")?.getAttribute("src")).toBe(
+      "/logo-agenda.svg",
+    );
   });
 
   it("privacidade e termos descrevem o escopo real, Limited Use e a revogação", () => {

@@ -34,6 +34,65 @@ export const MESES_PT: Record<string, number> = {
   dezembro: 12,
 };
 
+function normalizarChaveMes(nome: string): string {
+  return nome
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase();
+}
+
+/** Distância de Levenshtein; meses são curtos, o DP cabe. */
+export function distanciaEdicao(a: string, b: string): number {
+  if (a === b) return 0;
+  const m = a.length;
+  const n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const prev = Array.from({ length: n + 1 }, (_, j) => j);
+  const curr = new Array<number>(n + 1);
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const custo = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + custo);
+    }
+    for (let j = 0; j <= n; j++) prev[j] = curr[j];
+  }
+  return prev[n];
+}
+
+/**
+ * Nome do mês, com tolerância a digitação (ex.: "dezemobro" → dezembro).
+ * Empate entre dois meses diferentes devolve undefined.
+ */
+export function mesPorNome(nome: string): number | undefined {
+  const n = normalizarChaveMes(nome.trim());
+  if (!n) return undefined;
+  if (MESES_PT[n] != null) return MESES_PT[n];
+  if (MESES_PT[nome.trim().toLowerCase()] != null) {
+    return MESES_PT[nome.trim().toLowerCase()];
+  }
+
+  const vistos = new Set<string>();
+  const candidatos: { mes: number; d: number }[] = [];
+  for (const chave of Object.keys(MESES_PT)) {
+    const alvo = normalizarChaveMes(chave);
+    if (vistos.has(alvo)) continue;
+    vistos.add(alvo);
+    const limite = alvo.length <= 5 ? 1 : 2;
+    const d = distanciaEdicao(n, alvo);
+    if (d <= limite) candidatos.push({ mes: MESES_PT[chave], d });
+  }
+  if (candidatos.length === 0) return undefined;
+  const melhorD = Math.min(...candidatos.map((c) => c.d));
+  const meses = [
+    ...new Set(
+      candidatos.filter((c) => c.d === melhorD).map((c) => c.mes),
+    ),
+  ];
+  return meses.length === 1 ? meses[0] : undefined;
+}
+
 export const NOMES_MESES_PT = [
   "",
   "janeiro",
@@ -191,20 +250,25 @@ export function recorteEstaSemana(agora: DateTime): RecorteDias {
 
 /**
  * Mês civil: o corrente se ainda não acabou; senão o mesmo mês do ano seguinte.
+ * Com `ano`, usa aquele ano mesmo que já tenha passado.
  */
-export function recorteMes(mes: number, agora: DateTime): RecorteDias {
+export function recorteMes(
+  mes: number,
+  agora: DateTime,
+  ano?: number,
+): RecorteDias {
   if (mes < 1 || mes > 12) {
     throw new Error(`Mês inválido: ${mes}`);
   }
   const base = agoraEmBrasilia(agora).startOf("day");
   let inicio = DateTime.fromObject(
-    { year: base.year, month: mes, day: 1 },
+    { year: ano ?? base.year, month: mes, day: 1 },
     { zone: FUSO_DONO },
   );
   if (!inicio.isValid) {
     throw new Error(`Mês inválido: ${mes}`);
   }
-  if (inicio.endOf("month") < base) {
+  if (ano == null && inicio.endOf("month") < base) {
     inicio = inicio.plus({ years: 1 });
   }
   return {

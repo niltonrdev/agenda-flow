@@ -385,6 +385,38 @@ describe("interpretador — Alteração", () => {
     });
   });
 
+  it("alterar o nome da viagem aponta o novo título, não a data", () => {
+    const outubro = DateTime.fromObject(
+      { year: 2026, month: 10, day: 27, hour: 16 },
+      { zone: FUSO_DONO },
+    );
+    expect(
+      interpretarMensagem(
+        "alterar o nome da viagem do dia 05/01 para Viagem para Itacaré",
+        outubro,
+      ),
+    ).toEqual({
+      tipo: "alterar_titulo",
+      termo: "viagem",
+      novoTitulo: "Viagem para Itacaré",
+      dia: { dia: 5, mes: 1 },
+    });
+    expect(interpretarMensagem("Alterar nome da viagem", outubro)).toEqual({
+      tipo: "alterar_titulo",
+      termo: "viagem",
+    });
+    expect(
+      interpretarMensagem(
+        "quero alterar o nome da viagem para viagem para itacaré",
+        outubro,
+      ),
+    ).toMatchObject({
+      tipo: "alterar_titulo",
+      termo: "viagem",
+      novoTitulo: "Viagem para itacaré",
+    });
+  });
+
   it("muda um Pontual para outro horário", () => {
     expect(
       interpretarMensagem("muda a reunião com a Ana para as 10h", AGORA),
@@ -631,6 +663,41 @@ describe("interpretador — listagem por tipo e busca livre", () => {
       tipo: "mostrar_mais",
     });
     expect(interpretarMensagem("mais", agora)).toEqual({ tipo: "mostrar_mais" });
+  });
+
+  it("lista todos os compromissos do mês, com digitação e 'em'", () => {
+    expect(interpretarMensagem("mostrar compromissos de dezembro", agora)).toMatchObject({
+      tipo: "consulta_todos",
+      futuro: false,
+      primeiroDia: "2026-12-01",
+      ultimoDia: "2026-12-31",
+      rotuloPeriodo: "de dezembro",
+    });
+    expect(interpretarMensagem("mostrar eventos de dezemobro", agora)).toMatchObject({
+      tipo: "consulta_todos",
+      rotuloPeriodo: "de dezembro",
+    });
+    expect(interpretarMensagem("mostrar eventos em dezembro", agora)).toMatchObject({
+      tipo: "consulta_todos",
+      rotuloPeriodo: "de dezembro",
+    });
+  });
+
+  it("só o ano pede o mês; busca+mês e tipo+mês continuam iguais", () => {
+    expect(interpretarMensagem("mostrar compromissos de 2026", agora)).toEqual({
+      tipo: "pedir_mes",
+      ano: 2026,
+    });
+    expect(interpretarMensagem("eventos com João em dezembro", agora)).toMatchObject({
+      tipo: "busca_livre",
+      termo: "joão",
+      rotuloPeriodo: "em dezembro",
+    });
+    expect(interpretarMensagem("viagens de dezembro", agora)).toMatchObject({
+      tipo: "consulta_tipo",
+      filtro: "viagens",
+      rotuloPeriodo: "de dezembro",
+    });
   });
 
   it("não confunde com Consultar, Marcar e Cancelar (CA17–CA19)", () => {

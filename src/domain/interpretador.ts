@@ -2,6 +2,7 @@ import {
   FUSO_DONO,
   MESES_PT,
   NOMES_MESES_PT,
+  mesPorNome,
   recorteEstaSemana,
   recorteFeriado,
   recorteFimDeSemana,
@@ -94,6 +95,14 @@ export type IntencaoAlterarSemDestino = {
   dia?: DiaRecorte;
 };
 
+/** "alterar o nome da viagem para Viagem para Itacaré". */
+export type IntencaoAlterarTitulo = {
+  tipo: "alterar_titulo";
+  termo: string;
+  novoTitulo?: string;
+  dia?: DiaRecorte;
+};
+
 export type DiaRecorte = {
   dia: number;
   mes?: number;
@@ -156,6 +165,21 @@ export type IntencaoTipoNaoReconhecido = {
   tipo: "tipo_nao_reconhecido";
 };
 
+/** Todos os Compromissos de um recorte (ex.: mês), sem filtro de tipo/termo. */
+export type IntencaoConsultaTodos = {
+  tipo: "consulta_todos";
+  futuro: boolean;
+  primeiroDia?: string;
+  ultimoDia?: string;
+  rotuloPeriodo?: string;
+};
+
+/** "mostrar compromissos de 2026" — falta o mês. */
+export type IntencaoPedirMes = {
+  tipo: "pedir_mes";
+  ano: number;
+};
+
 export type Intencao =
   | IntencaoConsultaDia
   | IntencaoConsultaIntervalo
@@ -168,8 +192,11 @@ export type Intencao =
   | IntencaoRecusar
   | IntencaoAlterar
   | IntencaoAlterarSemDestino
+  | IntencaoAlterarTitulo
   | IntencaoCancelar
   | IntencaoConsultaTipo
+  | IntencaoConsultaTodos
+  | IntencaoPedirMes
   | IntencaoBuscaLivre
   | IntencaoBuscaTermoInvalido
   | IntencaoMostrarMais
@@ -217,6 +244,9 @@ const RE_BUSCA_CURTA = /^(?:buscar|procurar)\s*(.*)$/iu;
 const RE_MOSTRAR_COISA =
   /^(?:mostrar|listar|ver)\s+(?:os\s+|as\s+|meus\s+|minhas\s+)?([\p{L}\p{N}'-]+)\s*[.!?]?$/iu;
 
+const RE_LISTAR_MES =
+  /^(?:(?:mostrar|listar|ver|quais)\s+)?(?:os\s+|as\s+|meus\s+|minhas\s+)?(?:eventos|compromissos)(?:\s+(?:de|em|no|do|da))\s+(.+)$/iu;
+
 const RE_DATA = new RegExp(
   String.raw`(?:^|\b)(?:dia\s+)?(\d{1,2})\s+de\s+(${GRUPO_MES})(?:\s+de\s+(\d{4}))?\b`,
   "u",
@@ -233,7 +263,9 @@ const RE_RECUSAR = /^(?:n[aã]o)\s*[.!]?\s*$/u;
 
 /** Formas longas antes das curtas (senão "remarca" engole "remarcar"). `i` para Remarcar/Cancela. */
 const RE_ALTERAR =
-  /^(?:mudar|muda|alterar|altere|remarcar|remarca)(?:\s+(?:o|a|os|as))?(?:\s+|$)/iu;
+  /^(?:mudar|muda|alterar|altere|remarcar|remarca|renomear|renomeie)(?:\s+(?:o|a|os|as))?(?:\s+|$)/iu;
+
+const RE_PREFIXO_PEDIDO = /^(?:quero(?:\s+que)?|preciso|por favor)\s+/iu;
 
 const RE_CANCELAR =
   /^(?:cancelar|cancela|cancele|desmarcar|desmarca|tirar|tira|apagar|apaga|apague|excluir|exclui|delete)(?:\s+(?:o|a|os|as))?(?:\s+|$)/iu;
@@ -309,6 +341,36 @@ function normalizarMes(nome: string): string {
 function mesDe(nome: string | undefined): number | undefined {
   if (!nome) return undefined;
   return MESES_PT[normalizarMes(nome)];
+}
+
+/**
+ * Resto da fala após "compromissos de …": um mês (com digitação tolerada),
+ * um ano, ou os dois.
+ */
+export function interpretarMesOuAno(
+  texto: string,
+): { mes?: number; ano?: number } | null {
+  const limpo = texto
+    .toLowerCase()
+    .normalize("NFC")
+    .replace(/[?.!,]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!limpo) return null;
+  const anoMatch = /\b(20\d{2})\b/.exec(limpo);
+  const ano = anoMatch ? Number(anoMatch[1]) : undefined;
+  const semAno = limpo
+    .replace(/\bde\s+20\d{2}\b/g, " ")
+    .replace(/\b20\d{2}\b/g, " ")
+    .replace(/\b(?:em|de|no|do|da)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!semAno) {
+    return ano != null ? { ano } : null;
+  }
+  const mes = mesPorNome(semAno);
+  if (mes == null) return null;
+  return ano != null ? { mes, ano } : { mes };
 }
 
 function isoDeMatchExtenso(
@@ -981,13 +1043,27 @@ function extrairDiaRecorteDoTexto(texto: string): {
 function termoDeAlteracao(trecho: string): string {
   const termo = trecho
     .replace(/^(?:o|a|os|as)\s+/iu, "")
-    .replace(/^(?:data|hora|hor[aá]rio|t[ií]tulo)\s+(?:d[aoe]\s+)?/iu, "")
+    .replace(/^(?:data|hora|hor[aá]rio|t[ií]tulo|nome)\s+(?:d[aoe]\s+)?/iu, "")
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase()
     .normalize("NFC");
   if (!termo || RE_DEITICO.test(termo)) return "";
   return termo;
+}
+
+function ehPedidoDeRenomear(mensagem: string, semVerbo: string): boolean {
+  if (/\brenomear\b/iu.test(mensagem)) return true;
+  return /^(?:o\s+|a\s+)?(?:nome|t[ií]tulo)\b/iu.test(semVerbo.trim());
+}
+
+function termoDeNome(trecho: string): string {
+  return termoDeAlteracao(
+    trecho.replace(
+      /^(?:o\s+|a\s+)?(?:nome|t[ií]tulo)(?:\s+d[aeo]\s+)?/iu,
+      "",
+    ),
+  );
 }
 
 function termoDeCancelamento(trecho: string): string {
@@ -1088,6 +1164,12 @@ function montarAlterar(mensagem: string, agora: DateTime): Intencao {
     const sufixo = /\s+((?:a\s+partir|at[eé]|come[cç]a).+)$/iu.exec(semVerbo);
     if (!sufixo) {
       const { dia, semDia } = extrairDiaRecorteDoTexto(termoBruto);
+      if (ehPedidoDeRenomear(mensagem, semDia)) {
+        const termo = termoDeNome(semDia);
+        return dia
+          ? { tipo: "alterar_titulo", termo, dia }
+          : { tipo: "alterar_titulo", termo };
+      }
       const termo = termoDeAlteracao(semDia);
       return dia
         ? { tipo: "alterar_sem_destino", termo, dia }
@@ -1098,6 +1180,16 @@ function montarAlterar(mensagem: string, agora: DateTime): Intencao {
   }
 
   const { dia, semDia } = extrairDiaRecorteDoTexto(termoBruto);
+  if (ehPedidoDeRenomear(mensagem, semDia)) {
+    const termo = termoDeNome(semDia);
+    const novoTitulo = destinoBruto.trim()
+      ? capitalizarTitulo(destinoBruto.trim())
+      : undefined;
+    const base: IntencaoAlterarTitulo = novoTitulo
+      ? { tipo: "alterar_titulo", termo, novoTitulo }
+      : { tipo: "alterar_titulo", termo };
+    return dia ? { ...base, dia } : base;
+  }
   const termo = termoDeAlteracao(semDia);
   const destino = interpretarDestinoAlteracao(destinoBruto, agora);
   if (!termo || !destino) return { tipo: "desconhecida" };
@@ -1305,8 +1397,10 @@ function interpretarBuscaLivre(
 ): IntencaoBuscaLivre | IntencaoBuscaTermoInvalido | null {
   const eventos = RE_BUSCA_EVENTOS.exec(texto);
   let bruto: string | null = null;
+  let preposicaoCom = false;
   if (eventos) {
     bruto = (eventos[1] ?? "").trim();
+    preposicaoCom = /\s(?:com|sobre)\s/iu.test(eventos[0]);
   } else {
     const curta = RE_BUSCA_CURTA.exec(texto);
     if (!curta) return null;
@@ -1314,6 +1408,10 @@ function interpretarBuscaLivre(
   }
   const periodo = extrairPeriodoFalado(texto, agora);
   const termo = removerPeriodoDoTermo(bruto);
+  if (!preposicaoCom) {
+    const soMes = interpretarMesOuAno(termo) ?? interpretarMesOuAno(bruto);
+    if (soMes) return null;
+  }
   if (termo.length < 2 || termo.length > 50) {
     return { tipo: "busca_termo_invalido" };
   }
@@ -1321,6 +1419,39 @@ function interpretarBuscaLivre(
     { tipo: "busca_livre" as const, termo, futuro: true },
     periodo,
   );
+}
+
+function interpretarConsultaTodos(
+  texto: string,
+  agora: DateTime,
+): IntencaoConsultaTodos | IntencaoPedirMes | null {
+  const match = RE_LISTAR_MES.exec(texto);
+  let resto: string | null = null;
+  if (match) {
+    resto = (match[1] ?? "").trim();
+  } else {
+    const mostrar = RE_MOSTRAR_COISA.exec(texto);
+    if (mostrar) resto = mostrar[1];
+  }
+  if (!resto) return null;
+  const parsed = interpretarMesOuAno(resto);
+  if (!parsed) return null;
+  if (parsed.mes == null && parsed.ano != null) {
+    return { tipo: "pedir_mes", ano: parsed.ano };
+  }
+  if (parsed.mes == null) return null;
+  const recorte = recorteMes(parsed.mes, agora, parsed.ano);
+  const nome = NOMES_MESES_PT[parsed.mes];
+  const rotuloPeriodo = parsed.ano
+    ? `de ${nome} de ${parsed.ano}`
+    : `de ${nome}`;
+  return {
+    tipo: "consulta_todos",
+    futuro: false,
+    primeiroDia: recorte.primeiroDia,
+    ultimoDia: recorte.ultimoDia,
+    rotuloPeriodo,
+  };
 }
 
 function interpretarConsultaTipo(
@@ -1384,9 +1515,12 @@ export function interpretarListagem(
   if (RE_MOSTRAR_MAIS.test(texto)) {
     return { tipo: "mostrar_mais" };
   }
+  const tipo = interpretarConsultaTipo(texto, agora);
+  if (tipo && tipo.tipo === "consulta_tipo") return tipo;
+  const todos = interpretarConsultaTodos(texto, agora);
+  if (todos) return todos;
   const busca = interpretarBuscaLivre(texto, agora);
   if (busca) return busca;
-  const tipo = interpretarConsultaTipo(texto, agora);
   if (tipo) return tipo;
   return interpretarConsultaComVerbo(texto, agora);
 }
@@ -1399,7 +1533,8 @@ export function interpretarMensagem(
   mensagem: string,
   agora: DateTime,
 ): Intencao {
-  const texto = mensagem.trim().toLowerCase().normalize("NFC");
+  const original = mensagem.trim().replace(RE_PREFIXO_PEDIDO, "");
+  const texto = original.toLowerCase().normalize("NFC");
 
   if (RE_CONFIRMAR.test(texto)) {
     return { tipo: "confirmar" };
@@ -1410,15 +1545,15 @@ export function interpretarMensagem(
   }
 
   if (RE_ALTERAR.test(texto)) {
-    return montarAlterar(mensagem.trim(), agora);
+    return montarAlterar(original, agora);
   }
 
   if (RE_CANCELAR.test(texto)) {
-    return montarCancelar(mensagem.trim());
+    return montarCancelar(original);
   }
 
   if (RE_TEM_HORA.test(texto)) {
-    return montarPontual(mensagem.trim(), texto, agora);
+    return montarPontual(original, texto, agora);
   }
 
   const pedidoDeMarcacao = ehPedidoDeMarcacao(texto);
@@ -1426,7 +1561,7 @@ export function interpretarMensagem(
   if (pedidoDeMarcacao && recorteIntervalo?.tipo === "consulta_intervalo") {
     return {
       tipo: "marcar_periodo",
-      titulo: tituloDaViagem(mensagem.trim()),
+      titulo: tituloDaViagem(original),
       primeiroDia: recorteIntervalo.primeiroDia,
       ultimoDia: recorteIntervalo.ultimoDia,
     };
@@ -1466,7 +1601,7 @@ export function interpretarMensagem(
     const dia = diaExplicitoNaMensagem(texto, agora) ?? undefined;
     return {
       tipo: "marcar_periodo_sem_duracao",
-      titulo: tituloDaViagem(mensagem.trim()),
+      titulo: tituloDaViagem(original),
       ...(dia ? { dia } : {}),
     };
   }
@@ -1476,13 +1611,13 @@ export function interpretarMensagem(
     if (dia) {
       return {
         tipo: "marcar_pontual_sem_hora",
-        titulo: tituloDaMensagem(mensagem.trim()),
+        titulo: tituloDaMensagem(original),
         dia,
       };
     }
     return {
       tipo: "marcar_incompleta",
-      titulo: tituloDaMensagem(mensagem.trim()),
+      titulo: tituloDaMensagem(original),
     };
   }
 
