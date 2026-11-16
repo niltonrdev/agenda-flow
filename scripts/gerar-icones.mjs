@@ -6,7 +6,7 @@ import sharp from "sharp";
 const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const publicDir = path.join(raiz, "public");
 const appDir = path.join(raiz, "src/app");
-const FUNDO = { r: 0x1f, g: 0x4d, b: 0x3a, alpha: 1 };
+const FUNDO = { r: 0xe0, g: 0xec, b: 0xe1, alpha: 1 };
 
 const completo = await readFile(path.join(publicDir, "logo-agenda.svg"));
 const pequeno = await readFile(path.join(publicDir, "logo-agenda-pequeno.svg"));
@@ -81,6 +81,7 @@ const mask192 = await maskable(completo, 192);
 const mask512 = await maskable(completo, 512);
 const marca = await raster(completo, 512);
 const marcaIcone = await raster(pequeno, 96);
+const google120 = await raster(completo, 120);
 
 const ico = icoFromPngs([
   { size: 16, buffer: fav16 },
@@ -99,6 +100,7 @@ const arquivos = [
   [path.join(publicDir, "apple-touch-icon.png"), apple180],
   [path.join(publicDir, "marca.png"), marca],
   [path.join(publicDir, "marca-icone.png"), marcaIcone],
+  [path.join(publicDir, "logo-google-120.png"), google120],
   [path.join(appDir, "favicon.ico"), ico],
 ];
 

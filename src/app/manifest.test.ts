@@ -5,7 +5,7 @@ import {
   ROTULO_VER_NO_CALENDARIO,
 } from "@/app/conversa-campo";
 import manifest from "@/app/manifest";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -34,6 +34,20 @@ describe("app na tela inicial", () => {
     const appDir = path.resolve(__dirname);
     expect(existsSync(path.join(raiz, "logo-agenda.svg"))).toBe(true);
     expect(existsSync(path.join(raiz, "logo-agenda-pequeno.svg"))).toBe(true);
+    expect(existsSync(path.join(raiz, "logo-google-120.png"))).toBe(true);
+    expect(statSync(path.join(raiz, "logo-google-120.png")).size).toBeLessThan(
+      1024 * 1024,
+    );
+    const svgCompleto = readFileSync(path.join(raiz, "logo-agenda.svg"), "utf8");
+    const svgPequeno = readFileSync(
+      path.join(raiz, "logo-agenda-pequeno.svg"),
+      "utf8",
+    );
+    expect(svgCompleto).not.toMatch(/image\/png|<image|xlink:href/i);
+    expect(svgPequeno).not.toMatch(/image\/png|<image|xlink:href/i);
+    expect(svgCompleto).toContain("#E0ECE1");
+    expect(svgCompleto).toContain("#2C6B4E");
+    expect(svgPequeno).toContain("#2C6B4E");
     expect(existsSync(path.join(appDir, "favicon.ico"))).toBe(true);
     expect(existsSync(path.join(raiz, "favicon-16x16.png"))).toBe(true);
     expect(existsSync(path.join(raiz, "favicon-32x32.png"))).toBe(true);
