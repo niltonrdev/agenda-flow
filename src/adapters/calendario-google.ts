@@ -2,6 +2,7 @@ import type { Calendario, IntervaloCalendario, ListagemDetalhada } from "@/domai
 import type { Compromisso, NovoCompromisso } from "@/domain/compromisso";
 import { FalhaDoCalendario } from "@/domain/falha-calendario";
 import { FUSO_DONO } from "@/domain/fuso";
+import { htmlLinkSeguro } from "@/lib/link-calendario";
 import { LIMITE_AGENDAS_VISIVEIS, LIMITE_EVENTOS_POR_AGENDA } from "@/lib/limites";
 import { DateTime } from "luxon";
 
@@ -22,6 +23,8 @@ export type EventoGoogle = {
   description?: string;
   start?: { date?: string; dateTime?: string; timeZone?: string };
   end?: { date?: string; dateTime?: string; timeZone?: string };
+  /** URL https do evento no Google Agenda (events.insert/get/patch). */
+  htmlLink?: string;
 };
 
 export type EventoParaGravar = {
@@ -145,6 +148,7 @@ export function eventoGoogleParaCompromisso(
   const titulo = evento.summary?.trim() || "(sem título)";
   const id = idDoCompromisso(calendarId, evento.id);
   const descricao = descricaoLocal(evento);
+  const htmlLink = htmlLinkSeguro(evento.htmlLink) ?? undefined;
 
   if (evento.start?.date && evento.end?.date) {
     const ultimoDia = DateTime.fromISO(evento.end.date, { zone: FUSO_DONO })
@@ -157,6 +161,7 @@ export function eventoGoogleParaCompromisso(
       primeiroDia: evento.start.date,
       ultimoDia: ultimoDia!,
       ...(descricao ? { descricao } : {}),
+      ...(htmlLink ? { htmlLink } : {}),
     };
   }
 
@@ -168,6 +173,7 @@ export function eventoGoogleParaCompromisso(
       inicio: evento.start.dateTime,
       fim: evento.end.dateTime,
       ...(descricao ? { descricao } : {}),
+      ...(htmlLink ? { htmlLink } : {}),
     };
   }
 

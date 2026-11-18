@@ -1990,6 +1990,81 @@ describe("entrada de conversa — data certa e viagem informal", () => {
     });
   });
 
+  it("almoço com Tamires tira o 'para' da data e lê 12 horas", async () => {
+    const calendario = criarCalendarioEmMemoria([]);
+    const proposta = await processarTurno(
+      {
+        mensagem: "Marcar almoço com Tamires para 22/11 às 12 horas",
+        agora: AGORA_NOV,
+      },
+      calendario,
+    );
+    expect(proposta.confirmacaoPendente).toMatchObject({
+      acao: "marcar_pontual",
+      titulo: "Almoço com Tamires",
+    });
+    expect(proposta.confirmacaoPendente).toMatchObject({
+      inicio: expect.stringContaining("2026-11-22T12:00"),
+    });
+    expect(proposta.texto).not.toMatch(/Almoço com Tamires para/i);
+  });
+
+  it("alterar almoço para o dia 06/12 às 12horas muda data e hora", async () => {
+    const calendario = criarCalendarioEmMemoria([]);
+    const criado = await calendario.criar({
+      tipo: "pontual",
+      titulo: "Almoço com Tamires",
+      inicio: "2026-11-22T12:00:00.000-03:00",
+      fim: "2026-11-22T13:00:00.000-03:00",
+    });
+    void criado;
+    const proposta = await processarTurno(
+      {
+        mensagem: "Alterar almoço com Tamires para o dia 06/12 às 12horas",
+        agora: AGORA_NOV,
+      },
+      calendario,
+    );
+    expect(proposta.confirmacaoPendente).toMatchObject({
+      acao: "alterar_pontual",
+      titulo: "Almoço com Tamires",
+    });
+    expect(proposta.confirmacaoPendente).toMatchObject({
+      inicio: expect.stringContaining("2026-12-06T12:00"),
+    });
+  });
+
+  it("depois do sim devolve o htmlLink do evento gravado", async () => {
+    const htmlLink = "https://www.google.com/calendar/event?eid=YWJj";
+    const base = criarCalendarioEmMemoria([]);
+    const calendario = {
+      ...base,
+      async criar(
+        compromisso: Parameters<(typeof base)["criar"]>[0],
+      ) {
+        const gravado = await base.criar(compromisso);
+        return { ...gravado, htmlLink };
+      },
+    };
+    const proposta = await processarTurno(
+      {
+        mensagem: "Marcar almoço com Tamires pra 22/11 às 12horas",
+        agora: AGORA_NOV,
+      },
+      calendario,
+    );
+    const gravado = await processarTurno(
+      {
+        mensagem: "sim",
+        agora: AGORA_NOV,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(gravado.htmlLink).toBe(htmlLink);
+    expect(gravado.diaParaCalendario).toBe("2026-11-22");
+  });
+
   it("Marcar BH viagem dia 7/11 pergunta a duração e 1 dia grava Período na data certa", async () => {
     const calendario = criarCalendarioEmMemoria([]);
     const pedindo = await processarTurno(

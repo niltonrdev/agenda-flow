@@ -255,6 +255,58 @@ describe("interpretador — Marcação sem horário", () => {
     }
   });
 
+  it.each([
+    ["Marcar almoço com Tamires para 22/11 às 12 horas", "Almoço com Tamires"],
+    ["Marcar almoço com Tamires pra 22/11 às 12horas", "Almoço com Tamires"],
+    ["Marcar almoço com Tamires no dia 22/11 às 12 horas", "Almoço com Tamires"],
+    ["Marcar almoço com Tamires dia 22/11 às 12horas", "Almoço com Tamires"],
+    ["Marcar almoço com Tamires em 22/11 às 12 horas", "Almoço com Tamires"],
+    [
+      "Marcar almoço com Tamires para o dia 22/11 às 12 horas",
+      "Almoço com Tamires",
+    ],
+  ])("%s tira o conector da data e lê 12 horas colado ou não", (frase, titulo) => {
+    const novembro = DateTime.fromObject(
+      { year: 2026, month: 11, day: 18, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+    const intencao = interpretarMensagem(frase, novembro);
+    expect(intencao).toMatchObject({
+      tipo: "marcar_pontual",
+      titulo,
+    });
+    if (intencao.tipo !== "marcar_pontual") {
+      throw new Error("esperava marcar_pontual");
+    }
+    expect(intencao.inicio).toContain("2026-11-22T12:00");
+    expect(intencao.titulo).not.toMatch(/\bpara\b|\bpra\b|\bem\b/i);
+  });
+
+  it("não tira 'para' quando faz parte do nome e não há data", () => {
+    expect(
+      interpretarMensagem("marcar reunião para planejamento", AGORA),
+    ).toEqual({
+      tipo: "marcar_incompleta",
+      titulo: "Reunião para planejamento",
+    });
+  });
+
+  it("não tira 'para' no meio do título quando a data vem depois", () => {
+    const novembro = DateTime.fromObject(
+      { year: 2026, month: 11, day: 18, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+    expect(
+      interpretarMensagem(
+        "marcar reunião para planejamento dia 22/11 às 12 horas",
+        novembro,
+      ),
+    ).toMatchObject({
+      tipo: "marcar_pontual",
+      titulo: "Reunião para planejamento",
+    });
+  });
+
   it("data já passada sem ano usa o próximo ano", () => {
     const depois = DateTime.fromObject(
       { year: 2026, month: 11, day: 11, hour: 10, minute: 0 },
@@ -424,6 +476,31 @@ describe("interpretador — Alteração", () => {
       tipo: "alterar",
       termo: "reunião com a ana",
       destino: { tipo: "hora", hora: 10, minuto: 0 },
+    });
+  });
+
+  it.each([
+    "Alterar almoço com Tamires para o dia 06/12 às 12horas",
+    "Alterar almoço com Tamires para 06/12 às 12 horas",
+    "Alterar almoço com Tamires pra 06/12 às 12horas",
+    "Alterar almoço com Tamires no dia 06/12 às 12 horas",
+    "Alterar almoço com Tamires dia 06/12 às 12horas",
+    "Alterar almoço com Tamires em 06/12 às 12 horas",
+  ])("%s lê data e 12horas colado ou não", (frase) => {
+    const novembro = DateTime.fromObject(
+      { year: 2026, month: 11, day: 18, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+    expect(interpretarMensagem(frase, novembro)).toEqual({
+      tipo: "alterar",
+      termo: "almoço com tamires",
+      destino: {
+        tipo: "dia_e_hora",
+        dia: 6,
+        mes: 12,
+        hora: 12,
+        minuto: 0,
+      },
     });
   });
 

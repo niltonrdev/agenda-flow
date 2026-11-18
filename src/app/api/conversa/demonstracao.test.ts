@@ -50,4 +50,18 @@ describe("API conversa no modo demonstração", () => {
     const corpo = (await resposta.json()) as { texto?: string };
     expect(corpo.texto).toContain("Almoço de equipe");
   });
+
+  it("no modo demo o título não fica com a preposição da data", async () => {
+    const resposta = await POST(
+      pedido("Marcar almoço com Tamires para 22/11 às 12 horas"),
+    );
+    expect(resposta.status).toBe(200);
+    const corpo = (await resposta.json()) as {
+      texto?: string;
+      confirmacaoPendente?: { titulo?: string };
+    };
+    expect(corpo.confirmacaoPendente?.titulo).toBe("Almoço com Tamires");
+    expect(corpo.texto).toMatch(/Almoço com Tamires/);
+    expect(corpo.texto).not.toMatch(/Almoço com Tamires para/);
+  });
 });

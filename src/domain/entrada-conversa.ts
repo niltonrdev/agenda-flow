@@ -137,8 +137,23 @@ export type SaidaConversa = {
   ultimoDiaConsultado?: string | null;
   /** Dia civil (YYYY-MM-DD) para abrir a visão do dia no Calendário. */
   diaParaCalendario?: string | null;
+  /** htmlLink do evento gravado, para o ícone abrir o Google Agenda. */
+  htmlLink?: string | null;
   falha?: CodigoFalhaCalendario | null;
 };
+
+function saidaAposGravar(
+  texto: string,
+  diaParaCalendario: string,
+  gravado: Compromisso,
+): SaidaConversa {
+  return {
+    texto,
+    confirmacaoPendente: null,
+    diaParaCalendario,
+    htmlLink: gravado.htmlLink ?? null,
+  };
+}
 
 function normalizar(texto: string): string {
   return texto
@@ -805,6 +820,7 @@ export async function processarTurno(
           ? saida.ultimoDiaConsultado
           : (entrada.ultimoDiaConsultado ?? null),
       diaParaCalendario: saida.diaParaCalendario ?? null,
+      htmlLink: saida.htmlLink ?? null,
     };
   } catch (erro) {
     if (erro instanceof FalhaDoCalendario) {
@@ -813,6 +829,7 @@ export async function processarTurno(
         confirmacaoPendente: pendenteInicial,
         ultimoDiaConsultado: entrada.ultimoDiaConsultado ?? null,
         diaParaCalendario: null,
+        htmlLink: null,
         falha: erro.codigo,
       };
     }
@@ -1293,76 +1310,91 @@ async function processarTurnoInterno(
       );
     }
     if (pendente.acao === "marcar_periodo") {
-      await calendario.criar({
+      const gravado = await calendario.criar({
         tipo: "periodo",
         titulo: pendente.titulo,
         primeiroDia: pendente.primeiroDia,
         ultimoDia: pendente.ultimoDia,
       });
-      return {
-        texto: formatarPeriodoMarcado(pendente, entrada.agora),
-        confirmacaoPendente: null,
-        diaParaCalendario: pendente.primeiroDia,
-      };
+      return saidaAposGravar(
+        formatarPeriodoMarcado(pendente, entrada.agora),
+        pendente.primeiroDia,
+        gravado,
+      );
     }
     if (pendente.acao === "marcar_pontual") {
-      await calendario.criar({
+      const gravado = await calendario.criar({
         tipo: "pontual",
         titulo: pendente.titulo,
         inicio: pendente.inicio,
         fim: pendente.fim,
       });
-      return {
-        texto: formatarPontualMarcado(pendente, entrada.agora),
-        confirmacaoPendente: null,
-        diaParaCalendario: diaCivil(
-          DateTime.fromISO(pendente.inicio, { setZone: true }),
-        ),
-      };
+      return saidaAposGravar(
+        formatarPontualMarcado(pendente, entrada.agora),
+        diaCivil(DateTime.fromISO(pendente.inicio, { setZone: true })),
+        gravado,
+      );
     }
     if (pendente.acao === "alterar_periodo") {
-      await calendario.alterar(pendente.id, {
+      const gravado = await calendario.alterar(pendente.id, {
         tipo: "periodo",
         titulo: pendente.titulo,
         primeiroDia: pendente.primeiroDia,
         ultimoDia: pendente.ultimoDia,
       });
-      return {
-        texto: formatarPeriodoAlterado(pendente, entrada.agora),
-        confirmacaoPendente: null,
-      };
+      return saidaAposGravar(
+        formatarPeriodoAlterado(pendente, entrada.agora),
+        pendente.primeiroDia,
+        gravado,
+      );
     }
     if (pendente.acao === "alterar_pontual") {
-      await calendario.alterar(pendente.id, {
+      const gravado = await calendario.alterar(pendente.id, {
         tipo: "pontual",
         titulo: pendente.titulo,
         inicio: pendente.inicio,
         fim: pendente.fim,
       });
-      return {
-        texto: formatarPontualAlterado(pendente, entrada.agora),
-        confirmacaoPendente: null,
-      };
+      return saidaAposGravar(
+        formatarPontualAlterado(pendente, entrada.agora),
+        diaCivil(DateTime.fromISO(pendente.inicio, { setZone: true })),
+        gravado,
+      );
     }
     if (pendente.acao === "alterar_titulo") {
+      let gravado: Compromisso;
       if (pendente.tipo === "periodo") {
-        await calendario.alterar(pendente.id, {
+        gravado = await calendario.alterar(pendente.id, {
           tipo: "periodo",
           titulo: pendente.tituloNovo,
           primeiroDia: pendente.primeiroDia ?? "",
           ultimoDia: pendente.ultimoDia ?? "",
         });
       } else {
-        await calendario.alterar(pendente.id, {
+        gravado = await calendario.alterar(pendente.id, {
           tipo: "pontual",
           titulo: pendente.tituloNovo,
           inicio: pendente.inicio ?? "",
           fim: pendente.fim ?? "",
         });
       }
+      const dia =
+        pendente.tipo === "periodo"
+          ? pendente.primeiroDia
+          : pendente.inicio
+            ? diaCivil(DateTime.fromISO(pendente.inicio, { setZone: true }))
+            : undefined;
+      if (dia && /^\d{4}-\d{2}-\d{2}$/u.test(dia)) {
+        return saidaAposGravar(
+          formatarTituloAlterado(pendente),
+          dia,
+          gravado,
+        );
+      }
       return {
         texto: formatarTituloAlterado(pendente),
         confirmacaoPendente: null,
+        htmlLink: gravado.htmlLink ?? null,
       };
     }
     if (pendente.acao === "cancelar_periodo") {

@@ -11,6 +11,8 @@ export type Pontual = {
    * Nunca exibir, gravar em cookie/banco, enviar a terceiro ou registrar em log.
    */
   descricao?: string;
+  /** htmlLink do evento no Google Agenda, quando a API devolve. */
+  htmlLink?: string;
 };
 
 /** Compromisso de dias inteiros, primeiro e último inclusive. */
@@ -26,6 +28,8 @@ export type Periodo = {
    * Nunca exibir, gravar em cookie/banco, enviar a terceiro ou registrar em log.
    */
   descricao?: string;
+  /** htmlLink do evento no Google Agenda, quando a API devolve. */
+  htmlLink?: string;
 };
 
 export type Compromisso = Pontual | Periodo;

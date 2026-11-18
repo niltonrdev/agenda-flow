@@ -36,6 +36,26 @@ describe("conversão Período ↔ dia inteiro no Google", () => {
     });
   });
 
+  it("propaga o htmlLink https do evento e ignora calshow", () => {
+    const htmlLink = "https://www.google.com/calendar/event?eid=YWJj";
+    const comLink = eventoGoogleParaCompromisso("primary", {
+      id: "evt-1",
+      summary: "Pescaria",
+      htmlLink,
+      start: { date: "2025-09-04" },
+      end: { date: "2025-09-08" },
+    });
+    expect(comLink).toMatchObject({ htmlLink });
+    const apple = eventoGoogleParaCompromisso("primary", {
+      id: "evt-2",
+      summary: "Pescaria",
+      htmlLink: "calshow:123",
+      start: { date: "2025-09-04" },
+      end: { date: "2025-09-08" },
+    });
+    expect(apple).not.toHaveProperty("htmlLink");
+  });
+
   it("lê a descrição só para casar localmente, no mesmo events.list", () => {
     const compromisso = eventoGoogleParaCompromisso("primary", {
       id: "evt-desc",
@@ -151,7 +171,11 @@ describe("adaptador Google — porta Calendário", () => {
       },
       async criarEvento(calendarId, evento) {
         gravados.push({ calendarId, summary: evento.summary });
-        return { id: "novo", ...evento };
+        return {
+          id: "novo",
+          ...evento,
+          htmlLink: "https://www.google.com/calendar/event?eid=novo",
+        };
       },
       async alterarEvento() {
         throw new Error("não alterar");
@@ -171,13 +195,16 @@ describe("adaptador Google — porta Calendário", () => {
       inicio: inicio.toISO()!,
       fim: inicio.plus({ hours: 1 }).toISO()!,
     });
-    await calendario.criar({
+    const periodo = await calendario.criar({
       tipo: "periodo",
       titulo: "Pescaria",
       primeiroDia: "2025-09-04",
       ultimoDia: "2025-09-07",
     });
 
+    expect(periodo.htmlLink).toBe(
+      "https://www.google.com/calendar/event?eid=novo",
+    );
     expect(gravados).toEqual([
       { calendarId: "primary", summary: "Reunião com a Ana" },
       { calendarId: "primary", summary: "Pescaria" },

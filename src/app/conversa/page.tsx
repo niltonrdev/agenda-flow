@@ -3,7 +3,7 @@
 import { CompositorMensagem } from "@/app/compositor-mensagem";
 import { ROTULO_VER_NO_CALENDARIO } from "@/app/conversa-campo";
 import { SeletorDiasPeriodo } from "@/app/seletor-dias";
-import { ehAparelhoIos, urlAbrirCalendario } from "@/lib/link-calendario";
+import { urlAbrirCalendario } from "@/lib/link-calendario";
 import {
   deveZerarRolagemLayout,
   propriedadesViewportVisual,
@@ -28,6 +28,7 @@ type MensagemNaTela = {
   papel: "dono" | "agenda";
   texto: string;
   diaParaCalendario?: string | null;
+  htmlLink?: string | null;
 };
 
 type StatusGoogle = {
@@ -231,6 +232,7 @@ export default function ConversaPage() {
         confirmacaoPendente?: ConfirmacaoPendente | null;
         ultimoDiaConsultado?: string | null;
         diaParaCalendario?: string | null;
+        htmlLink?: string | null;
       };
 
       if (dados.falha === "reconectar" || resposta.status === 401) {
@@ -254,6 +256,7 @@ export default function ConversaPage() {
           papel: "agenda",
           texto: dados.texto ?? "",
           diaParaCalendario: dados.diaParaCalendario ?? null,
+          htmlLink: dados.htmlLink ?? null,
         },
       ]);
     } catch (e) {
@@ -365,17 +368,9 @@ export default function ConversaPage() {
             {google.conectado && m.diaParaCalendario ? (
               <a
                 className="balao-calendario"
-                href={urlAbrirCalendario(
-                  m.diaParaCalendario,
-                  typeof navigator === "undefined" ? "" : navigator.userAgent,
-                )}
-                target={
-                  typeof navigator !== "undefined" &&
-                  ehAparelhoIos(navigator.userAgent)
-                    ? undefined
-                    : "_blank"
-                }
-                rel="noopener noreferrer"
+                href={urlAbrirCalendario(m.diaParaCalendario, m.htmlLink)}
+                target="_blank"
+                rel="noopener"
                 aria-label={ROTULO_VER_NO_CALENDARIO}
                 title={ROTULO_VER_NO_CALENDARIO}
               >

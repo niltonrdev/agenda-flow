@@ -283,15 +283,15 @@ const RE_PREFIXO_ESCOLHA =
 
 const PALAVRA = String.raw`(?<![\p{L}\p{N}])`;
 const FIM_PALAVRA = String.raw`(?![\p{L}\p{N}])`;
-/** 5h, 5hs, 5h30, 5:30, 5:30h, 5 hrs, 5 horas */
+/** 5h, 5hs, 5h30, 5:30, 5:30h, 5 hrs, 5 horas, 12horas */
 const HORA = String.raw`(\d{1,2})(?:h(?:s)?(\d{2})?|:(\d{2})h?s?|\s*hrs?|\s*horas?)`;
 
 const RE_TEM_HORA = new RegExp(
   [
     `${PALAVRA}\\d{1,2}\\s*hs?(?:\\d{2})?${FIM_PALAVRA}`,
-    `${PALAVRA}\\d{1,2}\\s+hrs?${FIM_PALAVRA}`,
+    `${PALAVRA}\\d{1,2}\\s*hrs?${FIM_PALAVRA}`,
     `${PALAVRA}\\d{1,2}:\\d{2}h?s?${FIM_PALAVRA}`,
-    `${PALAVRA}\\d{1,2}\\s+horas?${FIM_PALAVRA}`,
+    `${PALAVRA}\\d{1,2}\\s*horas?${FIM_PALAVRA}`,
     `${PALAVRA}[aà]s\\s+\\d{1,2}${FIM_PALAVRA}`,
     `${PALAVRA}\\d{1,2}(?:h\\d{0,2}|:\\d{2}h?)?\\s+da\\s+(?:manh[aã]|tarde|noite)${FIM_PALAVRA}`,
   ].join("|"),
@@ -776,6 +776,9 @@ export function periodoAPartirDaDuracao(
   return null;
 }
 
+/** Prep./conector só quando vem imediatamente antes da data. */
+const PREP_ANTES_DATA = String.raw`(?:(?:para|pra|em)\s+(?:o\s+)?)?(?:no\s+)?(?:dia\s+)?`;
+
 function tituloDaMensagem(mensagemOriginal: string): string {
   let titulo = mensagemOriginal.normalize("NFC").trim();
   titulo = titulo.replace(
@@ -788,27 +791,33 @@ function tituloDaMensagem(mensagemOriginal: string): string {
     " ",
   );
   titulo = titulo.replace(
-    new RegExp(`${PALAVRA}depois de amanh[aã]${FIM_PALAVRA}`, "giu"),
+    new RegExp(
+      `${PALAVRA}${PREP_ANTES_DATA}depois de amanh[aã]${FIM_PALAVRA}`,
+      "giu",
+    ),
     " ",
   );
   titulo = titulo.replace(
-    new RegExp(`${PALAVRA}amanh[aã]${FIM_PALAVRA}`, "giu"),
+    new RegExp(`${PALAVRA}${PREP_ANTES_DATA}amanh[aã]${FIM_PALAVRA}`, "giu"),
     " ",
   );
-  titulo = titulo.replace(new RegExp(`${PALAVRA}hoje${FIM_PALAVRA}`, "giu"), " ");
+  titulo = titulo.replace(
+    new RegExp(`${PALAVRA}${PREP_ANTES_DATA}hoje${FIM_PALAVRA}`, "giu"),
+    " ",
+  );
   titulo = titulo.replace(new RegExp(RE_INTERVALO_NUM.source, "giu"), " ");
   titulo = titulo.replace(new RegExp(RE_INTERVALO.source, "giu"), " ");
   titulo = titulo.replace(/\bpara\s+os\s+dias?\b/giu, " ");
   titulo = titulo.replace(
     new RegExp(
-      `${PALAVRA}(?:no\\s+)?(?:dia\\s+)?\\d{1,2}\\s+de\\s+(?:${GRUPO_MES})(?:\\s+de\\s+\\d{4})?${FIM_PALAVRA}`,
+      `${PALAVRA}${PREP_ANTES_DATA}\\d{1,2}\\s+de\\s+(?:${GRUPO_MES})(?:\\s+de\\s+\\d{4})?${FIM_PALAVRA}`,
       "giu",
     ),
     " ",
   );
   titulo = titulo.replace(
     new RegExp(
-      `${PALAVRA}(?:dia\\s+)?\\d{1,2}\\/\\d{1,2}(?:\\/\\d{2,4})?${FIM_PALAVRA}`,
+      `${PALAVRA}${PREP_ANTES_DATA}\\d{1,2}\\/\\d{1,2}(?:\\/\\d{2,4})?${FIM_PALAVRA}`,
       "giu",
     ),
     " ",
@@ -836,7 +845,7 @@ function tituloDaMensagem(mensagemOriginal: string): string {
   );
   titulo = titulo.replace(
     new RegExp(
-      `${PALAVRA}\\d{1,2}(?:hs?(?:\\d{2})?|:\\d{2}h?s?|\\s+hrs?|\\s+horas?)${FIM_PALAVRA}`,
+      `${PALAVRA}\\d{1,2}(?:hs?(?:\\d{2})?|:\\d{2}h?s?|\\s*hrs?|\\s*horas?)${FIM_PALAVRA}`,
       "giu",
     ),
     " ",
@@ -1159,32 +1168,66 @@ export function interpretarEscolhaLista(
   };
 }
 
+function partirTermoDestinoAlteracao(
+  semVerbo: string,
+): { termoBruto: string; destinoBruto: string } | null {
+  const para = /\s+(?:para|pra)\s+/iu.exec(semVerbo);
+  if (para && para.index != null) {
+    return {
+      termoBruto: semVerbo.slice(0, para.index),
+      destinoBruto: semVerbo.slice(para.index + para[0].length),
+    };
+  }
+
+  const extremo = /\s+((?:a\s+partir|at[eé]|come[cç]a).+)$/iu.exec(semVerbo);
+  if (extremo && extremo.index != null) {
+    return {
+      termoBruto: semVerbo.slice(0, extremo.index),
+      destinoBruto: extremo[1],
+    };
+  }
+
+  const emData = /\s+em\s+(?=(?:o\s+)?(?:dia\s+)?\d)/iu.exec(semVerbo);
+  if (emData && emData.index != null) {
+    return {
+      termoBruto: semVerbo.slice(0, emData.index),
+      destinoBruto: semVerbo.slice(emData.index + emData[0].length),
+    };
+  }
+
+  const diaDestino =
+    /(?<!(?:^|\s)(?:do|de))\s+(?:no\s+dia|dia)\s+(?=\d)/iu.exec(semVerbo);
+  if (diaDestino && diaDestino.index != null) {
+    return {
+      termoBruto: semVerbo.slice(0, diaDestino.index),
+      destinoBruto: semVerbo.slice(diaDestino.index + diaDestino[0].length),
+    };
+  }
+
+  return null;
+}
+
 function montarAlterar(mensagem: string, agora: DateTime): Intencao {
   const semVerbo = mensagem.trim().replace(RE_ALTERAR, "");
   let termoBruto = semVerbo;
   let destinoBruto = "";
 
-  const partesPara = semVerbo.split(/\s+para\s+/iu);
-  if (partesPara.length > 1) {
-    termoBruto = partesPara[0];
-    destinoBruto = partesPara.slice(1).join(" para ");
+  const partido = partirTermoDestinoAlteracao(semVerbo);
+  if (partido) {
+    termoBruto = partido.termoBruto;
+    destinoBruto = partido.destinoBruto;
   } else {
-    const sufixo = /\s+((?:a\s+partir|at[eé]|come[cç]a).+)$/iu.exec(semVerbo);
-    if (!sufixo) {
-      const { dia, semDia } = extrairDiaRecorteDoTexto(termoBruto);
-      if (ehPedidoDeRenomear(mensagem, semDia)) {
-        const termo = termoDeNome(semDia);
-        return dia
-          ? { tipo: "alterar_titulo", termo, dia }
-          : { tipo: "alterar_titulo", termo };
-      }
-      const termo = termoDeAlteracao(semDia);
+    const { dia, semDia } = extrairDiaRecorteDoTexto(termoBruto);
+    if (ehPedidoDeRenomear(mensagem, semDia)) {
+      const termo = termoDeNome(semDia);
       return dia
-        ? { tipo: "alterar_sem_destino", termo, dia }
-        : { tipo: "alterar_sem_destino", termo };
+        ? { tipo: "alterar_titulo", termo, dia }
+        : { tipo: "alterar_titulo", termo };
     }
-    termoBruto = semVerbo.slice(0, sufixo.index);
-    destinoBruto = sufixo[1];
+    const termo = termoDeAlteracao(semDia);
+    return dia
+      ? { tipo: "alterar_sem_destino", termo, dia }
+      : { tipo: "alterar_sem_destino", termo };
   }
 
   const { dia, semDia } = extrairDiaRecorteDoTexto(termoBruto);

@@ -182,6 +182,7 @@ export async function POST(request: Request) {
             confirmacaoPendente: saida.confirmacaoPendente,
             ultimoDiaConsultado: saida.ultimoDiaConsultado ?? null,
             diaParaCalendario: saida.diaParaCalendario ?? null,
+            htmlLink: saida.htmlLink ?? null,
             falha: saida.falha ?? null,
           }
         : { erro: saida.texto, falha: saida.falha };
