@@ -2663,4 +2663,208 @@ describe("entrada de conversa — renomear Compromisso", () => {
   });
 });
 
+describe("entrada de conversa — dia+mês sem ano (relógio 2026-11-17)", () => {
+  const AGORA_NOV = DateTime.fromObject(
+    { year: 2026, month: 11, day: 17, hour: 10, minute: 0 },
+    { zone: FUSO_DONO },
+  );
+
+  it("marcar dia+mês já passado neste ano vai para o ano seguinte e mostra o ano", async () => {
+    const calendario = criarCalendarioEmMemoria([]);
+    const proposta = await processarTurno(
+      {
+        mensagem: "marcar reunião dia 5 de janeiro às 10h",
+        agora: AGORA_NOV,
+      },
+      calendario,
+    );
+    expect(proposta.texto).toMatch(/Confirmação/i);
+    expect(proposta.texto).toContain("5 de janeiro de 2027");
+    expect(proposta.confirmacaoPendente).toMatchObject({
+      acao: "marcar_pontual",
+    });
+    const pendente = proposta.confirmacaoPendente;
+    if (pendente?.acao !== "marcar_pontual") {
+      throw new Error("esperava Confirmação de Pontual");
+    }
+    expect(pendente.inicio).toContain("2027-01-05T10:00");
+    expect(calendario.listarTodos()).toHaveLength(0);
+
+    const saida = await processarTurno(
+      {
+        mensagem: "sim",
+        agora: AGORA_NOV,
+        confirmacaoPendente: pendente,
+      },
+      calendario,
+    );
+    expect(saida.texto).toContain("5 de janeiro de 2027");
+    expect(calendario.listarTodos()).toEqual([
+      expect.objectContaining({
+        tipo: "pontual",
+        inicio: pendente.inicio,
+      }),
+    ]);
+  });
+
+  it("alterar reunião de 5 de dezembro para 5 de janeiro vai a 2027 no mesmo horário", async () => {
+    const inicio = DateTime.fromObject(
+      { year: 2026, month: 12, day: 5, hour: 15, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+    const calendario = criarCalendarioEmMemoria([
+      {
+        id: "teste",
+        titulo: "Reunião teste",
+        tipo: "pontual",
+        inicio: inicio.toISO()!,
+        fim: inicio.plus({ hours: 1 }).toISO()!,
+      },
+    ]);
+
+    const proposta = await processarTurno(
+      {
+        mensagem:
+          "alterar reunião teste do dia 5 de dezembro para o dia 5 de Janeiro mesmo horário",
+        agora: AGORA_NOV,
+      },
+      calendario,
+    );
+    expect(proposta.texto).toMatch(/Confirmação/i);
+    expect(proposta.texto).toContain("5 de janeiro de 2027");
+    expect(proposta.texto).toContain("15h");
+    expect(proposta.confirmacaoPendente).toMatchObject({
+      acao: "alterar_pontual",
+    });
+    const pendente = proposta.confirmacaoPendente;
+    if (pendente?.acao !== "alterar_pontual") {
+      throw new Error("esperava Confirmação de Alteração");
+    }
+    expect(pendente.inicio).toContain("2027-01-05T15:00");
+    expect(calendario.listarTodos()).toHaveLength(1);
+    expect(calendario.listarTodos()[0]).toMatchObject({
+      inicio: inicio.toISO(),
+    });
+
+    const saida = await processarTurno(
+      {
+        mensagem: "Sim",
+        agora: AGORA_NOV,
+        confirmacaoPendente: pendente,
+      },
+      calendario,
+    );
+    expect(saida.texto).toContain("5 de janeiro de 2027");
+    expect(calendario.listarTodos()).toEqual([
+      expect.objectContaining({
+        id: "teste",
+        inicio: pendente.inicio,
+        fim: pendente.fim,
+      }),
+    ]);
+  });
+
+  it("consulta de dia+mês já passado neste ano aponta o mesmo ano que a Marcação", async () => {
+    const calendario = criarCalendarioEmMemoria([]);
+    const saida = await processarTurno(
+      { mensagem: "dia 5 de Janeiro", agora: AGORA_NOV },
+      calendario,
+    );
+    expect(saida.texto).toBe("5 de janeiro de 2027 está livre.");
+    expect(saida.diaParaCalendario).toBe("2027-01-05");
+  });
+
+  it("ano explícito é respeitado mesmo já passado", async () => {
+    const calendario = criarCalendarioEmMemoria([]);
+    const proposta = await processarTurno(
+      {
+        mensagem: "marcar reunião dia 5 de janeiro de 2026 às 10h",
+        agora: AGORA_NOV,
+      },
+      calendario,
+    );
+    expect(proposta.texto).toContain("5 de janeiro");
+    expect(proposta.texto).not.toContain("2027");
+    const pendente = proposta.confirmacaoPendente;
+    if (pendente?.acao !== "marcar_pontual") {
+      throw new Error("esperava Confirmação de Pontual");
+    }
+    expect(pendente.inicio).toContain("2026-01-05T10:00");
+  });
+
+  it("hoje sem ano permanece neste ano", async () => {
+    const calendario = criarCalendarioEmMemoria([]);
+    const saida = await processarTurno(
+      { mensagem: "17 de novembro", agora: AGORA_NOV },
+      calendario,
+    );
+    expect(saida.texto).toBe("17 de novembro está livre.");
+    expect(saida.diaParaCalendario).toBe("2026-11-17");
+  });
+
+  it("na virada do ano, 31 de dezembro fica neste ano e 1º de janeiro vai ao seguinte", async () => {
+    const fimDoAno = DateTime.fromObject(
+      { year: 2026, month: 12, day: 31, hour: 22 },
+      { zone: FUSO_DONO },
+    );
+    const calendario = criarCalendarioEmMemoria([]);
+    const dezembro = await processarTurno(
+      { mensagem: "31 de dezembro", agora: fimDoAno },
+      calendario,
+    );
+    expect(dezembro.texto).toBe("31 de dezembro está livre.");
+    expect(dezembro.diaParaCalendario).toBe("2026-12-31");
+
+    const janeiro = await processarTurno(
+      { mensagem: "1 de janeiro", agora: fimDoAno },
+      calendario,
+    );
+    expect(janeiro.texto).toBe("1 de janeiro de 2027 está livre.");
+    expect(janeiro.diaParaCalendario).toBe("2027-01-01");
+  });
+
+  it("cancelar reunião do dia 5 de janeiro acha a ocorrência de 2027", async () => {
+    const inicio = DateTime.fromObject(
+      { year: 2027, month: 1, day: 5, hour: 10 },
+      { zone: FUSO_DONO },
+    );
+    const calendario = criarCalendarioEmMemoria([
+      {
+        id: "futura",
+        titulo: "Reunião",
+        tipo: "pontual",
+        inicio: inicio.toISO()!,
+        fim: inicio.plus({ hours: 1 }).toISO()!,
+      },
+      {
+        id: "passada",
+        titulo: "Reunião",
+        tipo: "pontual",
+        inicio: DateTime.fromObject(
+          { year: 2026, month: 1, day: 5, hour: 10 },
+          { zone: FUSO_DONO },
+        ).toISO()!,
+        fim: DateTime.fromObject(
+          { year: 2026, month: 1, day: 5, hour: 11 },
+          { zone: FUSO_DONO },
+        ).toISO()!,
+      },
+    ]);
+    const saida = await processarTurno(
+      {
+        mensagem: "cancelar reunião do dia 5 de janeiro",
+        agora: AGORA_NOV,
+      },
+      calendario,
+    );
+    expect(saida.texto).toMatch(/Confirmação/i);
+    expect(saida.texto).toContain("5 de janeiro de 2027");
+    expect(saida.confirmacaoPendente).toMatchObject({
+      acao: "cancelar_pontual",
+      id: "futura",
+    });
+    expect(calendario.listarTodos()).toHaveLength(2);
+  });
+});
+
 

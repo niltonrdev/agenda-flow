@@ -73,9 +73,9 @@ export type IntencaoRecusar = {
 };
 
 export type DestinoAlteracao =
-  | { tipo: "dia"; dia: number; mes?: number }
+  | { tipo: "dia"; dia: number; mes?: number; ano?: number }
   | { tipo: "hora"; hora: number; minuto: number }
-  | { tipo: "dia_e_hora"; dia: number; mes?: number; hora: number; minuto: number }
+  | { tipo: "dia_e_hora"; dia: number; mes?: number; ano?: number; hora: number; minuto: number }
   | { tipo: "periodo"; primeiroDia: string; ultimoDia: string }
   | { tipo: "primeiro_dia"; primeiroDia: string }
   | { tipo: "ultimo_dia"; ultimoDia: string };
@@ -870,7 +870,7 @@ function resolverDiaDoMes(dia: number, agora: DateTime): string | null {
 
 function partesDoDia(
   texto: string,
-): { dia: number; mes?: number } | null {
+): { dia: number; mes?: number; ano?: number } | null {
   const matchData = RE_DATA.exec(texto);
   if (matchData) {
     const dia = Number(matchData[1]);
@@ -967,6 +967,7 @@ export function interpretarDestinoAlteracao(
       tipo: "dia_e_hora",
       dia: partes.dia,
       ...(partes.mes != null ? { mes: partes.mes } : {}),
+      ...(partes.ano != null ? { ano: partes.ano } : {}),
       hora: hora.hour,
       minuto: hora.minute,
     };
@@ -979,6 +980,7 @@ export function interpretarDestinoAlteracao(
       tipo: "dia",
       dia: partes.dia,
       ...(partes.mes != null ? { mes: partes.mes } : {}),
+      ...(partes.ano != null ? { ano: partes.ano } : {}),
     };
   }
   return null;

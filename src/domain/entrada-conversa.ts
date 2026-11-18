@@ -68,7 +68,15 @@ import {
   RESPOSTA_O_QUE_MUDAR,
   rotuloCandidato,
 } from "./formatar-resposta";
-import { FUSO_DONO, NOMES_MESES_PT, diaCivil, fimDoDia, inicioDoDia, recorteMes } from "./fuso";
+import {
+  FUSO_DONO,
+  NOMES_MESES_PT,
+  diaCivil,
+  fimDoDia,
+  inicioDoDia,
+  recorteMes,
+  resolverDiaMesConsulta,
+} from "./fuso";
 import {
   completarMarcacaoPontual,
   interpretarDestinoAlteracao,
@@ -155,15 +163,28 @@ function casaComTermo(titulo: string, termo: string): boolean {
 function casaComDiaRecorte(
   compromisso: Compromisso,
   recorte: DiaRecorte,
+  agora: DateTime,
 ): boolean {
+  if (recorte.mes != null) {
+    const alvo = resolverDiaMesConsulta(
+      recorte.dia,
+      recorte.mes,
+      agora,
+      recorte.ano,
+    );
+    if (compromisso.tipo === "pontual") {
+      const dt = DateTime.fromISO(compromisso.inicio, { setZone: true }).setZone(
+        FUSO_DONO,
+      );
+      return dt.toISODate() === alvo;
+    }
+    return compromisso.primeiroDia <= alvo && alvo <= compromisso.ultimoDia;
+  }
   if (compromisso.tipo === "pontual") {
     const dt = DateTime.fromISO(compromisso.inicio, { setZone: true }).setZone(
       FUSO_DONO,
     );
-    if (dt.day !== recorte.dia) return false;
-    if (recorte.mes != null && dt.month !== recorte.mes) return false;
-    if (recorte.ano != null && dt.year !== recorte.ano) return false;
-    return true;
+    return dt.day === recorte.dia;
   }
   const primeiro = DateTime.fromISO(compromisso.primeiroDia, {
     zone: FUSO_DONO,
@@ -171,31 +192,18 @@ function casaComDiaRecorte(
   const ultimo = DateTime.fromISO(compromisso.ultimoDia, {
     zone: FUSO_DONO,
   }).startOf("day");
-  if (recorte.mes == null) {
-    return primeiro.day === recorte.dia || ultimo.day === recorte.dia;
-  }
-  let cursor = primeiro;
-  while (cursor <= ultimo) {
-    if (
-      cursor.day === recorte.dia &&
-      cursor.month === recorte.mes &&
-      (recorte.ano == null || cursor.year === recorte.ano)
-    ) {
-      return true;
-    }
-    cursor = cursor.plus({ days: 1 });
-  }
-  return false;
+  return primeiro.day === recorte.dia || ultimo.day === recorte.dia;
 }
 
 function filtrarCandidatos(
   existentes: Compromisso[],
   termo: string,
+  agora: DateTime,
   dia?: DiaRecorte,
 ): Compromisso[] {
   const porTermo = existentes.filter((c) => casaComTermo(c.titulo, termo));
   if (!dia) return porTermo;
-  return porTermo.filter((c) => casaComDiaRecorte(c, dia));
+  return porTermo.filter((c) => casaComDiaRecorte(c, dia, agora));
 }
 
 /**
@@ -305,7 +313,9 @@ function casarEscolha(
   let restantes = pares;
   if (filtros.dia) {
     restantes = restantes.filter(
-      (p) => p.compromisso != null && casaComDiaRecorte(p.compromisso, filtros.dia!),
+      (p) =>
+        p.compromisso != null &&
+        casaComDiaRecorte(p.compromisso, filtros.dia!, agora),
     );
   }
   if (filtros.hora) {
@@ -465,10 +475,11 @@ function pedirDuracaoPeriodo(
   titulo: string,
   dia: string | undefined,
   diaAnterior: string | null,
+  agora: DateTime,
 ): SaidaConversa {
   return comDiaConsultado(
     {
-      texto: formatarPedirDuracaoPeriodo(titulo, dia),
+      texto: formatarPedirDuracaoPeriodo(titulo, dia, agora),
       confirmacaoPendente: {
         acao: "completar_duracao_periodo",
         titulo,
@@ -501,10 +512,11 @@ function pedirHorarioMarcacao(
   titulo: string,
   dia: string,
   diaAnterior: string | null,
+  agora: DateTime,
 ): SaidaConversa {
   return comDiaConsultado(
     {
-      texto: formatarPedirHorarioMarcacao(titulo, dia),
+      texto: formatarPedirHorarioMarcacao(titulo, dia, agora),
       confirmacaoPendente: {
         acao: "completar_marcacao",
         titulo,
@@ -515,7 +527,10 @@ function pedirHorarioMarcacao(
   );
 }
 
-function confirmacaoDeCancelamento(compromisso: Compromisso): SaidaConversa {
+function confirmacaoDeCancelamento(
+  compromisso: Compromisso,
+  agora: DateTime,
+): SaidaConversa {
   if (compromisso.tipo === "pontual") {
     const proposta: ConfirmacaoCancelarPontual = {
       acao: "cancelar_pontual",
@@ -525,7 +540,7 @@ function confirmacaoDeCancelamento(compromisso: Compromisso): SaidaConversa {
       fim: compromisso.fim,
     };
     return {
-      texto: formatarConfirmacaoCancelarPontual(proposta),
+      texto: formatarConfirmacaoCancelarPontual(proposta, agora),
       confirmacaoPendente: proposta,
     };
   }
@@ -537,7 +552,7 @@ function confirmacaoDeCancelamento(compromisso: Compromisso): SaidaConversa {
     ultimoDia: compromisso.ultimoDia,
   };
   return {
-    texto: formatarConfirmacaoCancelarPeriodo(proposta),
+    texto: formatarConfirmacaoCancelarPeriodo(proposta, agora),
     confirmacaoPendente: proposta,
   };
 }
@@ -562,6 +577,7 @@ async function conflitosDaProposta(
 async function saidaDeConfirmacao(
   proposta: ConfirmacaoMarcacao,
   calendario: Calendario,
+  agora: DateTime,
 ): Promise<SaidaConversa> {
   const janela =
     proposta.acao === "marcar_pontual"
@@ -582,7 +598,7 @@ async function saidaDeConfirmacao(
     existentes,
   );
   return {
-    texto: formatarConfirmacao(proposta, conflitos),
+    texto: formatarConfirmacao(proposta, conflitos, agora),
     confirmacaoPendente: proposta,
   };
 }
@@ -591,6 +607,7 @@ async function confirmarAlteracao(
   compromisso: Compromisso,
   proposto: NovoCompromisso,
   calendario: Calendario,
+  agora: DateTime,
 ): Promise<SaidaConversa> {
   const conflitos = await conflitosDaProposta(
     calendario,
@@ -608,7 +625,7 @@ async function confirmarAlteracao(
       fim: proposto.fim,
     };
     return {
-      texto: formatarConfirmacaoAlterarPontual(proposta, conflitos),
+      texto: formatarConfirmacaoAlterarPontual(proposta, conflitos, agora),
       confirmacaoPendente: proposta,
     };
   }
@@ -640,7 +657,7 @@ async function confirmarAlteracao(
       ultimoDia: proposto.ultimoDia,
     };
     return {
-      texto: formatarConfirmacaoAlterarPeriodo(proposta, conflitos),
+      texto: formatarConfirmacaoAlterarPeriodo(proposta, conflitos, agora),
       confirmacaoPendente: proposta,
     };
   }
@@ -651,12 +668,13 @@ async function montarAlteracao(
   compromisso: Compromisso,
   destino: DestinoAlteracao,
   calendario: Calendario,
+  agora: DateTime,
 ): Promise<SaidaConversa> {
-  const proposto = aplicarDestino(compromisso, destino);
+  const proposto = aplicarDestino(compromisso, destino, agora);
   if (!proposto) {
     return { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: null };
   }
-  return confirmarAlteracao(compromisso, proposto, calendario);
+  return confirmarAlteracao(compromisso, proposto, calendario, agora);
 }
 
 function propostaDeTitulo(
@@ -723,6 +741,7 @@ async function corrigirAlteracao(
   pendente: ConfirmacaoAlterarPontual | ConfirmacaoAlterarPeriodo,
   destino: DestinoAlteracao,
   calendario: Calendario,
+  agora: DateTime,
 ): Promise<SaidaConversa | null> {
   if (pendente.acao === "alterar_pontual") {
     const proposto = aplicarDestinoNaProposta(
@@ -733,6 +752,7 @@ async function corrigirAlteracao(
         fim: pendente.fim,
       },
       destino,
+      agora,
     );
     if (!proposto || proposto.tipo !== "pontual") return null;
     const atual: Compromisso = {
@@ -742,7 +762,7 @@ async function corrigirAlteracao(
       inicio: pendente.inicioAtual,
       fim: pendente.fimAtual,
     };
-    return confirmarAlteracao(atual, proposto, calendario);
+    return confirmarAlteracao(atual, proposto, calendario, agora);
   }
   const proposto = aplicarDestinoNaProposta(
     {
@@ -752,6 +772,7 @@ async function corrigirAlteracao(
       ultimoDia: pendente.ultimoDia,
     },
     destino,
+    agora,
   );
   if (!proposto || proposto.tipo !== "periodo") return null;
   const atual: Compromisso = {
@@ -761,7 +782,7 @@ async function corrigirAlteracao(
     primeiroDia: pendente.primeiroDiaAtual,
     ultimoDia: pendente.ultimoDiaAtual,
   };
-  return confirmarAlteracao(atual, proposto, calendario);
+  return confirmarAlteracao(atual, proposto, calendario, agora);
 }
 
 /**
@@ -871,7 +892,7 @@ async function processarTurnoInterno(
           );
         }
         return comDiaConsultado(
-          await montarAlteracao(compromisso, destino, calendario),
+          await montarAlteracao(compromisso, destino, calendario, entrada.agora),
           diaAnterior,
         );
       }
@@ -1017,6 +1038,7 @@ async function processarTurnoInterno(
               ultimoDia: periodo.ultimoDia,
             },
             calendario,
+            entrada.agora,
           ),
           diaAnterior,
         );
@@ -1025,7 +1047,12 @@ async function processarTurnoInterno(
         return pedirDiasPeriodo(pendente.titulo, pendente.dia, diaAnterior);
       }
       if (!pedidoNovo && intencao.tipo !== "confirmar") {
-        return pedirDuracaoPeriodo(pendente.titulo, pendente.dia, diaAnterior);
+        return pedirDuracaoPeriodo(
+          pendente.titulo,
+          pendente.dia,
+          diaAnterior,
+          entrada.agora,
+        );
       }
     }
   }
@@ -1041,7 +1068,11 @@ async function processarTurnoInterno(
       return comDiaConsultado(
         {
           texto: pendente.dia
-            ? formatarPedirHorarioMarcacao(pendente.titulo, pendente.dia)
+            ? formatarPedirHorarioMarcacao(
+                pendente.titulo,
+                pendente.dia,
+                entrada.agora,
+              )
             : formatarPedirDiaEHorarioMarcacao(pendente.titulo),
           confirmacaoPendente: pendente,
         },
@@ -1070,6 +1101,7 @@ async function processarTurnoInterno(
               fim: completa.fim,
             },
             calendario,
+            entrada.agora,
           ),
           diaAnterior,
         );
@@ -1079,12 +1111,17 @@ async function processarTurnoInterno(
           completa.titulo,
           completa.dia,
           diaAnterior,
+          entrada.agora,
         );
       }
       return comDiaConsultado(
         {
           texto: pendente.dia
-            ? formatarPedirHorarioMarcacao(pendente.titulo, pendente.dia)
+            ? formatarPedirHorarioMarcacao(
+                pendente.titulo,
+                pendente.dia,
+                entrada.agora,
+              )
             : formatarPedirDiaEHorarioMarcacao(pendente.titulo),
           confirmacaoPendente: pendente,
         },
@@ -1114,7 +1151,7 @@ async function processarTurnoInterno(
           confirmacaoPendente: null,
         };
       }
-      return confirmacaoDeCancelamento(compromisso);
+      return confirmacaoDeCancelamento(compromisso, entrada.agora);
     }
     if (escolhidos.length > 1) {
       return relistarCandidatos(escolhidos, "cancelar", entrada.agora);
@@ -1161,7 +1198,12 @@ async function processarTurnoInterno(
           },
         };
       }
-      return montarAlteracao(compromisso, pendente.destino, calendario);
+      return montarAlteracao(
+        compromisso,
+        pendente.destino,
+        calendario,
+        entrada.agora,
+      );
     }
     if (escolhidos.length > 1) {
       return relistarCandidatos(
@@ -1203,7 +1245,7 @@ async function processarTurnoInterno(
     if (intencao.tipo === "cancelar") {
       if (vivos.length === 1) {
         return comDiaConsultado(
-          confirmacaoDeCancelamento(vivos[0].compromisso!),
+          confirmacaoDeCancelamento(vivos[0].compromisso!, entrada.agora),
           diaAnterior,
         );
       }
@@ -1258,7 +1300,7 @@ async function processarTurnoInterno(
         ultimoDia: pendente.ultimoDia,
       });
       return {
-        texto: formatarPeriodoMarcado(pendente),
+        texto: formatarPeriodoMarcado(pendente, entrada.agora),
         confirmacaoPendente: null,
         diaParaCalendario: pendente.primeiroDia,
       };
@@ -1271,7 +1313,7 @@ async function processarTurnoInterno(
         fim: pendente.fim,
       });
       return {
-        texto: formatarPontualMarcado(pendente),
+        texto: formatarPontualMarcado(pendente, entrada.agora),
         confirmacaoPendente: null,
         diaParaCalendario: diaCivil(
           DateTime.fromISO(pendente.inicio, { setZone: true }),
@@ -1286,7 +1328,7 @@ async function processarTurnoInterno(
         ultimoDia: pendente.ultimoDia,
       });
       return {
-        texto: formatarPeriodoAlterado(pendente),
+        texto: formatarPeriodoAlterado(pendente, entrada.agora),
         confirmacaoPendente: null,
       };
     }
@@ -1298,7 +1340,7 @@ async function processarTurnoInterno(
         fim: pendente.fim,
       });
       return {
-        texto: formatarPontualAlterado(pendente),
+        texto: formatarPontualAlterado(pendente, entrada.agora),
         confirmacaoPendente: null,
       };
     }
@@ -1326,13 +1368,13 @@ async function processarTurnoInterno(
     if (pendente.acao === "cancelar_periodo") {
       await calendario.cancelar(pendente.id);
       return {
-        texto: formatarPeriodoCancelado(pendente),
+        texto: formatarPeriodoCancelado(pendente, entrada.agora),
         confirmacaoPendente: null,
       };
     }
     await calendario.cancelar(pendente.id);
     return {
-      texto: formatarPontualCancelado(pendente),
+      texto: formatarPontualCancelado(pendente, entrada.agora),
       confirmacaoPendente: null,
     };
   }
@@ -1386,7 +1428,12 @@ async function processarTurnoInterno(
   ) {
     const destino = interpretarDestinoAlteracao(entrada.mensagem, entrada.agora);
     if (destino) {
-      const corrigida = await corrigirAlteracao(pendente, destino, calendario);
+      const corrigida = await corrigirAlteracao(
+        pendente,
+        destino,
+        calendario,
+        entrada.agora,
+      );
       if (corrigida) return corrigida;
     }
     return {
@@ -1415,6 +1462,7 @@ async function processarTurnoInterno(
     return saidaDeConfirmacao(
       { ...corrigida, aguardandoCorrecao: false },
       calendario,
+      entrada.agora,
     );
   }
 
@@ -1427,7 +1475,7 @@ async function processarTurnoInterno(
     }
     const existentes = await calendario.listar(janelaDeBusca(entrada.agora));
     const candidatos = restringirAoContexto(
-      filtrarCandidatos(existentes, intencao.termo, intencao.dia),
+      filtrarCandidatos(existentes, intencao.termo, entrada.agora, intencao.dia),
       itensDoContexto,
     );
     if (candidatos.length === 0) {
@@ -1463,7 +1511,7 @@ async function processarTurnoInterno(
     }
     const existentes = await calendario.listar(janelaDeBusca(entrada.agora));
     const candidatos = restringirAoContexto(
-      filtrarCandidatos(existentes, intencao.termo, intencao.dia),
+      filtrarCandidatos(existentes, intencao.termo, entrada.agora, intencao.dia),
       itensDoContexto,
     );
     if (candidatos.length === 0) {
@@ -1506,7 +1554,12 @@ async function processarTurnoInterno(
         confirmacaoPendente: proposta,
       };
     }
-    return montarAlteracao(candidatos[0], intencao.destino, calendario);
+    return montarAlteracao(
+      candidatos[0],
+      intencao.destino,
+      calendario,
+      entrada.agora,
+    );
   }
 
   if (intencao.tipo === "cancelar") {
@@ -1529,12 +1582,12 @@ async function processarTurnoInterno(
       contextoUnico &&
       (intencao.dia == null || intencao.dia.mes != null)
     ) {
-      return confirmacaoDeCancelamento(porTermoNoContexto[0]);
+      return confirmacaoDeCancelamento(porTermoNoContexto[0], entrada.agora);
     }
     let candidatos = porTermoNoContexto;
     if (intencao.dia?.mes != null) {
       candidatos = restringirAoContexto(
-        filtrarCandidatos(existentes, intencao.termo, intencao.dia),
+        filtrarCandidatos(existentes, intencao.termo, entrada.agora, intencao.dia),
         itensDoContexto,
       );
     } else if (intencao.dia && porTermo.some((c) => c.tipo === "periodo")) {
@@ -1561,7 +1614,7 @@ async function processarTurnoInterno(
         confirmacaoPendente: proposta,
       };
     }
-    return confirmacaoDeCancelamento(candidatos[0]);
+    return confirmacaoDeCancelamento(candidatos[0], entrada.agora);
   }
 
   const saidaListagem = await processarIntencaoListagem(
@@ -1624,11 +1677,21 @@ async function processarTurnoInterno(
   }
 
   if (intencao.tipo === "marcar_periodo_sem_duracao") {
-    return pedirDuracaoPeriodo(intencao.titulo, intencao.dia, diaAnterior);
+    return pedirDuracaoPeriodo(
+      intencao.titulo,
+      intencao.dia,
+      diaAnterior,
+      entrada.agora,
+    );
   }
 
   if (intencao.tipo === "marcar_pontual_sem_hora") {
-    return pedirHorarioMarcacao(intencao.titulo, intencao.dia, diaAnterior);
+    return pedirHorarioMarcacao(
+      intencao.titulo,
+      intencao.dia,
+      diaAnterior,
+      entrada.agora,
+    );
   }
 
   if (intencao.tipo === "marcar_incompleta") {
@@ -1637,6 +1700,7 @@ async function processarTurnoInterno(
         intencao.titulo,
         diaAnterior,
         diaAnterior,
+        entrada.agora,
       );
     }
     return comDiaConsultado(
@@ -1666,7 +1730,7 @@ async function processarTurnoInterno(
             primeiroDia: intencao.primeiroDia,
             ultimoDia: intencao.ultimoDia,
           };
-    return saidaDeConfirmacao(proposta, calendario);
+    return saidaDeConfirmacao(proposta, calendario, entrada.agora);
   }
 
   return { texto: RESPOSTA_NAO_ENTENDI, confirmacaoPendente: null };
