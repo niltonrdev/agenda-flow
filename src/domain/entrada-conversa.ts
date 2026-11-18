@@ -198,6 +198,21 @@ function filtrarCandidatos(
   return porTermo.filter((c) => casaComDiaRecorte(c, dia));
 }
 
+/**
+ * Se a última listagem tem algum Compromisso que casa com o termo,
+ * usa só esses. Um só vai à Confirmação; vários perguntam qual.
+ * Nenhum compatível na listagem: cai na busca geral.
+ */
+function restringirAoContexto(
+  candidatos: Compromisso[],
+  contexto: ReturnType<typeof candidatosDoContexto>,
+): Compromisso[] {
+  if (!contexto || contexto.length === 0) return candidatos;
+  const ids = new Set(contexto.map((c) => c.id));
+  const noContexto = candidatos.filter((c) => ids.has(c.id));
+  return noContexto.length > 0 ? noContexto : candidatos;
+}
+
 function instanteDe(compromisso: Compromisso): string {
   if (compromisso.tipo === "pontual") return compromisso.inicio;
   return inicioDoDia(compromisso.primeiroDia).toISO()!;
@@ -1411,10 +1426,9 @@ async function processarTurnoInterno(
       );
     }
     const existentes = await calendario.listar(janelaDeBusca(entrada.agora));
-    const candidatos = filtrarCandidatos(
-      existentes,
-      intencao.termo,
-      intencao.dia,
+    const candidatos = restringirAoContexto(
+      filtrarCandidatos(existentes, intencao.termo, intencao.dia),
+      itensDoContexto,
     );
     if (candidatos.length === 0) {
       return {
@@ -1448,10 +1462,9 @@ async function processarTurnoInterno(
       );
     }
     const existentes = await calendario.listar(janelaDeBusca(entrada.agora));
-    const candidatos = filtrarCandidatos(
-      existentes,
-      intencao.termo,
-      intencao.dia,
+    const candidatos = restringirAoContexto(
+      filtrarCandidatos(existentes, intencao.termo, intencao.dia),
+      itensDoContexto,
     );
     if (candidatos.length === 0) {
       return {
@@ -1507,9 +1520,23 @@ async function processarTurnoInterno(
     const porTermo = existentes.filter((c) =>
       casaComTermo(c.titulo, intencao.termo),
     );
-    let candidatos = porTermo;
+    const porTermoNoContexto = restringirAoContexto(porTermo, itensDoContexto);
+    const contextoUnico =
+      Boolean(itensDoContexto?.length) &&
+      porTermoNoContexto.length === 1 &&
+      itensDoContexto!.some((c) => c.id === porTermoNoContexto[0].id);
+    if (
+      contextoUnico &&
+      (intencao.dia == null || intencao.dia.mes != null)
+    ) {
+      return confirmacaoDeCancelamento(porTermoNoContexto[0]);
+    }
+    let candidatos = porTermoNoContexto;
     if (intencao.dia?.mes != null) {
-      candidatos = filtrarCandidatos(existentes, intencao.termo, intencao.dia);
+      candidatos = restringirAoContexto(
+        filtrarCandidatos(existentes, intencao.termo, intencao.dia),
+        itensDoContexto,
+      );
     } else if (intencao.dia && porTermo.some((c) => c.tipo === "periodo")) {
       return {
         texto: RESPOSTA_ALTERACAO_DOS_EXTREMOS,

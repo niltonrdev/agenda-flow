@@ -2502,6 +2502,165 @@ describe("entrada de conversa — renomear Compromisso", () => {
     expect(saida.texto).toMatch(/mudar o nome/i);
     expect(saida.confirmacaoPendente?.acao).toBe("completar_titulo");
   });
+
+  it("depois de uma consulta com uma viagem, alterar o nome usa essa e pede Sim", async () => {
+    const agora = DateTime.fromObject(
+      { year: 2025, month: 12, day: 20, hour: 10 },
+      { zone: FUSO_DONO },
+    );
+    const calendario = criarCalendarioEmMemoria([
+      {
+        id: "alvo",
+        tipo: "periodo",
+        titulo: "Viagem para",
+        primeiroDia: "2026-01-05",
+        ultimoDia: "2026-01-12",
+      },
+      {
+        id: "outra-1",
+        tipo: "periodo",
+        titulo: "Viagem SP",
+        primeiroDia: "2026-02-10",
+        ultimoDia: "2026-02-12",
+      },
+      {
+        id: "outra-2",
+        tipo: "periodo",
+        titulo: "Viagem Recife",
+        primeiroDia: "2026-03-01",
+        ultimoDia: "2026-03-04",
+      },
+    ]);
+    const consulta = await processarTurno(
+      { mensagem: "Viagem 5/01", agora },
+      calendario,
+    );
+    expect(consulta.texto).toContain("Viagem para");
+    expect(consulta.texto).not.toContain("Viagem SP");
+    expect(consulta.confirmacaoPendente?.acao).toBe("contexto_listagem");
+    if (consulta.confirmacaoPendente?.acao === "contexto_listagem") {
+      expect(consulta.confirmacaoPendente.candidatos).toHaveLength(1);
+    }
+
+    const proposta = await processarTurno(
+      {
+        mensagem: "Alterar nome de viagem para Viagem teste",
+        agora,
+        confirmacaoPendente: consulta.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(proposta.texto).toMatch(/Confirmação/i);
+    expect(proposta.texto).toMatch(/Viagem teste/);
+    expect(proposta.texto).not.toMatch(/Qual você quer/i);
+    expect(proposta.texto).not.toContain("Viagem SP");
+    expect(proposta.confirmacaoPendente?.acao).toBe("alterar_titulo");
+    expect(calendario.listarTodos().filter((c) => c.titulo.startsWith("Viagem")))
+      .toHaveLength(3);
+
+    const sim = await processarTurno(
+      {
+        mensagem: "sim",
+        agora,
+        confirmacaoPendente: proposta.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(sim.texto).toMatch(/Alterei o nome para Viagem teste/);
+    expect(calendario.listarTodos().find((c) => c.id === "alvo")?.titulo).toBe(
+      "Viagem teste",
+    );
+  });
+
+  it("depois de uma listagem com várias viagens, alterar o nome pergunta qual", async () => {
+    const agora = DateTime.fromObject(
+      { year: 2025, month: 12, day: 20, hour: 10 },
+      { zone: FUSO_DONO },
+    );
+    const calendario = criarCalendarioEmMemoria([
+      {
+        id: "alvo",
+        tipo: "periodo",
+        titulo: "Viagem para",
+        primeiroDia: "2026-01-05",
+        ultimoDia: "2026-01-12",
+      },
+      {
+        id: "outra-1",
+        tipo: "periodo",
+        titulo: "Viagem SP",
+        primeiroDia: "2026-02-10",
+        ultimoDia: "2026-02-12",
+      },
+      {
+        id: "outra-2",
+        tipo: "periodo",
+        titulo: "Viagem Recife",
+        primeiroDia: "2026-03-01",
+        ultimoDia: "2026-03-04",
+      },
+    ]);
+    const lista = await processarTurno(
+      { mensagem: "Mostrar viagens", agora },
+      calendario,
+    );
+    expect(lista.confirmacaoPendente?.acao).toBe("contexto_listagem");
+    if (lista.confirmacaoPendente?.acao === "contexto_listagem") {
+      expect(lista.confirmacaoPendente.candidatos.length).toBeGreaterThan(1);
+    }
+
+    const proposta = await processarTurno(
+      {
+        mensagem: "Alterar nome de viagem para Viagem teste",
+        agora,
+        confirmacaoPendente: lista.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(proposta.texto).toMatch(/Qual você quer/i);
+    expect(proposta.confirmacaoPendente?.acao).toBe("escolher_alteracao");
+    expect(calendario.listarTodos()).toHaveLength(3);
+  });
+
+  it("Cancelar viagem depois da consulta de uma só vai à Confirmação", async () => {
+    const agora = DateTime.fromObject(
+      { year: 2025, month: 12, day: 20, hour: 10 },
+      { zone: FUSO_DONO },
+    );
+    const calendario = criarCalendarioEmMemoria([
+      {
+        id: "alvo",
+        tipo: "periodo",
+        titulo: "Viagem para",
+        primeiroDia: "2026-01-05",
+        ultimoDia: "2026-01-12",
+      },
+      {
+        id: "outra-1",
+        tipo: "periodo",
+        titulo: "Viagem SP",
+        primeiroDia: "2026-02-10",
+        ultimoDia: "2026-02-12",
+      },
+    ]);
+    const consulta = await processarTurno(
+      { mensagem: "5/01", agora },
+      calendario,
+    );
+    const cancelar = await processarTurno(
+      {
+        mensagem: "Cancelar viagem",
+        agora,
+        confirmacaoPendente: consulta.confirmacaoPendente,
+      },
+      calendario,
+    );
+    expect(cancelar.texto).toMatch(/Confirmação/i);
+    expect(cancelar.texto).toContain("Viagem para");
+    expect(cancelar.texto).not.toMatch(/Qual você quer/i);
+    expect(cancelar.confirmacaoPendente?.acao).toBe("cancelar_periodo");
+    expect(calendario.listarTodos()).toHaveLength(2);
+  });
 });
 
 
