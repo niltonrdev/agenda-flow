@@ -1,6 +1,6 @@
 import type { Compromisso, NovoCompromisso } from "./compromisso";
 import type { DestinoAlteracao } from "./interpretador";
-import { FUSO_DONO } from "./fuso";
+import { FUSO_DONO, resolverDiaMesConsulta } from "./fuso";
 import { DateTime } from "luxon";
 
 function ancoraDe(compromisso: Compromisso): DateTime {
@@ -10,15 +10,19 @@ function ancoraDe(compromisso: Compromisso): DateTime {
   return DateTime.fromISO(compromisso.primeiroDia, { zone: FUSO_DONO });
 }
 
-function resolverDiaNaAncora(
+function resolverDiaDestino(
   dia: number,
   mes: number | undefined,
+  ano: number | undefined,
   compromisso: Compromisso,
+  agora: DateTime,
 ): string {
+  if (mes != null) {
+    return resolverDiaMesConsulta(dia, mes, agora, ano);
+  }
   const ancora = ancoraDe(compromisso);
-  const month = mes ?? ancora.month;
   const dt = DateTime.fromObject(
-    { year: ancora.year, month, day: dia },
+    { year: ancora.year, month: ancora.month, day: dia },
     { zone: FUSO_DONO },
   );
   return dt.toISODate()!;
@@ -70,12 +74,13 @@ function deslocarPeriodo(
 export function aplicarDestino(
   compromisso: Compromisso,
   destino: DestinoAlteracao,
+  agora: DateTime,
 ): NovoCompromisso | null {
   if (compromisso.tipo === "pontual") {
     if (destino.tipo === "dia") {
       return deslocarPontual(
         compromisso,
-        resolverDiaNaAncora(destino.dia, destino.mes, compromisso),
+        resolverDiaDestino(destino.dia, destino.mes, destino.ano, compromisso, agora),
       );
     }
     if (destino.tipo === "hora") {
@@ -87,7 +92,7 @@ export function aplicarDestino(
     if (destino.tipo === "dia_e_hora") {
       return deslocarPontual(
         compromisso,
-        resolverDiaNaAncora(destino.dia, destino.mes, compromisso),
+        resolverDiaDestino(destino.dia, destino.mes, destino.ano, compromisso, agora),
         destino.hora,
         destino.minuto,
       );
@@ -121,7 +126,7 @@ export function aplicarDestino(
   if (destino.tipo === "dia") {
     return deslocarPeriodo(
       compromisso,
-      resolverDiaNaAncora(destino.dia, destino.mes, compromisso),
+      resolverDiaDestino(destino.dia, destino.mes, destino.ano, compromisso, agora),
     );
   }
   if (destino.tipo === "periodo") {
@@ -156,7 +161,8 @@ export function aplicarDestino(
 export function aplicarDestinoNaProposta(
   proposto: NovoCompromisso,
   destino: DestinoAlteracao,
+  agora: DateTime,
 ): NovoCompromisso | null {
   const comoCompromisso = { ...proposto, id: "proposta" } as Compromisso;
-  return aplicarDestino(comoCompromisso, destino);
+  return aplicarDestino(comoCompromisso, destino, agora);
 }

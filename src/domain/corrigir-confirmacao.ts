@@ -3,7 +3,7 @@ import type {
   ConfirmacaoPeriodo,
   ConfirmacaoPontual,
 } from "./confirmacao";
-import { FUSO_DONO, MESES_PT, resolverAnoDaData } from "./fuso";
+import { FUSO_DONO, MESES_PT, resolverDiaMesConsulta } from "./fuso";
 import { DateTime } from "luxon";
 
 const GRUPO_MES =
@@ -19,7 +19,7 @@ const RE_ABORTAR_CONFIRMACAO =
   /^(?:cancelar|cancela|cancele|nada|deixa(?:\s+pra\s+l[aá])?|esquece|desiste)\s*[.!]?\s*$/iu;
 
 const RE_DATA = new RegExp(
-  String.raw`(?:^|\b)(?:dia\s+)?(\d{1,2})\s+de\s+(${GRUPO_MES})\b`,
+  String.raw`(?:^|\b)(?:dia\s+)?(\d{1,2})\s+de\s+(${GRUPO_MES})(?:\s+de\s+(\d{4}))?\b`,
   "iu",
 );
 
@@ -157,7 +157,12 @@ function diaDaCorrecao(
     const mes = Number(numerica[2]);
     if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
     try {
-      return resolverAnoDaData(dia, mes, agora);
+      return resolverDiaMesConsulta(
+        dia,
+        mes,
+        agora,
+        numerica[3] ? Number(numerica[3]) : undefined,
+      );
     } catch {
       return null;
     }
@@ -168,7 +173,12 @@ function diaDaCorrecao(
     const mes = mesDe(comMes[2]);
     if (!mes || dia < 1 || dia > 31) return null;
     try {
-      return resolverAnoDaData(dia, mes, agora);
+      return resolverDiaMesConsulta(
+        dia,
+        mes,
+        agora,
+        comMes[3] ? Number(comMes[3]) : undefined,
+      );
     } catch {
       return null;
     }
