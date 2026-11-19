@@ -50,4 +50,36 @@ describe("API conversa no modo demonstração", () => {
     const corpo = (await resposta.json()) as { texto?: string };
     expect(corpo.texto).toContain("Almoço de equipe");
   });
+
+  it("no modo demo o título não fica com a preposição da data", async () => {
+    const resposta = await POST(
+      pedido("Marcar almoço com Tamires para 22/11 às 12 horas"),
+    );
+    expect(resposta.status).toBe(200);
+    const corpo = (await resposta.json()) as {
+      texto?: string;
+      confirmacaoPendente?: { titulo?: string };
+    };
+    expect(corpo.confirmacaoPendente?.titulo).toBe("Almoço com Tamires");
+    expect(corpo.texto).toMatch(/Almoço com Tamires/);
+    expect(corpo.texto).not.toMatch(/Almoço com Tamires para/);
+  });
+
+  it("no modo demo respeita início e fim ditos", async () => {
+    const resposta = await POST(
+      pedido(
+        "Marcar Reunião de nome teste para o dia 07/12 às 10 horas às 12 horas",
+      ),
+    );
+    expect(resposta.status).toBe(200);
+    const corpo = (await resposta.json()) as {
+      texto?: string;
+      confirmacaoPendente?: { titulo?: string; inicio?: string; fim?: string };
+    };
+    expect(corpo.confirmacaoPendente?.titulo).toBe("Reunião de nome teste");
+    expect(corpo.confirmacaoPendente?.inicio).toContain("T10:00");
+    expect(corpo.confirmacaoPendente?.fim).toContain("T12:00");
+    expect(corpo.texto).toMatch(/das 10h às 12h/);
+    expect(corpo.texto).not.toMatch(/Reunião de nome teste para o/);
+  });
 });

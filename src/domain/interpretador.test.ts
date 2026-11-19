@@ -237,6 +237,157 @@ describe("interpretador — Marcação sem horário", () => {
     });
   });
 
+  it.each([
+    ["Marcar almoço com Tamires para 22/11 às 12 horas", "Almoço com Tamires"],
+    ["Marcar almoço com Tamires pra 22/11 às 12horas", "Almoço com Tamires"],
+    ["Marcar almoço com Tamires no dia 22/11 às 12 horas", "Almoço com Tamires"],
+    ["Marcar almoço com Tamires dia 22/11 às 12horas", "Almoço com Tamires"],
+    ["Marcar almoço com Tamires em 22/11 às 12 horas", "Almoço com Tamires"],
+    [
+      "Marcar almoço com Tamires para o dia 22/11 às 12 horas",
+      "Almoço com Tamires",
+    ],
+  ])("%s tira o conector da data e lê 12 horas colado ou não", (frase, titulo) => {
+    const novembro = DateTime.fromObject(
+      { year: 2026, month: 11, day: 18, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+    const intencao = interpretarMensagem(frase, novembro);
+    expect(intencao).toMatchObject({
+      tipo: "marcar_pontual",
+      titulo,
+    });
+    if (intencao.tipo !== "marcar_pontual") {
+      throw new Error("esperava marcar_pontual");
+    }
+    expect(intencao.inicio).toContain("2026-11-22T12:00");
+    expect(intencao.fim).toContain("2026-11-22T13:00");
+    expect(intencao.titulo).not.toMatch(/\bpara\b|\bpra\b|\bem\b/i);
+  });
+
+  it("não tira 'para' quando faz parte do nome e não há data", () => {
+    expect(
+      interpretarMensagem("marcar reunião para planejamento", AGORA),
+    ).toEqual({
+      tipo: "marcar_incompleta",
+      titulo: "Reunião para planejamento",
+    });
+  });
+
+  it("não tira 'para' no meio do título quando a data vem depois", () => {
+    const novembro = DateTime.fromObject(
+      { year: 2026, month: 11, day: 18, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+    expect(
+      interpretarMensagem(
+        "marcar reunião para planejamento dia 22/11 às 12 horas",
+        novembro,
+      ),
+    ).toMatchObject({
+      tipo: "marcar_pontual",
+      titulo: "Reunião para planejamento",
+    });
+  });
+
+  it("quebra de linha no meio da frase ainda lê 10h–12h", () => {
+    const novembro = DateTime.fromObject(
+      { year: 2026, month: 11, day: 18, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+    const intencao = interpretarMensagem(
+      "Marcar Reunião de nome teste para o dia 07/12 às 10\nhoras às 12 horas",
+      novembro,
+    );
+    expect(intencao).toMatchObject({
+      tipo: "marcar_pontual",
+      titulo: "Reunião de nome teste",
+    });
+    if (intencao.tipo !== "marcar_pontual") {
+      throw new Error("esperava marcar_pontual");
+    }
+    expect(intencao.inicio).toContain("T10:00");
+    expect(intencao.fim).toContain("T12:00");
+  });
+
+  it("Reunião de nome teste para o dia 07/12 não deixa 'para o' no título", () => {
+    const novembro = DateTime.fromObject(
+      { year: 2026, month: 11, day: 18, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+    const intencao = interpretarMensagem(
+      "Marcar Reunião de nome teste para o dia 07/12 às 10 horas às 12 horas",
+      novembro,
+    );
+    expect(intencao).toMatchObject({
+      tipo: "marcar_pontual",
+      titulo: "Reunião de nome teste",
+    });
+    if (intencao.tipo !== "marcar_pontual") {
+      throw new Error("esperava marcar_pontual");
+    }
+    expect(intencao.inicio).toContain("2026-12-07T10:00");
+    expect(intencao.fim).toContain("2026-12-07T12:00");
+    expect(intencao.titulo).not.toMatch(/para o/i);
+  });
+
+  it.each([
+    ["Marcar reunião dia 07/12 das 10 às 12", "T10:00", "T12:00"],
+    ["Marcar reunião dia 07/12 das 10h às 12h", "T10:00", "T12:00"],
+    ["Marcar reunião dia 07/12 de 10 até 12", "T10:00", "T12:00"],
+    ["Marcar reunião dia 07/12 10h-12h", "T10:00", "T12:00"],
+    ["Marcar reunião dia 07/12 das 9:30 às 11", "T09:30", "T11:00"],
+    [
+      "Marcar Reunião de nome teste para o dia 07/12 às 10 horas às 12 horas",
+      "T10:00",
+      "T12:00",
+    ],
+  ])("%s respeita início e fim", (frase, inicio, fim) => {
+    const novembro = DateTime.fromObject(
+      { year: 2026, month: 11, day: 18, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+    const intencao = interpretarMensagem(frase, novembro);
+    expect(intencao.tipo).toBe("marcar_pontual");
+    if (intencao.tipo !== "marcar_pontual") {
+      throw new Error("esperava marcar_pontual");
+    }
+    expect(intencao.inicio).toContain(`2026-12-07${inicio}`);
+    expect(intencao.fim).toContain(`2026-12-07${fim}`);
+  });
+
+  it("sem horário de fim a duração continua 1 hora", () => {
+    const novembro = DateTime.fromObject(
+      { year: 2026, month: 11, day: 18, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+    const intencao = interpretarMensagem(
+      "Marcar reunião dia 07/12 às 10 horas",
+      novembro,
+    );
+    expect(intencao.tipo).toBe("marcar_pontual");
+    if (intencao.tipo !== "marcar_pontual") {
+      throw new Error("esperava marcar_pontual");
+    }
+    expect(intencao.inicio).toContain("2026-12-07T10:00");
+    expect(intencao.fim).toContain("2026-12-07T11:00");
+  });
+
+  it.each([
+    "Marcar reunião dia 07/12 das 12 às 10",
+    "Marcar reunião dia 07/12 às 12 horas às 10 horas",
+    "Marcar reunião dia 07/12 das 10h às 10h",
+    "Marcar reunião dia 07/12 12h-10h",
+  ])("%s pede esclarecimento em vez de criar", (frase) => {
+    const novembro = DateTime.fromObject(
+      { year: 2026, month: 11, day: 18, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+    expect(interpretarMensagem(frase, novembro)).toEqual({
+      tipo: "horario_invalido",
+    });
+  });
+
   it("aceita horário informal 19hs e às 19 sem h", () => {
     const novembro = DateTime.fromObject(
       { year: 2026, month: 11, day: 6, hour: 10, minute: 0 },
@@ -424,6 +575,102 @@ describe("interpretador — Alteração", () => {
       tipo: "alterar",
       termo: "reunião com a ana",
       destino: { tipo: "hora", hora: 10, minuto: 0 },
+    });
+  });
+
+  it.each([
+    "Alterar almoço com Tamires para o dia 06/12 às 12horas",
+    "Alterar almoço com Tamires para 06/12 às 12 horas",
+    "Alterar almoço com Tamires pra 06/12 às 12horas",
+    "Alterar almoço com Tamires no dia 06/12 às 12 horas",
+    "Alterar almoço com Tamires dia 06/12 às 12horas",
+    "Alterar almoço com Tamires em 06/12 às 12 horas",
+  ])("%s lê data e 12horas colado ou não", (frase) => {
+    const novembro = DateTime.fromObject(
+      { year: 2026, month: 11, day: 18, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+    expect(interpretarMensagem(frase, novembro)).toEqual({
+      tipo: "alterar",
+      termo: "almoço com tamires",
+      destino: {
+        tipo: "dia_e_hora",
+        dia: 6,
+        mes: 12,
+        hora: 12,
+        minuto: 0,
+      },
+    });
+  });
+
+  it.each([
+    [
+      "Alterar reunião de nome teste para o dia 07/12 às 10 horas às 12 horas",
+      { hora: 10, minuto: 0, horaFim: 12, minutoFim: 0 },
+    ],
+    [
+      "Alterar reunião para o dia 07/12 das 10 às 12",
+      { hora: 10, minuto: 0, horaFim: 12, minutoFim: 0 },
+    ],
+    [
+      "Alterar reunião para o dia 07/12 das 10h às 12h",
+      { hora: 10, minuto: 0, horaFim: 12, minutoFim: 0 },
+    ],
+    [
+      "Alterar reunião para o dia 07/12 de 10 até 12",
+      { hora: 10, minuto: 0, horaFim: 12, minutoFim: 0 },
+    ],
+    [
+      "Alterar reunião para o dia 07/12 10h-12h",
+      { hora: 10, minuto: 0, horaFim: 12, minutoFim: 0 },
+    ],
+    [
+      "Alterar reunião para o dia 07/12 das 9:30 às 11",
+      { hora: 9, minuto: 30, horaFim: 11, minutoFim: 0 },
+    ],
+  ])("%s leva o horário de fim no destino", (frase, horas) => {
+    const novembro = DateTime.fromObject(
+      { year: 2026, month: 11, day: 18, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+    expect(interpretarMensagem(frase, novembro)).toMatchObject({
+      tipo: "alterar",
+      destino: {
+        tipo: "dia_e_hora",
+        dia: 7,
+        mes: 12,
+        ...horas,
+      },
+    });
+  });
+
+  it("alterar só o horário das 10 às 12 mantém o dia e o fim", () => {
+    expect(
+      interpretarMensagem("muda a reunião com a Ana para das 10h às 12h", AGORA),
+    ).toEqual({
+      tipo: "alterar",
+      termo: "reunião com a ana",
+      destino: {
+        tipo: "hora",
+        hora: 10,
+        minuto: 0,
+        horaFim: 12,
+        minutoFim: 0,
+      },
+    });
+  });
+
+  it.each([
+    "Alterar reunião para o dia 07/12 das 12 às 10",
+    "Alterar reunião para o dia 07/12 às 12 horas às 10 horas",
+    "Alterar reunião para das 10h às 10h",
+  ])("%s na alteração pede esclarecimento", (frase) => {
+    const novembro = DateTime.fromObject(
+      { year: 2026, month: 11, day: 18, hour: 10, minute: 0 },
+      { zone: FUSO_DONO },
+    );
+    expect(interpretarMensagem(frase, novembro)).toEqual({
+      tipo: "horario_invalido",
     });
   });
 
