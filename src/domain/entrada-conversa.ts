@@ -64,6 +64,7 @@ import {
   formatarTituloAlterado,
   RESPOSTA_ALTERACAO_DOS_EXTREMOS,
   RESPOSTA_DEIXO_PRA_LA,
+  RESPOSTA_HORARIO_FIM_INVALIDO,
   RESPOSTA_NAO_ENTENDI,
   RESPOSTA_O_QUE_MUDAR,
   rotuloCandidato,
@@ -105,7 +106,8 @@ function ehPedidoNovo(intencao: Intencao, mensagem: string): boolean {
     intencao.tipo === "consulta_dia" ||
     intencao.tipo === "consulta_intervalo" ||
     intencao.tipo === "marcar_periodo" ||
-    intencao.tipo === "marcar_periodo_sem_duracao"
+    intencao.tipo === "marcar_periodo_sem_duracao" ||
+    intencao.tipo === "horario_invalido"
   ) {
     return true;
   }
@@ -1091,6 +1093,15 @@ async function processarTurnoInterno(
         entrada.mensagem,
         entrada.agora,
       );
+      if (completa.tipo === "horario_invalido") {
+        return comDiaConsultado(
+          {
+            texto: RESPOSTA_HORARIO_FIM_INVALIDO,
+            confirmacaoPendente: pendente,
+          },
+          diaAnterior,
+        );
+      }
       if (completa.tipo === "marcar_pontual") {
         return comDiaConsultado(
           await saidaDeConfirmacao(
@@ -1625,6 +1636,10 @@ async function processarTurnoInterno(
   );
   if (saidaListagem) {
     return comDiaConsultado(saidaListagem, diaAnterior);
+  }
+
+  if (intencao.tipo === "horario_invalido") {
+    return { texto: RESPOSTA_HORARIO_FIM_INVALIDO, confirmacaoPendente: null };
   }
 
   if (intencao.tipo === "desconhecida" || intencao.tipo === "recusar") {

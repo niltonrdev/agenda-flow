@@ -74,8 +74,23 @@ export type IntencaoRecusar = {
 
 export type DestinoAlteracao =
   | { tipo: "dia"; dia: number; mes?: number; ano?: number }
-  | { tipo: "hora"; hora: number; minuto: number }
-  | { tipo: "dia_e_hora"; dia: number; mes?: number; ano?: number; hora: number; minuto: number }
+  | {
+      tipo: "hora";
+      hora: number;
+      minuto: number;
+      horaFim?: number;
+      minutoFim?: number;
+    }
+  | {
+      tipo: "dia_e_hora";
+      dia: number;
+      mes?: number;
+      ano?: number;
+      hora: number;
+      minuto: number;
+      horaFim?: number;
+      minutoFim?: number;
+    }
   | { tipo: "periodo"; primeiroDia: string; ultimoDia: string }
   | { tipo: "primeiro_dia"; primeiroDia: string }
   | { tipo: "ultimo_dia"; ultimoDia: string };
@@ -174,6 +189,11 @@ export type IntencaoConsultaTodos = {
   rotuloPeriodo?: string;
 };
 
+/** Início e fim ditos, mas o fim não é depois do início. */
+export type IntencaoHorarioInvalido = {
+  tipo: "horario_invalido";
+};
+
 /** "mostrar compromissos de 2026" — falta o mês. */
 export type IntencaoPedirMes = {
   tipo: "pedir_mes";
@@ -201,6 +221,7 @@ export type Intencao =
   | IntencaoBuscaTermoInvalido
   | IntencaoMostrarMais
   | IntencaoTipoNaoReconhecido
+  | IntencaoHorarioInvalido
   | IntencaoDesconhecida;
 
 const GRUPO_MES =
@@ -283,17 +304,23 @@ const RE_PREFIXO_ESCOLHA =
 
 const PALAVRA = String.raw`(?<![\p{L}\p{N}])`;
 const FIM_PALAVRA = String.raw`(?![\p{L}\p{N}])`;
-/** 5h, 5hs, 5h30, 5:30, 5:30h, 5 hrs, 5 horas */
+/** 5h, 5hs, 5h30, 5:30, 5:30h, 5 hrs, 5 horas, 12horas */
 const HORA = String.raw`(\d{1,2})(?:h(?:s)?(\d{2})?|:(\d{2})h?s?|\s*hrs?|\s*horas?)`;
+/** Como HORA, mas o sufixo é opcional — “de 10 até 12”, “das 9:30 às 11”. */
+const HORA_FLEX = String.raw`(\d{1,2})(?:h(?:s)?(\d{2})?|:(\d{2})h?s?|\s*hrs?|\s*horas?)?`;
+const HORA_TITULO = String.raw`\d{1,2}(?:h(?:s)?\d{0,2}|:\d{2}h?s?|\s*hrs?|\s*horas?)?`;
 
 const RE_TEM_HORA = new RegExp(
   [
     `${PALAVRA}\\d{1,2}\\s*hs?(?:\\d{2})?${FIM_PALAVRA}`,
-    `${PALAVRA}\\d{1,2}\\s+hrs?${FIM_PALAVRA}`,
+    `${PALAVRA}\\d{1,2}\\s*hrs?${FIM_PALAVRA}`,
     `${PALAVRA}\\d{1,2}:\\d{2}h?s?${FIM_PALAVRA}`,
-    `${PALAVRA}\\d{1,2}\\s+horas?${FIM_PALAVRA}`,
+    `${PALAVRA}\\d{1,2}\\s*horas?${FIM_PALAVRA}`,
     `${PALAVRA}[aà]s\\s+\\d{1,2}${FIM_PALAVRA}`,
     `${PALAVRA}\\d{1,2}(?:h\\d{0,2}|:\\d{2}h?)?\\s+da\\s+(?:manh[aã]|tarde|noite)${FIM_PALAVRA}`,
+    `${PALAVRA}das?\\s+\\d{1,2}${FIM_PALAVRA}`,
+    `${PALAVRA}de\\s+\\d{1,2}(?:h|:\\d{2}|\\s*horas?)?\\s+at[eé]\\s+\\d{1,2}${FIM_PALAVRA}`,
+    `${PALAVRA}\\d{1,2}h\\s*-\\s*\\d{1,2}${FIM_PALAVRA}`,
   ].join("|"),
   "u",
 );
@@ -319,9 +346,31 @@ const RE_QUANTIDADE_DIAS =
   /\b(?:por\s+)?(\d{1,2})\s+dias?\b/u;
 
 const RE_INTERVALO_HORAS = new RegExp(
-  `${PALAVRA}das?\\s+${HORA}\\s+[aà]s\\s+${HORA}${FIM_PALAVRA}`,
+  `${PALAVRA}das?\\s+${HORA_FLEX}\\s+[aà]s\\s+${HORA_FLEX}${FIM_PALAVRA}`,
   "u",
 );
+
+const RE_INTERVALO_ATE = new RegExp(
+  `${PALAVRA}de\\s+${HORA_FLEX}\\s+at[eé]\\s+${HORA_FLEX}${FIM_PALAVRA}`,
+  "u",
+);
+
+const RE_INTERVALO_HIFEN = new RegExp(
+  `${PALAVRA}${HORA}\\s*-\\s*${HORA_FLEX}${FIM_PALAVRA}`,
+  "u",
+);
+
+const RE_INTERVALO_DUAS_AS = new RegExp(
+  `${PALAVRA}[aà]s\\s+${HORA_FLEX}\\s+[aà]s\\s+${HORA_FLEX}${FIM_PALAVRA}`,
+  "u",
+);
+
+const RES_INTERVALO_HORAS = [
+  RE_INTERVALO_HORAS,
+  RE_INTERVALO_ATE,
+  RE_INTERVALO_HIFEN,
+  RE_INTERVALO_DUAS_AS,
+];
 
 const RE_HORA_INICIO = new RegExp(
   `${PALAVRA}(?:[aà]s\\s+)?${HORA}${FIM_PALAVRA}`,
@@ -632,6 +681,39 @@ function extrairHoraInicio(
   return horaMinuto(soAs[1], undefined, undefined);
 }
 
+type HoraMinuto = { hour: number; minute: number };
+
+function intervaloDeGrupos(
+  match: RegExpExecArray,
+): { inicio: HoraMinuto; fim: HoraMinuto } | null {
+  const inicio = horaMinuto(match[1], match[2], match[3]);
+  const fim = horaMinuto(match[4], match[5], match[6]);
+  if (!inicio || !fim) return null;
+  return { inicio, fim };
+}
+
+/** Início e fim ditos no mesmo turno (“das 10 às 12”, “10h-12h”, “às 10 às 12”). */
+export function extrairIntervaloDeHoras(
+  texto: string,
+): { inicio: HoraMinuto; fim: HoraMinuto } | null {
+  const normalizado = texto.trim().toLowerCase().normalize("NFC");
+  for (const re of RES_INTERVALO_HORAS) {
+    const match = re.exec(normalizado);
+    if (match) return intervaloDeGrupos(match);
+  }
+  return null;
+}
+
+export function fimNaoPosteriorAoInicio(
+  inicio: HoraMinuto,
+  fim: HoraMinuto,
+): boolean {
+  return (
+    fim.hour < inicio.hour ||
+    (fim.hour === inicio.hour && fim.minute <= inicio.minute)
+  );
+}
+
 /** Dia dito na Mensagem; null se não houver data explícita. */
 export function diaExplicitoNaMensagem(
   texto: string,
@@ -776,6 +858,9 @@ export function periodoAPartirDaDuracao(
   return null;
 }
 
+/** Prep./conector só quando vem imediatamente antes da data. */
+const PREP_ANTES_DATA = String.raw`(?:(?:para|pra|em)\s+(?:o\s+)?)?(?:no\s+)?(?:dia\s+)?`;
+
 function tituloDaMensagem(mensagemOriginal: string): string {
   let titulo = mensagemOriginal.normalize("NFC").trim();
   titulo = titulo.replace(
@@ -788,34 +873,61 @@ function tituloDaMensagem(mensagemOriginal: string): string {
     " ",
   );
   titulo = titulo.replace(
-    new RegExp(`${PALAVRA}depois de amanh[aã]${FIM_PALAVRA}`, "giu"),
+    new RegExp(
+      `${PALAVRA}${PREP_ANTES_DATA}depois de amanh[aã]${FIM_PALAVRA}`,
+      "giu",
+    ),
     " ",
   );
   titulo = titulo.replace(
-    new RegExp(`${PALAVRA}amanh[aã]${FIM_PALAVRA}`, "giu"),
+    new RegExp(`${PALAVRA}${PREP_ANTES_DATA}amanh[aã]${FIM_PALAVRA}`, "giu"),
     " ",
   );
-  titulo = titulo.replace(new RegExp(`${PALAVRA}hoje${FIM_PALAVRA}`, "giu"), " ");
+  titulo = titulo.replace(
+    new RegExp(`${PALAVRA}${PREP_ANTES_DATA}hoje${FIM_PALAVRA}`, "giu"),
+    " ",
+  );
   titulo = titulo.replace(new RegExp(RE_INTERVALO_NUM.source, "giu"), " ");
   titulo = titulo.replace(new RegExp(RE_INTERVALO.source, "giu"), " ");
   titulo = titulo.replace(/\bpara\s+os\s+dias?\b/giu, " ");
   titulo = titulo.replace(
     new RegExp(
-      `${PALAVRA}(?:no\\s+)?(?:dia\\s+)?\\d{1,2}\\s+de\\s+(?:${GRUPO_MES})(?:\\s+de\\s+\\d{4})?${FIM_PALAVRA}`,
+      `${PALAVRA}${PREP_ANTES_DATA}\\d{1,2}\\s+de\\s+(?:${GRUPO_MES})(?:\\s+de\\s+\\d{4})?${FIM_PALAVRA}`,
       "giu",
     ),
     " ",
   );
   titulo = titulo.replace(
     new RegExp(
-      `${PALAVRA}(?:dia\\s+)?\\d{1,2}\\/\\d{1,2}(?:\\/\\d{2,4})?${FIM_PALAVRA}`,
+      `${PALAVRA}${PREP_ANTES_DATA}\\d{1,2}\\/\\d{1,2}(?:\\/\\d{2,4})?${FIM_PALAVRA}`,
       "giu",
     ),
     " ",
   );
   titulo = titulo.replace(
     new RegExp(
-      `${PALAVRA}das?\\s+\\d{1,2}(?:h\\d{0,2}|:\\d{2}h?|\\s*horas?)\\s+[aà]s\\s+\\d{1,2}(?:h\\d{0,2}|:\\d{2}h?|\\s*horas?)${FIM_PALAVRA}`,
+      `${PALAVRA}das?\\s+${HORA_TITULO}\\s+[aà]s\\s+${HORA_TITULO}${FIM_PALAVRA}`,
+      "giu",
+    ),
+    " ",
+  );
+  titulo = titulo.replace(
+    new RegExp(
+      `${PALAVRA}de\\s+${HORA_TITULO}\\s+at[eé]\\s+${HORA_TITULO}${FIM_PALAVRA}`,
+      "giu",
+    ),
+    " ",
+  );
+  titulo = titulo.replace(
+    new RegExp(
+      `${PALAVRA}\\d{1,2}(?:h(?:s)?\\d{0,2}|:\\d{2}h?s?)\\s*-\\s*${HORA_TITULO}${FIM_PALAVRA}`,
+      "giu",
+    ),
+    " ",
+  );
+  titulo = titulo.replace(
+    new RegExp(
+      `${PALAVRA}[aà]s\\s+${HORA_TITULO}\\s+[aà]s\\s+${HORA_TITULO}${FIM_PALAVRA}`,
       "giu",
     ),
     " ",
@@ -836,7 +948,7 @@ function tituloDaMensagem(mensagemOriginal: string): string {
   );
   titulo = titulo.replace(
     new RegExp(
-      `${PALAVRA}\\d{1,2}(?:hs?(?:\\d{2})?|:\\d{2}h?s?|\\s+hrs?|\\s+horas?)${FIM_PALAVRA}`,
+      `${PALAVRA}\\d{1,2}(?:hs?(?:\\d{2})?|:\\d{2}h?s?|\\s*hrs?|\\s*horas?)${FIM_PALAVRA}`,
       "giu",
     ),
     " ",
@@ -941,8 +1053,11 @@ export function interpretarDestinoAlteracao(
 
   const aPartir = /(?:a\s+partir\s+d[eo]|come[cç]a(?:ndo)?(?:\s+no)?)\s+/u.test(texto);
   const ate = new RegExp(`${PALAVRA}at[eé]${FIM_PALAVRA}`, "u").test(texto);
+  const intervaloHoras = extrairIntervaloDeHoras(texto);
 
-  const recorteIntervalo = extrairIntervalo(texto, agora);
+  const recorteIntervalo = intervaloHoras
+    ? null
+    : extrairIntervalo(texto, agora);
   if (recorteIntervalo) {
     if (recorteIntervalo.tipo !== "consulta_intervalo") return null;
     return {
@@ -954,12 +1069,18 @@ export function interpretarDestinoAlteracao(
 
   const diaIso = diaIsoDeTexto(texto, agora);
   const partes = partesDoDia(texto);
-  const hora = extrairHoraInicio(texto);
+  const intervalo = intervaloHoras;
+  const hora = intervalo?.inicio ?? extrairHoraInicio(texto);
+  const horaFim = intervalo?.fim;
+  const fimOpcional =
+    horaFim != null
+      ? { horaFim: horaFim.hour, minutoFim: horaFim.minute }
+      : {};
 
-  if (aPartir && diaIso) {
+  if (aPartir && diaIso && !intervalo) {
     return { tipo: "primeiro_dia", primeiroDia: diaIso };
   }
-  if (ate && diaIso) {
+  if (ate && diaIso && !intervalo) {
     return { tipo: "ultimo_dia", ultimoDia: diaIso };
   }
   if (partes && hora) {
@@ -970,10 +1091,11 @@ export function interpretarDestinoAlteracao(
       ...(partes.ano != null ? { ano: partes.ano } : {}),
       hora: hora.hour,
       minuto: hora.minute,
+      ...fimOpcional,
     };
   }
   if (hora && !partes) {
-    return { tipo: "hora", hora: hora.hour, minuto: hora.minute };
+    return { tipo: "hora", hora: hora.hour, minuto: hora.minute, ...fimOpcional };
   }
   if (partes) {
     return {
@@ -1108,8 +1230,11 @@ const ORDINAIS_ESCOLHA: { re: RegExp; valor: number | "ultima" }[] = [
 ];
 
 function termoDaEscolha(trecho: string): string {
-  return trecho
-    .replace(new RegExp(RE_INTERVALO_HORAS.source, "giu"), " ")
+  let limpo = trecho;
+  for (const re of RES_INTERVALO_HORAS) {
+    limpo = limpo.replace(new RegExp(re.source, "giu"), " ");
+  }
+  return limpo
     .replace(new RegExp(RE_HORA_PERIODO.source, "giu"), " ")
     .replace(new RegExp(RE_HORA_INICIO.source, "giu"), " ")
     .replace(new RegExp(RE_HORA_SO_AS.source, "giu"), " ")
@@ -1159,32 +1284,66 @@ export function interpretarEscolhaLista(
   };
 }
 
+function partirTermoDestinoAlteracao(
+  semVerbo: string,
+): { termoBruto: string; destinoBruto: string } | null {
+  const para = /\s+(?:para|pra)\s+/iu.exec(semVerbo);
+  if (para && para.index != null) {
+    return {
+      termoBruto: semVerbo.slice(0, para.index),
+      destinoBruto: semVerbo.slice(para.index + para[0].length),
+    };
+  }
+
+  const extremo = /\s+((?:a\s+partir|at[eé]|come[cç]a).+)$/iu.exec(semVerbo);
+  if (extremo && extremo.index != null) {
+    return {
+      termoBruto: semVerbo.slice(0, extremo.index),
+      destinoBruto: extremo[1],
+    };
+  }
+
+  const emData = /\s+em\s+(?=(?:o\s+)?(?:dia\s+)?\d)/iu.exec(semVerbo);
+  if (emData && emData.index != null) {
+    return {
+      termoBruto: semVerbo.slice(0, emData.index),
+      destinoBruto: semVerbo.slice(emData.index + emData[0].length),
+    };
+  }
+
+  const diaDestino =
+    /(?<!(?:^|\s)(?:do|de))\s+(?:no\s+dia|dia)\s+(?=\d)/iu.exec(semVerbo);
+  if (diaDestino && diaDestino.index != null) {
+    return {
+      termoBruto: semVerbo.slice(0, diaDestino.index),
+      destinoBruto: semVerbo.slice(diaDestino.index + diaDestino[0].length),
+    };
+  }
+
+  return null;
+}
+
 function montarAlterar(mensagem: string, agora: DateTime): Intencao {
   const semVerbo = mensagem.trim().replace(RE_ALTERAR, "");
   let termoBruto = semVerbo;
   let destinoBruto = "";
 
-  const partesPara = semVerbo.split(/\s+para\s+/iu);
-  if (partesPara.length > 1) {
-    termoBruto = partesPara[0];
-    destinoBruto = partesPara.slice(1).join(" para ");
+  const partido = partirTermoDestinoAlteracao(semVerbo);
+  if (partido) {
+    termoBruto = partido.termoBruto;
+    destinoBruto = partido.destinoBruto;
   } else {
-    const sufixo = /\s+((?:a\s+partir|at[eé]|come[cç]a).+)$/iu.exec(semVerbo);
-    if (!sufixo) {
-      const { dia, semDia } = extrairDiaRecorteDoTexto(termoBruto);
-      if (ehPedidoDeRenomear(mensagem, semDia)) {
-        const termo = termoDeNome(semDia);
-        return dia
-          ? { tipo: "alterar_titulo", termo, dia }
-          : { tipo: "alterar_titulo", termo };
-      }
-      const termo = termoDeAlteracao(semDia);
+    const { dia, semDia } = extrairDiaRecorteDoTexto(termoBruto);
+    if (ehPedidoDeRenomear(mensagem, semDia)) {
+      const termo = termoDeNome(semDia);
       return dia
-        ? { tipo: "alterar_sem_destino", termo, dia }
-        : { tipo: "alterar_sem_destino", termo };
+        ? { tipo: "alterar_titulo", termo, dia }
+        : { tipo: "alterar_titulo", termo };
     }
-    termoBruto = semVerbo.slice(0, sufixo.index);
-    destinoBruto = sufixo[1];
+    const termo = termoDeAlteracao(semDia);
+    return dia
+      ? { tipo: "alterar_sem_destino", termo, dia }
+      : { tipo: "alterar_sem_destino", termo };
   }
 
   const { dia, semDia } = extrairDiaRecorteDoTexto(termoBruto);
@@ -1199,6 +1358,13 @@ function montarAlterar(mensagem: string, agora: DateTime): Intencao {
     return dia ? { ...base, dia } : base;
   }
   const termo = termoDeAlteracao(semDia);
+  const intervaloDestino = extrairIntervaloDeHoras(destinoBruto);
+  if (
+    intervaloDestino &&
+    fimNaoPosteriorAoInicio(intervaloDestino.inicio, intervaloDestino.fim)
+  ) {
+    return { tipo: "horario_invalido" };
+  }
   const destino = interpretarDestinoAlteracao(destinoBruto, agora);
   if (!termo || !destino) return { tipo: "desconhecida" };
   return dia
@@ -1206,24 +1372,24 @@ function montarAlterar(mensagem: string, agora: DateTime): Intencao {
     : { tipo: "alterar", termo, destino };
 }
 
-function horariosNoDia(
-  dia: string,
-  texto: string,
-): { inicio: string; fim: string } | null {
+type HorariosNoDia =
+  | { tipo: "ok"; inicio: string; fim: string }
+  | { tipo: "invalido" };
+
+function horariosNoDia(dia: string, texto: string): HorariosNoDia | null {
   const base = DateTime.fromISO(dia, { zone: FUSO_DONO });
   if (!base.isValid) return null;
 
-  const intervalo = RE_INTERVALO_HORAS.exec(texto);
+  const intervalo = extrairIntervaloDeHoras(texto);
   let inicio: DateTime;
   let fim: DateTime;
 
   if (intervalo) {
-    const começo = horaMinuto(intervalo[1], intervalo[2], intervalo[3]);
-    const termino = horaMinuto(intervalo[4], intervalo[5], intervalo[6]);
-    if (!começo || !termino) return null;
-    inicio = base.set(começo);
-    fim = base.set(termino);
-    if (fim <= inicio) fim = fim.plus({ days: 1 });
+    if (fimNaoPosteriorAoInicio(intervalo.inicio, intervalo.fim)) {
+      return { tipo: "invalido" };
+    }
+    inicio = base.set(intervalo.inicio);
+    fim = base.set(intervalo.fim);
   } else {
     const começo = extrairHoraInicio(texto);
     if (!começo) return null;
@@ -1232,7 +1398,7 @@ function horariosNoDia(
     fim = inicio.plus({ minutes: minutos });
   }
 
-  return { inicio: inicio.toISO()!, fim: fim.toISO()! };
+  return { tipo: "ok", inicio: inicio.toISO()!, fim: fim.toISO()! };
 }
 
 function montarPontual(mensagem: string, texto: string, agora: DateTime): Intencao {
@@ -1240,6 +1406,7 @@ function montarPontual(mensagem: string, texto: string, agora: DateTime): Intenc
   if (!dia) return { tipo: "desconhecida" };
   const horarios = horariosNoDia(dia, texto);
   if (!horarios) return { tipo: "desconhecida" };
+  if (horarios.tipo === "invalido") return { tipo: "horario_invalido" };
 
   return {
     tipo: "marcar_pontual",
@@ -1258,8 +1425,16 @@ export function completarMarcacaoPontual(
   diaBase: string | undefined,
   mensagem: string,
   agora: DateTime,
-): IntencaoMarcarPontual | IntencaoMarcarPontualSemHora | IntencaoDesconhecida {
-  const texto = mensagem.trim().toLowerCase().normalize("NFC");
+):
+  | IntencaoMarcarPontual
+  | IntencaoMarcarPontualSemHora
+  | IntencaoHorarioInvalido
+  | IntencaoDesconhecida {
+  const texto = mensagem
+    .normalize("NFC")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .toLowerCase();
   const dia = diaExplicitoNaMensagem(texto, agora) ?? diaBase;
   if (!dia) return { tipo: "desconhecida" };
 
@@ -1273,6 +1448,7 @@ export function completarMarcacaoPontual(
 
   const horarios = horariosNoDia(dia, texto);
   if (!horarios) return { tipo: "desconhecida" };
+  if (horarios.tipo === "invalido") return { tipo: "horario_invalido" };
 
   return {
     tipo: "marcar_pontual",
@@ -1541,8 +1717,12 @@ export function interpretarMensagem(
   mensagem: string,
   agora: DateTime,
 ): Intencao {
-  const original = mensagem.trim().replace(RE_PREFIXO_PEDIDO, "");
-  const texto = original.toLowerCase().normalize("NFC");
+  const original = mensagem
+    .normalize("NFC")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .replace(RE_PREFIXO_PEDIDO, "");
+  const texto = original.toLowerCase();
 
   if (RE_CONFIRMAR.test(texto)) {
     return { tipo: "confirmar" };

@@ -33,6 +33,8 @@ function deslocarPontual(
   dia: string,
   hora?: number,
   minuto?: number,
+  horaFim?: number,
+  minutoFim?: number,
 ): NovoCompromisso {
   const inicioAtual = DateTime.fromISO(compromisso.inicio, { setZone: true }).setZone(
     FUSO_DONO,
@@ -47,11 +49,20 @@ function deslocarPontual(
     second: 0,
     millisecond: 0,
   });
+  const fim =
+    horaFim != null && minutoFim != null
+      ? base.set({
+          hour: horaFim,
+          minute: minutoFim,
+          second: 0,
+          millisecond: 0,
+        })
+      : base.plus(duracao);
   return {
     tipo: "pontual",
     titulo: compromisso.titulo,
     inicio: base.toISO()!,
-    fim: base.plus(duracao).toISO()!,
+    fim: fim.toISO()!,
   };
 }
 
@@ -87,7 +98,14 @@ export function aplicarDestino(
       const dia = DateTime.fromISO(compromisso.inicio, { setZone: true })
         .setZone(FUSO_DONO)
         .toISODate()!;
-      return deslocarPontual(compromisso, dia, destino.hora, destino.minuto);
+      return deslocarPontual(
+        compromisso,
+        dia,
+        destino.hora,
+        destino.minuto,
+        destino.horaFim,
+        destino.minutoFim,
+      );
     }
     if (destino.tipo === "dia_e_hora") {
       return deslocarPontual(
@@ -95,6 +113,8 @@ export function aplicarDestino(
         resolverDiaDestino(destino.dia, destino.mes, destino.ano, compromisso, agora),
         destino.hora,
         destino.minuto,
+        destino.horaFim,
+        destino.minutoFim,
       );
     }
     if (destino.tipo === "periodo") {

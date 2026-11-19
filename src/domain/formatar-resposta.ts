@@ -37,6 +37,9 @@ export const RESPOSTA_DEIXO_PRA_LA = "Ok, deixo pra lá.";
 export const RESPOSTA_ALTERACAO_DOS_EXTREMOS =
   "Para soltar um dia de um Período, isso é Alteração dos extremos, não Cancelamento. Nada foi removido.";
 
+export const RESPOSTA_HORARIO_FIM_INVALIDO =
+  "O horário de fim precisa ser depois do início. Diga de novo, por exemplo “das 10h às 12h”.";
+
 function rotuloDia(dia: string, agora?: DateTime): string {
   return formatarDiaPorExtenso(
     dia,

@@ -4,6 +4,10 @@ import type {
   ConfirmacaoPontual,
 } from "./confirmacao";
 import { FUSO_DONO, MESES_PT, resolverDiaMesConsulta } from "./fuso";
+import {
+  extrairIntervaloDeHoras,
+  fimNaoPosteriorAoInicio,
+} from "./interpretador";
 import { DateTime } from "luxon";
 
 const GRUPO_MES =
@@ -28,11 +32,6 @@ const RE_DATA_NUM =
 
 const RE_DIA_SOLTO = new RegExp(
   `${PALAVRA}(?:dia\\s+)?(\\d{1,2})${FIM_PALAVRA}`,
-  "iu",
-);
-
-const RE_INTERVALO_HORAS = new RegExp(
-  `${PALAVRA}das?\\s+${HORA}\\s+[aà]s\\s+${HORA}${FIM_PALAVRA}`,
   "iu",
 );
 
@@ -285,13 +284,16 @@ function aplicarPontual(
     .setZone(FUSO_DONO)
     .toISODate()!;
   const dia = diaDaCorrecao(texto, agora, diaAtual);
-  const intervalo = RE_INTERVALO_HORAS.exec(texto);
+  const intervalo = extrairIntervaloDeHoras(texto);
   const duracao = duracaoEmMinutos(texto);
   let horaInicio: { hour: number; minute: number } | null = null;
   let horaFim: { hour: number; minute: number } | null = null;
   if (intervalo) {
-    horaInicio = horaMinuto(intervalo[1], intervalo[2], intervalo[3]);
-    horaFim = horaMinuto(intervalo[4], intervalo[5], intervalo[6]);
+    if (fimNaoPosteriorAoInicio(intervalo.inicio, intervalo.fim)) {
+      return null;
+    }
+    horaInicio = intervalo.inicio;
+    horaFim = intervalo.fim;
   } else {
     horaInicio = extrairHoraInicio(texto);
   }
@@ -322,7 +324,7 @@ function aplicarPontual(
     inicio = inicio.set(horaInicio);
     if (horaFim) {
       fim = inicio.set(horaFim);
-      if (fim <= inicio) fim = fim.plus({ days: 1 });
+      if (fim <= inicio) return null;
     } else if (duracao != null) {
       fim = inicio.plus({ minutes: duracao });
     } else {

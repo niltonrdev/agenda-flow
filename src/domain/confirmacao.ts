@@ -195,13 +195,22 @@ function destinoValido(valor: unknown): valor is DestinoAlteracao {
   const destino = valor as Partial<DestinoAlteracao> & { tipo?: string };
   if (destino.tipo === "dia") return typeof destino.dia === "number";
   if (destino.tipo === "hora") {
-    return typeof destino.hora === "number" && typeof destino.minuto === "number";
+    return (
+      typeof destino.hora === "number" &&
+      typeof destino.minuto === "number" &&
+      (destino.horaFim == null ||
+        (typeof destino.horaFim === "number" &&
+          typeof destino.minutoFim === "number"))
+    );
   }
   if (destino.tipo === "dia_e_hora") {
     return (
       typeof destino.dia === "number" &&
       typeof destino.hora === "number" &&
-      typeof destino.minuto === "number"
+      typeof destino.minuto === "number" &&
+      (destino.horaFim == null ||
+        (typeof destino.horaFim === "number" &&
+          typeof destino.minutoFim === "number"))
     );
   }
   if (destino.tipo === "periodo") {

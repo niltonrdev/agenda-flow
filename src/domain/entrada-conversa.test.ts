@@ -2867,4 +2867,225 @@ describe("entrada de conversa — dia+mês sem ano (relógio 2026-11-17)", () =>
   });
 });
 
+describe("entrada de conversa — título literal e horário de fim", () => {
+  const AGORA_NOV = DateTime.fromObject(
+    { year: 2026, month: 11, day: 18, hour: 10, minute: 0 },
+    { zone: FUSO_DONO },
+  );
+
+  it("Marcar Reunião de nome teste para o dia 07/12 às 10 horas às 12 horas fica 10h–12h", async () => {
+    const calendario = criarCalendarioEmMemoria([]);
+    const saida = await processarTurno(
+      {
+        mensagem:
+          "Marcar Reunião de nome teste para o dia 07/12 às 10 horas às 12 horas",
+        agora: AGORA_NOV,
+      },
+      calendario,
+    );
+    expect(saida.confirmacaoPendente).toMatchObject({
+      acao: "marcar_pontual",
+      titulo: "Reunião de nome teste",
+    });
+    expect(saida.texto).toMatch(/Reunião de nome teste/);
+    expect(saida.texto).not.toMatch(/Reunião de nome teste para o/i);
+    expect(saida.texto).toMatch(/das 10h às 12h/);
+    const pendente = saida.confirmacaoPendente;
+    if (pendente?.acao !== "marcar_pontual") {
+      throw new Error("esperava Confirmação de Pontual");
+    }
+    expect(pendente.inicio).toContain("2026-12-07T10:00");
+    expect(pendente.fim).toContain("2026-12-07T12:00");
+    expect(calendario.listarTodos()).toHaveLength(0);
+  });
+
+  it("almoço com Tamires tira o 'para' da data e lê 12 horas", async () => {
+    const calendario = criarCalendarioEmMemoria([]);
+    const proposta = await processarTurno(
+      {
+        mensagem: "Marcar almoço com Tamires para 22/11 às 12 horas",
+        agora: AGORA_NOV,
+      },
+      calendario,
+    );
+    expect(proposta.confirmacaoPendente).toMatchObject({
+      acao: "marcar_pontual",
+      titulo: "Almoço com Tamires",
+    });
+    expect(proposta.confirmacaoPendente).toMatchObject({
+      inicio: expect.stringContaining("2026-11-22T12:00"),
+      fim: expect.stringContaining("2026-11-22T13:00"),
+    });
+    expect(proposta.texto).not.toMatch(/Almoço com Tamires para/i);
+  });
+
+  it.each([
+    "Marcar reunião dia 07/12 das 10 às 12",
+    "Marcar reunião dia 07/12 das 10h às 12h",
+    "Marcar reunião dia 07/12 de 10 até 12",
+    "Marcar reunião dia 07/12 10h-12h",
+    "Marcar reunião dia 07/12 das 9:30 às 11",
+  ])("%s confirma com o fim dito", async (mensagem) => {
+    const calendario = criarCalendarioEmMemoria([]);
+    const saida = await processarTurno(
+      { mensagem, agora: AGORA_NOV },
+      calendario,
+    );
+    const pendente = saida.confirmacaoPendente;
+    if (pendente?.acao !== "marcar_pontual") {
+      throw new Error("esperava Confirmação de Pontual");
+    }
+    expect(pendente.inicio).toContain("2026-12-07");
+    if (mensagem.includes("9:30")) {
+      expect(pendente.inicio).toContain("T09:30");
+      expect(pendente.fim).toContain("T11:00");
+      expect(saida.texto).toMatch(/das 9h30 às 11h/);
+    } else {
+      expect(pendente.inicio).toContain("T10:00");
+      expect(pendente.fim).toContain("T12:00");
+      expect(saida.texto).toMatch(/das 10h às 12h/);
+    }
+  });
+
+  it("sem horário de fim marca 1 hora", async () => {
+    const calendario = criarCalendarioEmMemoria([]);
+    const saida = await processarTurno(
+      {
+        mensagem: "Marcar reunião dia 07/12 às 10 horas",
+        agora: AGORA_NOV,
+      },
+      calendario,
+    );
+    const pendente = saida.confirmacaoPendente;
+    if (pendente?.acao !== "marcar_pontual") {
+      throw new Error("esperava Confirmação de Pontual");
+    }
+    expect(pendente.inicio).toContain("T10:00");
+    expect(pendente.fim).toContain("T11:00");
+    expect(saida.texto).toMatch(/das 10h às 11h/);
+  });
+
+  it.each([
+    "Marcar reunião dia 07/12 das 12 às 10",
+    "Marcar reunião dia 07/12 às 12 horas às 10 horas",
+    "Marcar reunião dia 07/12 das 10h às 10h",
+  ])("%s pede esclarecimento e não cria Confirmação", async (mensagem) => {
+    const calendario = criarCalendarioEmMemoria([]);
+    const saida = await processarTurno(
+      { mensagem, agora: AGORA_NOV },
+      calendario,
+    );
+    expect(saida.confirmacaoPendente).toBeNull();
+    expect(saida.texto).toMatch(/horário de fim precisa ser depois do início/i);
+    expect(calendario.listarTodos()).toHaveLength(0);
+  });
+
+  it("alterar para 10h–12h mostra o fim na Confirmação", async () => {
+    const calendario = criarCalendarioEmMemoria([]);
+    await calendario.criar({
+      tipo: "pontual",
+      titulo: "Reunião de nome teste",
+      inicio: "2026-12-07T10:00:00.000-03:00",
+      fim: "2026-12-07T11:00:00.000-03:00",
+    });
+    const saida = await processarTurno(
+      {
+        mensagem:
+          "Alterar reunião de nome teste para o dia 08/12 às 10 horas às 12 horas",
+        agora: AGORA_NOV,
+      },
+      calendario,
+    );
+    expect(saida.confirmacaoPendente).toMatchObject({
+      acao: "alterar_pontual",
+      titulo: "Reunião de nome teste",
+    });
+    const pendente = saida.confirmacaoPendente;
+    if (pendente?.acao !== "alterar_pontual") {
+      throw new Error("esperava Confirmação de Alteração");
+    }
+    expect(pendente.inicio).toContain("2026-12-08T10:00");
+    expect(pendente.fim).toContain("2026-12-08T12:00");
+    expect(saida.texto).toMatch(/das 10h às 12h/);
+  });
+
+  it.each([
+    "Alterar reunião de nome teste para o dia 08/12 das 10 às 12",
+    "Alterar reunião de nome teste para o dia 08/12 das 10h às 12h",
+    "Alterar reunião de nome teste para o dia 08/12 de 10 até 12",
+    "Alterar reunião de nome teste para o dia 08/12 10h-12h",
+    "Alterar reunião de nome teste para o dia 08/12 das 9:30 às 11",
+  ])("%s altera com o fim dito", async (mensagem) => {
+    const calendario = criarCalendarioEmMemoria([]);
+    await calendario.criar({
+      tipo: "pontual",
+      titulo: "Reunião de nome teste",
+      inicio: "2026-12-07T10:00:00.000-03:00",
+      fim: "2026-12-07T11:00:00.000-03:00",
+    });
+    const saida = await processarTurno(
+      { mensagem, agora: AGORA_NOV },
+      calendario,
+    );
+    const pendente = saida.confirmacaoPendente;
+    if (pendente?.acao !== "alterar_pontual") {
+      throw new Error(`esperava alterar_pontual em ${mensagem}`);
+    }
+    expect(pendente.inicio).toContain("2026-12-08");
+    if (mensagem.includes("9:30")) {
+      expect(pendente.inicio).toContain("T09:30");
+      expect(pendente.fim).toContain("T11:00");
+    } else {
+      expect(pendente.inicio).toContain("T10:00");
+      expect(pendente.fim).toContain("T12:00");
+    }
+  });
+
+  it("alterar com fim antes do início pede esclarecimento", async () => {
+    const calendario = criarCalendarioEmMemoria([]);
+    await calendario.criar({
+      tipo: "pontual",
+      titulo: "Reunião de nome teste",
+      inicio: "2026-12-07T10:00:00.000-03:00",
+      fim: "2026-12-07T11:00:00.000-03:00",
+    });
+    const saida = await processarTurno(
+      {
+        mensagem:
+          "Alterar reunião de nome teste para o dia 08/12 das 12 às 10",
+        agora: AGORA_NOV,
+      },
+      calendario,
+    );
+    expect(saida.confirmacaoPendente).toBeNull();
+    expect(saida.texto).toMatch(/horário de fim precisa ser depois do início/i);
+    expect(calendario.listarTodos()[0]?.fim).toContain("T11:00");
+  });
+
+  it("alterar almoço para o dia 06/12 às 12horas muda data e hora", async () => {
+    const calendario = criarCalendarioEmMemoria([]);
+    await calendario.criar({
+      tipo: "pontual",
+      titulo: "Almoço com Tamires",
+      inicio: "2026-11-22T12:00:00.000-03:00",
+      fim: "2026-11-22T13:00:00.000-03:00",
+    });
+    const proposta = await processarTurno(
+      {
+        mensagem: "Alterar almoço com Tamires para o dia 06/12 às 12horas",
+        agora: AGORA_NOV,
+      },
+      calendario,
+    );
+    expect(proposta.confirmacaoPendente).toMatchObject({
+      acao: "alterar_pontual",
+      titulo: "Almoço com Tamires",
+    });
+    expect(proposta.confirmacaoPendente).toMatchObject({
+      inicio: expect.stringContaining("2026-12-06T12:00"),
+      fim: expect.stringContaining("2026-12-06T13:00"),
+    });
+  });
+});
+
 
